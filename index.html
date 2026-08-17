@@ -16,9 +16,10 @@
         <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden />
       </div>
       <div class="toolbar-center">
-        <label>Theme:
+        <label>Style:
           <select id="select-theme"></select>
         </label>
+        <button id="btn-edit-css" class="toolbar-btn" title="Edit CSS style">Edit CSS</button>
         <label>Platform:
           <select id="select-platform">
             <option value="wechat" selected>WeChat</option>
@@ -30,7 +31,6 @@
         <button id="btn-copy-rich" class="toolbar-btn primary" title="Copy as rich text for pasting into platform editor">Copy for Platform</button>
         <button id="btn-copy-html" class="toolbar-btn" title="Copy raw HTML">Copy HTML</button>
         <button id="btn-export" class="toolbar-btn" title="Export HTML file">Export</button>
-        <button id="btn-reload-css" class="toolbar-btn" title="Reload theme CSS">Reload CSS</button>
       </div>
     </header>
 
@@ -53,6 +53,24 @@
         </div>
       </div>
     </main>
+
+    <!-- CSS Editor Panel (hidden by default) -->
+    <div id="css-editor-panel" class="css-editor-panel hidden">
+      <div class="css-editor-header">
+        <span id="css-editor-title">Edit CSS Style</span>
+        <span id="css-unsaved-indicator" class="unsaved-indicator hidden">unsaved</span>
+        <div class="css-editor-actions">
+          <button id="btn-css-save" class="toolbar-btn" title="Save changes">Save</button>
+          <button id="btn-css-save-as" class="toolbar-btn" title="Save as new custom style">Save As...</button>
+          <button id="btn-css-duplicate" class="toolbar-btn" title="Duplicate this style">Duplicate</button>
+          <button id="btn-css-rename" class="toolbar-btn" title="Rename custom style">Rename</button>
+          <button id="btn-css-delete" class="toolbar-btn" title="Delete custom style">Delete</button>
+          <button id="btn-css-revert" class="toolbar-btn" title="Revert to saved version">Revert</button>
+          <button id="btn-css-close" class="toolbar-btn" title="Close CSS editor">Close</button>
+        </div>
+      </div>
+      <textarea id="css-editor" spellcheck="false" placeholder="/* Write your CSS scoped under #nice */"></textarea>
+    </div>
 
     <!-- Diagnostics bar -->
     <footer class="diagnostics-bar" id="diagnostics">

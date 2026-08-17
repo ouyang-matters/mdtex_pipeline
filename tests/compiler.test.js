@@ -179,15 +179,15 @@ describe('Full Compiler', () => {
     expect(result.html).toContain('Paragraph three');
   });
 
-  it('should compile with academic-orange theme', async () => {
+  it('should compile with minimal theme', async () => {
     const compiler = new Compiler();
     const result = await compiler.compile('# Test\n\nHello $x^2$', {
-      theme: 'academic-orange',
+      theme: 'minimal',
       platform: 'wechat',
       baseDir: '.',
     });
 
     expect(result.html).toBeTruthy();
-    expect(result.theme.name).toBe('academic-orange');
+    expect(result.theme.name).toBe('minimal');
   });
 });

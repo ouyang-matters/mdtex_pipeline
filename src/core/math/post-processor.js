@@ -109,7 +109,12 @@ async function replacePattern(html, pattern, displayMode, mathOutput, cache, sta
       svg: svgResult.svg,
       width: svgResult.width,
       height: svgResult.height,
+      widthPx: svgResult.widthPx,
+      heightPx: svgResult.heightPx,
+      widthEx: svgResult.widthEx,
+      heightEx: svgResult.heightEx,
       verticalAlign: svgResult.verticalAlign,
+      verticalAlignPx: svgResult.verticalAlignPx,
       dataUri: null,
       pngDataUri: null,
       pngBuffer: null,
@@ -170,9 +175,16 @@ function extractLatex(katexHtml) {
 
 /**
  * Build an <img> tag for a rendered formula.
+ *
+ * Sizing strategy:
+ * - SVGs have absolute pixel dimensions (converted from MathJax ex units).
+ * - The <img> tag uses em-based width/height so the formula scales with
+ *   surrounding text size.
+ * - 1ex ≈ 0.4313em, so we convert widthEx/heightEx to em for the img style.
+ * - Display equations use max-width:100% and auto height to never overflow.
+ * - Inline equations use height in em to match text, with vertical-align.
  */
 function buildImgTag(asset, latex, displayMode, mathOutput = MathOutput.SVG) {
-  // Choose source based on output mode
   let src;
   if (mathOutput === MathOutput.PNG) {
     src = asset.pngDataUri || asset.dataUri;
@@ -183,27 +195,35 @@ function buildImgTag(asset, latex, displayMode, mathOutput = MathOutput.SVG) {
 
   const escapedLatex = escapeAttr(latex);
 
+  // Convert ex dimensions to em for text-relative sizing (1ex ≈ 0.4313em)
+  const EX_TO_EM = 0.4313;
+  const widthEx = asset.widthEx || (asset.widthPx ? asset.widthPx / 7 : 0);
+  const heightEx = asset.heightEx || (asset.heightPx ? asset.heightPx / 7 : 0);
+  const widthEm = (widthEx * EX_TO_EM).toFixed(3);
+  const heightEm = (heightEx * EX_TO_EM).toFixed(3);
+
   if (displayMode) {
-    // Display equation: centered block, responsive
-    return `<section style="text-align:center;margin:1em 0;overflow-x:auto;overflow-y:hidden;">`
+    // Display equation: centered, width-constrained, never clipped.
+    // Use max-width:min(100%, Wem) so wide equations shrink to fit,
+    // and height:auto preserves aspect ratio.
+    return `<section style="text-align:center;margin:1em 0;overflow-x:auto;">`
       + `<img src="${src}" `
       + `alt="${escapedLatex}" `
       + `data-latex="${escapedLatex}" `
       + `data-display="true" `
-      + `style="max-width:100%;height:auto;vertical-align:middle;" `
+      + `style="max-width:100%;width:${widthEm}em;height:auto;vertical-align:middle;" `
       + `/>`
       + `</section>`;
   } else {
-    // Inline equation: vertically aligned with text
-    const valign = asset.verticalAlign || '-0.25ex';
-    // Parse height for sizing relative to surrounding text
-    const heightStyle = asset.height ? `height:${asset.height};` : 'height:1.2em;';
+    // Inline equation: sized proportionally to surrounding text.
+    const valignEx = asset.verticalAlignPx != null ? asset.verticalAlignPx : -2;
+    const valignEm = (valignEx / 7 * EX_TO_EM).toFixed(3);
 
     return `<img src="${src}" `
       + `alt="${escapedLatex}" `
       + `data-latex="${escapedLatex}" `
       + `data-display="false" `
-      + `style="${heightStyle}vertical-align:${valign};margin:0 0.15em;display:inline;" `
+      + `style="height:${heightEm}em;width:${widthEm}em;vertical-align:${valignEm}em;margin:0 0.15em;display:inline;" `
       + `/>`;
   }
 }

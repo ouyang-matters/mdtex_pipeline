@@ -193,7 +193,7 @@ describe('Themes', () => {
     const builtins = themes.filter(t => t.source === 'builtin');
     const userThemes = themes.filter(t => t.source === 'user');
 
-    expect(builtins.length).toBeGreaterThanOrEqual(2); // default, academic-orange
+    expect(builtins.length).toBeGreaterThanOrEqual(2); // default, minimal, modern
     expect(userThemes.length).toBe(1);
     expect(userThemes[0].name).toBe('my-theme');
   });
@@ -222,7 +222,7 @@ describe('Themes', () => {
     const { copyTheme } = await import('../src/core/themes/index.js');
 
     ensureUserDirs();
-    const targetPath = copyTheme('academic-orange', 'my-orange');
+    const targetPath = copyTheme('default', 'my-custom');
 
     expect(existsSync(targetPath)).toBe(true);
     expect(targetPath).toContain(paths.userThemes);

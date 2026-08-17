@@ -3,20 +3,28 @@ import sharp from 'sharp';
 /**
  * Convert an SVG string to a high-resolution transparent PNG buffer.
  *
- * @param {string} svg - SVG source string
+ * The SVG is expected to have pixel-based width/height attributes
+ * (already converted from MathJax ex units by publish-renderer.js).
+ *
+ * @param {string} svg - SVG source string with pixel dimensions
  * @param {object} options
  * @param {number} options.scale - Scale factor (default 3 for high-DPI)
  * @returns {Promise<{ pngBuffer: Buffer, width: number, height: number }>}
  */
 export async function svgToPng(svg, { scale = 3 } = {}) {
-  // Parse dimensions from SVG
-  const widthMatch = svg.match(/width="([\d.]+)(?:ex|em|px)?"/);
-  const heightMatch = svg.match(/height="([\d.]+)(?:ex|em|px)?"/);
+  // Parse pixel dimensions from SVG
+  const widthMatch = svg.match(/width="([\d.]+)(?:px)?"/);
+  const heightMatch = svg.match(/height="([\d.]+)(?:px)?"/);
 
-  // MathJax uses 'ex' units; 1ex ≈ 8px at standard font size
-  const exToPx = 8;
-  let baseWidth = widthMatch ? parseFloat(widthMatch[1]) * exToPx : 200;
-  let baseHeight = heightMatch ? parseFloat(heightMatch[1]) * exToPx : 50;
+  let baseWidth = widthMatch ? parseFloat(widthMatch[1]) : 200;
+  let baseHeight = heightMatch ? parseFloat(heightMatch[1]) : 50;
+
+  // If dimensions are still in ex units (legacy), convert
+  if (svg.match(/width="[\d.]+ex"/)) {
+    const exToPx = 7;
+    baseWidth = parseFloat(svg.match(/width="([\d.]+)ex"/)[1]) * exToPx;
+    baseHeight = parseFloat(svg.match(/height="([\d.]+)ex"/)?.[1] || '5') * exToPx;
+  }
 
   const targetWidth = Math.ceil(baseWidth * scale);
   const targetHeight = Math.ceil(baseHeight * scale);
@@ -25,11 +33,10 @@ export async function svgToPng(svg, { scale = 3 } = {}) {
     throw new Error(`Invalid SVG dimensions: ${targetWidth}x${targetHeight}`);
   }
 
-  // Modify SVG to set explicit pixel dimensions for sharp
+  // Set pixel dimensions for sharp rendering
   let scaledSvg = svg;
-  // Replace width/height with pixel values
-  scaledSvg = scaledSvg.replace(/width="[\d.]+(?:ex|em|px)?"/, `width="${targetWidth}px"`);
-  scaledSvg = scaledSvg.replace(/height="[\d.]+(?:ex|em|px)?"/, `height="${targetHeight}px"`);
+  scaledSvg = scaledSvg.replace(/width="[\d.]+(?:ex|em|px)?"/, `width="${targetWidth}"`);
+  scaledSvg = scaledSvg.replace(/height="[\d.]+(?:ex|em|px)?"/, `height="${targetHeight}"`);
 
   const pngBuffer = await sharp(Buffer.from(scaledSvg))
     .resize(targetWidth, targetHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })

@@ -1,29 +1,10 @@
-/* Default theme for mdtex-pipeline */
-/* Compatible with #nice scoping (mdnice-style) */
-
-:root {
-  --primary-color: #333333;
-  --accent-color: #3f51b5;
-  --bg-color: #ffffff;
-  --code-bg: #f6f8fa;
-  --blockquote-border: #dfe2e5;
-  --blockquote-color: #6a737d;
-  --table-border: #dfe2e5;
-  --table-header-bg: #f6f8fa;
-  --link-color: #576b95;
-  --heading-color: #333333;
-  --font-size: 15px;
-  --line-height: 1.75;
-  --font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
-  --code-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
+/* Classic – Clean academic style with neutral tones */
 
 #nice {
-  font-family: var(--font-family);
-  font-size: var(--font-size);
-  color: var(--primary-color);
-  line-height: var(--line-height);
-  background: var(--bg-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+  font-size: 15px;
+  color: #333333;
+  line-height: 1.75;
   padding: 16px;
   max-width: 100%;
   overflow-x: hidden;
@@ -31,11 +12,10 @@
   overflow-wrap: break-word;
 }
 
-/* Headings */
 #nice h1 {
   font-size: 1.6em;
   font-weight: bold;
-  color: var(--heading-color);
+  color: #1a1a1a;
   margin: 1.2em 0 0.6em 0;
   padding-bottom: 0.3em;
   border-bottom: 1px solid #eaecef;
@@ -44,7 +24,7 @@
 #nice h2 {
   font-size: 1.4em;
   font-weight: bold;
-  color: var(--heading-color);
+  color: #1a1a1a;
   margin: 1.2em 0 0.6em 0;
   padding-bottom: 0.3em;
   border-bottom: 1px solid #eaecef;
@@ -53,214 +33,97 @@
 #nice h3 {
   font-size: 1.2em;
   font-weight: bold;
-  color: var(--heading-color);
+  color: #1a1a1a;
   margin: 1em 0 0.5em 0;
 }
 
-#nice h4 {
-  font-size: 1.1em;
+#nice h4, #nice h5, #nice h6 {
+  font-size: 1.05em;
   font-weight: bold;
-  color: var(--heading-color);
-  margin: 1em 0 0.5em 0;
-}
-
-#nice h5, #nice h6 {
-  font-size: 1em;
-  font-weight: bold;
-  color: var(--heading-color);
+  color: #1a1a1a;
   margin: 0.8em 0 0.4em 0;
 }
 
-/* Paragraphs */
 #nice p {
   margin: 0.8em 0;
-  line-height: var(--line-height);
+  line-height: 1.75;
 }
 
-/* Bold / Italic / Strikethrough */
-#nice strong {
-  font-weight: bold;
-  color: var(--primary-color);
-}
+#nice strong { font-weight: bold; }
+#nice em { font-style: italic; }
+#nice del { text-decoration: line-through; color: #999; }
 
-#nice em {
-  font-style: italic;
-}
-
-#nice del {
-  text-decoration: line-through;
-  color: #999;
-}
-
-/* Links */
 #nice a {
-  color: var(--link-color);
+  color: #576b95;
   text-decoration: none;
-  border-bottom: 1px solid var(--link-color);
+  border-bottom: 1px solid #576b95;
   word-break: break-all;
 }
 
-/* Lists */
-#nice ul {
-  margin: 0.5em 0;
-  padding-left: 2em;
-  list-style-type: disc;
-}
+#nice ul { margin: 0.5em 0; padding-left: 2em; list-style-type: disc; }
+#nice ol { margin: 0.5em 0; padding-left: 2em; list-style-type: decimal; }
+#nice li { margin: 0.3em 0; line-height: 1.75; }
+#nice ul ul { list-style-type: circle; }
+#nice ul ul ul { list-style-type: square; }
 
-#nice ol {
-  margin: 0.5em 0;
-  padding-left: 2em;
-  list-style-type: decimal;
-}
-
-#nice li {
-  margin: 0.3em 0;
-  line-height: var(--line-height);
-}
-
-#nice ul ul {
-  list-style-type: circle;
-}
-
-#nice ul ul ul {
-  list-style-type: square;
-}
-
-/* Blockquotes */
 #nice blockquote {
   margin: 1em 0;
   padding: 10px 16px;
-  border-left: 4px solid var(--blockquote-border);
+  border-left: 4px solid #dfe2e5;
   background: #f9f9f9;
-  color: var(--blockquote-color);
+  color: #6a737d;
 }
 
-#nice blockquote p {
-  margin: 0.5em 0;
-}
+#nice blockquote p { margin: 0.5em 0; }
 
-/* Tables */
-#nice table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
-  font-size: 14px;
-  overflow-x: auto;
-  display: table;
-}
+#nice table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 14px; display: table; }
+#nice thead { background: #f6f8fa; }
+#nice th { font-weight: bold; border: 1px solid #dfe2e5; padding: 8px 12px; text-align: left; }
+#nice td { border: 1px solid #dfe2e5; padding: 8px 12px; }
+#nice tr:nth-child(even) { background-color: #f6f8fa; }
 
-#nice thead {
-  background: var(--table-header-bg);
-}
+#nice hr { border: none; border-top: 1px solid #eaecef; margin: 1.5em 0; }
 
-#nice th {
-  font-weight: bold;
-  border: 1px solid var(--table-border);
-  padding: 8px 12px;
-  text-align: left;
-}
-
-#nice td {
-  border: 1px solid var(--table-border);
-  padding: 8px 12px;
-}
-
-#nice tr:nth-child(even) {
-  background-color: #f6f8fa;
-}
-
-/* Horizontal rule */
-#nice hr {
-  border: none;
-  border-top: 1px solid #eaecef;
-  margin: 1.5em 0;
-}
-
-/* Inline code */
 #nice code {
-  font-family: var(--code-font);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.9em;
-  background: var(--code-bg);
+  background: #f6f8fa;
   padding: 2px 6px;
   border-radius: 3px;
   color: #e01e5a;
 }
 
-/* Code blocks */
-#nice .code-block-wrapper {
-  margin: 1em 0;
-  position: relative;
-}
+#nice .code-block-wrapper { margin: 1em 0; position: relative; }
 
 #nice .code-lang {
-  position: absolute;
-  right: 8px;
-  top: 6px;
-  font-size: 12px;
-  color: #999;
-  font-family: var(--code-font);
+  position: absolute; right: 8px; top: 6px;
+  font-size: 12px; color: #999;
+  font-family: "SFMono-Regular", Consolas, monospace;
   text-transform: uppercase;
 }
 
 #nice pre.code-block {
-  background: var(--code-bg);
+  background: #f6f8fa;
   border-radius: 4px;
   padding: 16px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 13px; line-height: 1.5;
   max-width: 100%;
 }
 
 #nice pre.code-block code {
-  background: none;
-  padding: 0;
-  border-radius: 0;
-  color: var(--primary-color);
-  font-size: inherit;
+  background: none; padding: 0; border-radius: 0; color: #333; font-size: inherit;
 }
 
-/* Images */
-#nice img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin: 1em auto;
-  border-radius: 4px;
-}
+#nice img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 
-/* Math */
-#nice .katex-display {
-  margin: 1em 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-}
+#nice .katex-display { margin: 1em 0; overflow-x: auto; }
+#nice .katex { font-size: 1.1em; }
+#nice .footnotes { margin-top: 2em; padding-top: 1em; border-top: 1px solid #eaecef; font-size: 0.9em; }
+#nice .footnote-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
 
-#nice .katex {
-  font-size: 1.1em;
-}
-
-/* Footnotes */
-#nice .footnotes {
-  margin-top: 2em;
-  padding-top: 1em;
-  border-top: 1px solid #eaecef;
-  font-size: 0.9em;
-}
-
-#nice .footnote-ref {
-  font-size: 0.75em;
-  vertical-align: super;
-  line-height: 0;
-}
-
-#nice .footnote-backref {
-  font-size: 0.75em;
-}
-
-/* Highlight.js token colors (inline-safe) */
+/* Syntax highlighting */
 #nice .hljs-keyword { color: #d73a49; }
 #nice .hljs-string { color: #032f62; }
 #nice .hljs-number { color: #005cc5; }
@@ -272,14 +135,7 @@
 #nice .hljs-literal { color: #005cc5; }
 #nice .hljs-type { color: #005cc5; }
 #nice .hljs-attr { color: #005cc5; }
-#nice .hljs-selector-tag { color: #22863a; }
-#nice .hljs-selector-class { color: #6f42c1; }
-#nice .hljs-selector-id { color: #005cc5; }
 #nice .hljs-meta { color: #005cc5; }
 #nice .hljs-variable { color: #e36209; }
 #nice .hljs-name { color: #22863a; }
 #nice .hljs-tag { color: #22863a; }
-#nice .hljs-attribute { color: #005cc5; }
-#nice .hljs-symbol { color: #005cc5; }
-#nice .hljs-deletion { color: #b31d28; background-color: #ffeef0; }
-#nice .hljs-addition { color: #22863a; background-color: #f0fff4; }

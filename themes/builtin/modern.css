@@ -1,0 +1,198 @@
+/* Modern – Contemporary style with subtle depth */
+
+#nice {
+  font-family: "Helvetica Neue", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  font-size: 15px;
+  color: #2d3436;
+  line-height: 1.75;
+  padding: 20px;
+  max-width: 100%;
+  overflow-x: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+#nice h1 {
+  font-size: 1.6em;
+  font-weight: 700;
+  color: #2d3436;
+  margin: 1.4em 0 0.6em 0;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid #636e72;
+}
+
+#nice h2 {
+  font-size: 1.35em;
+  font-weight: 700;
+  color: #2d3436;
+  margin: 1.3em 0 0.5em 0;
+  padding-left: 10px;
+  border-left: 4px solid #636e72;
+}
+
+#nice h3 {
+  font-size: 1.15em;
+  font-weight: 700;
+  color: #2d3436;
+  margin: 1em 0 0.5em 0;
+}
+
+#nice h4, #nice h5, #nice h6 {
+  font-size: 1.05em;
+  font-weight: 700;
+  color: #2d3436;
+  margin: 0.8em 0 0.4em 0;
+}
+
+#nice p {
+  margin: 0.8em 0;
+  text-align: justify;
+}
+
+#nice strong {
+  font-weight: 700;
+  color: #2d3436;
+}
+
+#nice em {
+  font-style: italic;
+  color: #555;
+}
+
+#nice del {
+  text-decoration: line-through;
+  color: #b2bec3;
+}
+
+#nice a {
+  color: #0984e3;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+#nice ul, #nice ol {
+  margin: 0.5em 0;
+  padding-left: 2em;
+}
+
+#nice li {
+  margin: 0.4em 0;
+}
+
+#nice blockquote {
+  margin: 1em 0;
+  padding: 14px 20px;
+  border-left: 4px solid #dfe6e9;
+  background: #f8f9fa;
+  color: #636e72;
+  border-radius: 0 4px 4px 0;
+}
+
+#nice blockquote p {
+  margin: 0.4em 0;
+}
+
+#nice table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 14px;
+}
+
+#nice thead {
+  background: #f1f3f5;
+}
+
+#nice th {
+  font-weight: 600;
+  border: 1px solid #dfe6e9;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+#nice td {
+  border: 1px solid #dfe6e9;
+  padding: 8px 12px;
+}
+
+#nice tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+#nice hr {
+  border: none;
+  border-top: 1px solid #dfe6e9;
+  margin: 2em 0;
+}
+
+#nice code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.9em;
+  background: #f1f3f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #e01e5a;
+}
+
+#nice .code-block-wrapper {
+  margin: 1em 0;
+  position: relative;
+}
+
+#nice .code-lang {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  font-size: 12px;
+  color: #999;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  text-transform: uppercase;
+}
+
+#nice pre.code-block {
+  background: #282c34;
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 100%;
+  color: #abb2bf;
+}
+
+#nice pre.code-block code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  color: #abb2bf;
+  font-size: inherit;
+}
+
+#nice img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em auto;
+  border-radius: 4px;
+}
+
+#nice .katex-display { margin: 1em 0; overflow-x: auto; }
+#nice .katex { font-size: 1.1em; }
+#nice .footnotes { margin-top: 2em; padding-top: 1em; border-top: 1px solid #dfe6e9; font-size: 0.9em; }
+#nice .footnote-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
+
+/* Dark code theme tokens */
+#nice .hljs-keyword { color: #c678dd; }
+#nice .hljs-string { color: #98c379; }
+#nice .hljs-number { color: #d19a66; }
+#nice .hljs-comment { color: #5c6370; font-style: italic; }
+#nice .hljs-function { color: #d19a66; }
+#nice .hljs-title { color: #61afef; }
+#nice .hljs-built_in { color: #c678dd; }
+#nice .hljs-type { color: #c678dd; }
+#nice .hljs-meta { color: #5c6370; }
+#nice .hljs-variable { color: #c678dd; }
+#nice .hljs-name { color: #e06c75; }
+#nice .hljs-tag { color: #e06c75; }

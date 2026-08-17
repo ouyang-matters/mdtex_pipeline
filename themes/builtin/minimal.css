@@ -1,0 +1,178 @@
+/* Minimal – Light, airy, maximum readability */
+
+#nice {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  color: #2c2c2c;
+  line-height: 1.8;
+  padding: 20px;
+  max-width: 100%;
+  overflow-x: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+#nice h1 {
+  font-size: 1.5em;
+  font-weight: 600;
+  color: #111;
+  margin: 1.6em 0 0.8em 0;
+  text-align: center;
+}
+
+#nice h2 {
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #111;
+  margin: 1.4em 0 0.6em 0;
+}
+
+#nice h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #333;
+  margin: 1.2em 0 0.5em 0;
+}
+
+#nice h4, #nice h5, #nice h6 {
+  font-size: 1em;
+  font-weight: 600;
+  color: #333;
+  margin: 1em 0 0.4em 0;
+}
+
+#nice p {
+  margin: 0.8em 0;
+}
+
+#nice strong {
+  font-weight: 600;
+}
+
+#nice em {
+  font-style: italic;
+}
+
+#nice del {
+  text-decoration: line-through;
+  color: #aaa;
+}
+
+#nice a {
+  color: #1a73e8;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+#nice ul, #nice ol {
+  margin: 0.5em 0;
+  padding-left: 2em;
+}
+
+#nice li {
+  margin: 0.3em 0;
+}
+
+#nice blockquote {
+  margin: 1em 0;
+  padding: 12px 20px;
+  border-left: 3px solid #e0e0e0;
+  background: #fafafa;
+  color: #555;
+}
+
+#nice blockquote p {
+  margin: 0.4em 0;
+}
+
+#nice table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 14px;
+}
+
+#nice th {
+  font-weight: 600;
+  border-bottom: 2px solid #e0e0e0;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+#nice td {
+  border-bottom: 1px solid #eee;
+  padding: 8px 12px;
+}
+
+#nice hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 2em 0;
+}
+
+#nice code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.88em;
+  background: #f5f5f5;
+  padding: 2px 5px;
+  border-radius: 3px;
+  color: #c7254e;
+}
+
+#nice .code-block-wrapper {
+  margin: 1em 0;
+  position: relative;
+}
+
+#nice .code-lang {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  font-size: 11px;
+  color: #aaa;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  text-transform: uppercase;
+}
+
+#nice pre.code-block {
+  background: #f8f8f8;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 14px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 100%;
+}
+
+#nice pre.code-block code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: #333;
+  font-size: inherit;
+}
+
+#nice img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em auto;
+}
+
+#nice .katex-display { margin: 1em 0; overflow-x: auto; }
+#nice .katex { font-size: 1.1em; }
+#nice .footnotes { margin-top: 2em; padding-top: 1em; border-top: 1px solid #eee; font-size: 0.9em; }
+#nice .footnote-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
+
+#nice .hljs-keyword { color: #d73a49; }
+#nice .hljs-string { color: #032f62; }
+#nice .hljs-number { color: #005cc5; }
+#nice .hljs-comment { color: #6a737d; font-style: italic; }
+#nice .hljs-function { color: #6f42c1; }
+#nice .hljs-title { color: #6f42c1; }
+#nice .hljs-built_in { color: #e36209; }
+#nice .hljs-type { color: #005cc5; }
+#nice .hljs-meta { color: #005cc5; }
+#nice .hljs-variable { color: #e36209; }
+#nice .hljs-name { color: #22863a; }
