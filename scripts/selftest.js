@@ -72,7 +72,7 @@ async function runSelftest() {
   try {
     const { Compiler } = await import('../src/core/compiler/index.js');
     const compiler = new Compiler();
-    const result = compiler.compile(source, {
+    const result = await compiler.compile(source, {
       theme: 'default',
       platform: 'wechat',
       baseDir: join(appRoot, 'tests', 'fixtures'),
@@ -86,6 +86,10 @@ async function runSelftest() {
     check('WeChat: tables preserved', result.validation.stats.tables > 0);
     check('WeChat: CSS inlined', !result.html.includes('<style>'));
     check('WeChat: no empty output', result.html.length > 500);
+    check('WeChat: formulas as images', /data-latex=/.test(result.html));
+    check('WeChat: no KaTeX HTML', !/<eq>/.test(result.html) && !/<eqn>/.test(result.html));
+    check('WeChat: no KaTeX CSS dependency', !/<annotation/.test(result.html));
+    check('WeChat: formula rendering errors', result.mathResult.errors === 0);
   } catch (e) {
     check('WeChat adapter', false);
   }
@@ -94,7 +98,7 @@ async function runSelftest() {
   try {
     const { Compiler } = await import('../src/core/compiler/index.js');
     const compiler = new Compiler();
-    const result = compiler.compile(source, {
+    const result = await compiler.compile(source, {
       theme: 'default',
       platform: 'zhihu',
       baseDir: join(appRoot, 'tests', 'fixtures'),

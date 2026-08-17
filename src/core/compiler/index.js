@@ -2,6 +2,8 @@ import { renderToHtml } from '../renderer/index.js';
 import { loadTheme, resolveCssVariables } from '../themes/index.js';
 import { extractImages, resolveImages } from '../images/index.js';
 import { countMathExpressions } from '../math/index.js';
+import { replaceKatexWithImages, MathOutput } from '../math/post-processor.js';
+import { FormulaCache } from '../math/formula-cache.js';
 import { inlineCss } from './css-inliner.js';
 import { validate } from './validator.js';
 import { WeChatAdapter } from '../../platforms/wechat/index.js';
@@ -16,21 +18,38 @@ const adapters = {
  * Core compilation pipeline.
  *
  * Markdown source
- *   -> Markdown parser
- *   -> Internal HTML (scoped under #nice)
- *   -> Math / code / image processing
+ *   -> Markdown parser (KaTeX for preview-quality HTML)
+ *   -> Scoped HTML under #nice
+ *   -> [Publish mode] Replace KaTeX math with SVG/PNG assets
  *   -> Theme CSS
- *   -> Platform adapter
+ *   -> Platform adapter transforms
  *   -> CSS inlining + sanitization
+ *   -> Validation
  *   -> Preview / Clipboard / Export HTML
  */
 export class Compiler {
   constructor(options = {}) {
     this.options = options;
+    this.formulaCache = new FormulaCache();
   }
 
-  compile(source, { theme = 'default', platform = 'wechat', baseDir = '.' } = {}) {
-    // Step 1: Render markdown to scoped HTML
+  /**
+   * Compile for preview (synchronous, KaTeX HTML math).
+   */
+  compilePreview(source, { theme = 'default', platform = 'wechat', baseDir = '.' } = {}) {
+    const rawHtml = renderToHtml(source, this.options);
+    const themeData = loadTheme(theme);
+    const themeCss = resolveCssVariables(themeData.css);
+    const mathStats = countMathExpressions(source);
+
+    return { html: rawHtml, themeCss, theme: themeData, mathStats, platform };
+  }
+
+  /**
+   * Compile for publishing (async — renders math to SVG/PNG assets).
+   */
+  async compile(source, { theme = 'default', platform = 'wechat', baseDir = '.', mathOutput } = {}) {
+    // Step 1: Render markdown to scoped HTML (with KaTeX)
     const rawHtml = renderToHtml(source, this.options);
 
     // Step 2: Load and prepare theme
@@ -41,28 +60,50 @@ export class Compiler {
     const images = extractImages(rawHtml);
     resolveImages(images, baseDir);
 
-    // Step 4: Count math expressions
+    // Step 4: Count math expressions from source
     const mathStats = countMathExpressions(source);
 
     // Step 5: Get platform adapter
     const adapter = adapters[platform] ? adapters[platform]() : null;
 
-    // Step 6: Append platform CSS overrides to theme
+    // Step 6: Determine math output mode
+    const effectiveMathOutput = mathOutput
+      || (adapter ? adapter.getMathOutput() : MathOutput.SVG);
+
+    // Step 7: Replace KaTeX math with publishing assets
+    const mathResult = await replaceKatexWithImages(rawHtml, {
+      mathOutput: effectiveMathOutput,
+      cache: this.formulaCache,
+    });
+
+    let html = mathResult.html;
+
+    // Step 8: Append platform CSS overrides to theme
     if (adapter) {
       themeCss += '\n' + adapter.getCssOverrides();
     }
 
-    // Step 7: Apply platform transformation
-    let html = adapter ? adapter.transform(rawHtml) : rawHtml;
+    // Step 9: Apply platform transformation
+    html = adapter ? adapter.transform(html) : html;
 
-    // Step 8: Inline CSS
+    // Step 10: Inline CSS
     html = inlineCss(html, themeCss);
 
-    // Step 9: Platform-specific sanitization
+    // Step 11: Platform-specific sanitization
     html = adapter ? adapter.sanitize(html) : html;
 
-    // Step 10: Validate
-    const validation = validate(html, source, { platform, images });
+    // Step 12: Validate (includes formula count checks)
+    const validation = validate(html, source, {
+      platform,
+      images,
+      mathResult: mathResult.stats,
+    });
+
+    // Add math rendering errors
+    for (const e of mathResult.errors) {
+      validation.errors.push(e);
+      validation.valid = false;
+    }
 
     // Merge platform-specific validation
     if (adapter) {
@@ -78,8 +119,10 @@ export class Compiler {
       theme: themeData,
       images,
       mathStats,
+      mathResult: mathResult.stats,
       validation,
       platform,
+      mathOutput: effectiveMathOutput,
     };
   }
 }

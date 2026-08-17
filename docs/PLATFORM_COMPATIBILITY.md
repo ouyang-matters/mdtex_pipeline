@@ -96,32 +96,98 @@ Documented differences between WeChat Official Account and Zhihu editors.
 
 ---
 
-## Math Rendering Compatibility
+## Math Rendering
 
-### KaTeX HTML (Current)
+### Architecture
 
-KaTeX renders math as nested `<span>` elements with inline styles for positioning, sizing, and alignment. After CSS inlining:
+The pipeline uses two separate math renderers:
 
-- **Inline math**: Generally works on both platforms. The many nested spans survive because they use inline styles.
-- **Display math**: Works but may have alignment issues with complex expressions.
-- **Aligned equations**: May have width/positioning issues.
+```
+LaTeX source
+    ├── Preview: KaTeX HTML     (fast, selectable, for editing)
+    └── Publish: MathJax SVG    (self-contained, for clipboard/export)
+               └── optional PNG fallback (3x resolution)
+```
 
-### Potential Issues
+The original LaTeX source is canonical and never modified. It is preserved in `data-latex` attributes on formula `<img>` tags.
 
-1. KaTeX uses `position: relative` and `top` offsets for vertical alignment -- these may be affected by WeChat's CSS stripping.
-2. Very wide equations may overflow on mobile.
-3. Some KaTeX CSS classes (`.katex-display`, `.katex-html`) are stripped, but their inline-styled children remain.
+### Preview (KaTeX HTML)
 
-### SVG Alternative (Phase 2)
+The editor preview uses KaTeX for instant rendering. KaTeX produces nested `<span>` elements with CSS classes — fine for live editing but fragile for publishing.
 
-If KaTeX HTML proves unreliable, rendering math to SVG (like doocs/md's MathJax `tex2svg()`) provides:
-- Self-contained vector graphics
-- No CSS dependency
-- Perfect rendering fidelity
-- Slightly larger HTML output
-- Loss of text selectability in formulas
+### Publishing (MathJax SVG)
 
-The `MathNode.renderedSvg` field is reserved for this purpose.
+For clipboard copy and HTML export, formulas are rendered to self-contained SVG images via MathJax `tex2svg()`. These SVGs:
+
+- Use `<path>` elements (vector outlines, no text/font dependency)
+- Have zero CSS class dependencies
+- Are self-contained (no external resources)
+- Include proper vertical alignment for inline math
+- Scale perfectly on high-DPI/mobile displays
+
+Formula assets are cached by content hash (LaTeX source + display mode + renderer version) to avoid re-rendering unchanged formulas.
+
+### Why Not KaTeX HTML for Publishing
+
+KaTeX HTML output for `$E=mc^2$` produces deeply nested spans:
+```html
+<span style="height:0.6833em;"></span>
+<span style="margin-right:0.0576em;">E</span>
+<span style="margin-right:0.2778em;"></span>
+<span>=</span>
+...
+```
+
+This structure fails in WeChat because:
+1. WeChat strips empty `<span>` elements
+2. Pixel-level `margin-right` and `height` positioning breaks
+3. KaTeX CSS classes are stripped, breaking the layout
+4. `position: relative` and `top` offsets may be modified
+5. The complex nested DOM structure is not a standard HTML pattern
+
+### SVG vs PNG
+
+| Format | Pros | Cons |
+|--------|------|------|
+| SVG data URI | Perfect scaling, small size, vector quality | Some platforms may not render inline SVG data URIs |
+| PNG data URI | Universal image support, guaranteed rendering | Larger file size, fixed resolution (mitigated by 3x rendering) |
+
+Default: SVG. Select with `--math svg` or `--math png` in CLI.
+
+### Inline Formula Styling
+
+Inline formulas are rendered as `<img>` tags with:
+- `height` matching MathJax's computed ex-height
+- `vertical-align` from MathJax for baseline alignment
+- `margin: 0 0.15em` for horizontal spacing
+- `display: inline` to flow with text
+
+### Display Formula Styling
+
+Display formulas are wrapped in centered `<section>` tags:
+- `text-align: center`
+- `margin: 1em 0`
+- `overflow-x: auto` for wide equations
+- `max-width: 100%` to prevent overflow
+
+### Formula Asset Pipeline
+
+```
+LaTeX source
+  → MathJax tex2svg() render
+  → Tightly cropped SVG (path-based, no fonts)
+  → Cache by SHA-256(latex + displayMode + rendererVersion)
+  → Optional: sharp SVG→PNG at 3x resolution
+  → <img src="data:image/svg+xml;base64,..." data-latex="..." />
+```
+
+### Known Limitations
+
+1. **Inline SVG data URIs**: Some WeChat versions may not render SVG data URIs reliably. PNG fallback (`--math png`) is available.
+2. **Very long equations**: May overflow on narrow mobile screens. `overflow-x: auto` on the container helps.
+3. **Text selectability**: Formula text is not selectable in the published article (it's an image). The original LaTeX is preserved in `data-latex` for accessibility.
+4. **File size**: SVG data URIs for math-heavy articles increase HTML size significantly. PNG URIs are even larger.
+5. **Future WeChat CDN upload**: Currently formulas are data URIs. Phase 2 can upload formula images to WeChat CDN for smaller HTML and better caching.
 
 ---
 
@@ -132,4 +198,7 @@ The `MathNode.renderedSvg` field is reserved for this purpose.
 3. Paste into Zhihu article editor
 4. Check on mobile devices
 5. Verify: headings, paragraphs, math, code blocks, tables, images, links
-6. Document any rendering differences in this file
+6. Compare SVG vs PNG rendering quality
+7. Check inline formula baseline alignment in mixed Chinese+math paragraphs
+8. Verify formula count preservation (source count = rendered count)
+9. Document any rendering differences in this file

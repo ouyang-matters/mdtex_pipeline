@@ -2,7 +2,7 @@
  * Validation pass for compiled HTML.
  * Checks for common issues before copy/export.
  */
-export function validate(html, source, { platform = 'wechat', images = [] } = {}) {
+export function validate(html, source, { platform = 'wechat', images = [], mathResult } = {}) {
   const warnings = [];
   const errors = [];
   const stats = {};
@@ -17,7 +17,6 @@ export function validate(html, source, { platform = 'wechat', images = [] } = {}
   // Count code blocks from source (survives sanitization that strips classes)
   stats.codeBlocks = (source.match(/^```/gm) || []).length / 2;
   stats.codeBlocks = Math.max(0, Math.floor(stats.codeBlocks));
-  // Also check indented code blocks
   if (stats.codeBlocks === 0) {
     stats.codeBlocks = (html.match(/<pre[\s>]/g) || []).length;
   }
@@ -29,12 +28,50 @@ export function validate(html, source, { platform = 'wechat', images = [] } = {}
   stats.mathInline = allDollar;
   stats.mathTotal = displayMath + allDollar;
 
-  // Check for KaTeX errors
-  const katexErrors = html.match(/class="katex-error"/g) || [];
-  const mathErrors = html.match(/class="math-error"/g) || [];
-  if (katexErrors.length > 0 || mathErrors.length > 0) {
-    const count = katexErrors.length + mathErrors.length;
-    errors.push(`${count} math expression(s) failed to render`);
+  // Formula asset validation (when publish math renderer was used)
+  if (mathResult) {
+    stats.formulaAssetsInline = mathResult.inlineRendered || 0;
+    stats.formulaAssetsDisplay = mathResult.displayRendered || 0;
+    stats.formulaAssetsCached = mathResult.cached || 0;
+    stats.formulaAssetsErrors = mathResult.errors || 0;
+
+    // Verify formula count preservation
+    const totalRendered = stats.formulaAssetsInline + stats.formulaAssetsDisplay;
+    if (totalRendered < stats.mathTotal && stats.mathTotal > 0) {
+      const missing = stats.mathTotal - totalRendered;
+      errors.push(`Formula count mismatch: ${stats.mathTotal} in source, ${totalRendered} rendered (${missing} missing)`);
+    }
+
+    if (mathResult.errors > 0) {
+      errors.push(`${mathResult.errors} formula(s) failed to render as assets`);
+    }
+
+    // Check for remaining KaTeX DOM (should be fully replaced)
+    if (/<eq>/.test(html) || /<eqn>/.test(html)) {
+      warnings.push('Unreplaced KaTeX math elements found in output');
+    }
+
+    // Check formula images in output
+    const formulaImgs = (html.match(/data-latex="/g) || []).length;
+    if (formulaImgs < totalRendered) {
+      warnings.push(`Only ${formulaImgs} formula image(s) found in final HTML, expected ${totalRendered}`);
+    }
+  } else {
+    // Legacy validation: check for KaTeX errors in KaTeX HTML output
+    const katexErrors = html.match(/katex-error/g) || [];
+    const mathErrors = html.match(/math-error/g) || [];
+    if (katexErrors.length > 0 || mathErrors.length > 0) {
+      const count = katexErrors.length + mathErrors.length;
+      errors.push(`${count} math expression(s) failed to render`);
+    }
+  }
+
+  // Check for zero-sized or invalid formula images
+  if (/src="data:[^"]*"[^>]*style="[^"]*height:\s*0/i.test(html)) {
+    errors.push('Zero-height formula image detected');
+  }
+  if (/src=""/.test(html)) {
+    errors.push('Empty image src detected in formula');
   }
 
   // Check images
@@ -74,14 +111,12 @@ export function validate(html, source, { platform = 'wechat', images = [] } = {}
 
   // Platform-specific checks
   if (platform === 'wechat') {
-    // WeChat strips certain attributes/elements
     if (/<video[\s>]/i.test(html)) {
       warnings.push('Video elements are not supported in WeChat articles');
     }
     if (/<audio[\s>]/i.test(html)) {
       warnings.push('Audio elements are not supported in WeChat articles');
     }
-    // Check for potential horizontal overflow
     if (/<pre[^>]*style="[^"]*width\s*:\s*\d{4,}px/i.test(html)) {
       warnings.push('Code block may cause horizontal overflow on mobile');
     }

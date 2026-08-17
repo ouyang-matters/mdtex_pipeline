@@ -5,6 +5,7 @@ import {
   sanitizeForPlatform,
   validate,
 } from './browser-compiler.js';
+import { replaceKatexWithImagesInBrowser } from './math-to-image.js';
 import 'katex/dist/katex.min.css';
 
 // Theme loading - load from both builtin and legacy locations
@@ -172,8 +173,11 @@ async function copyRichText() {
   const rawHtml = renderMarkdown(source);
   const resolvedCss = resolveCssVariables(currentTheme.css);
 
+  // Replace KaTeX math with SVG images for publishing
+  const mathProcessedHtml = await replaceKatexWithImagesInBrowser(rawHtml, resolvedCss);
+
   // Inline CSS using DOM-based approach
-  const inlinedHtml = inlineCssSimple(rawHtml, resolvedCss);
+  const inlinedHtml = inlineCssSimple(mathProcessedHtml, resolvedCss);
 
   // Sanitize for target platform
   const finalHtml = sanitizeForPlatform(inlinedHtml, currentPlatform);
@@ -206,7 +210,8 @@ async function copyHtml() {
 
   const rawHtml = renderMarkdown(source);
   const resolvedCss = resolveCssVariables(currentTheme.css);
-  const inlinedHtml = inlineCssSimple(rawHtml, resolvedCss);
+  const mathProcessedHtml = await replaceKatexWithImagesInBrowser(rawHtml, resolvedCss);
+  const inlinedHtml = inlineCssSimple(mathProcessedHtml, resolvedCss);
   const finalHtml = sanitizeForPlatform(inlinedHtml, currentPlatform);
 
   try {
@@ -217,13 +222,14 @@ async function copyHtml() {
   }
 }
 
-function exportHtml() {
+async function exportHtml() {
   const source = editor.value;
   if (!source.trim()) return;
 
   const rawHtml = renderMarkdown(source);
   const resolvedCss = resolveCssVariables(currentTheme.css);
-  const inlinedHtml = inlineCssSimple(rawHtml, resolvedCss);
+  const mathProcessedHtml = await replaceKatexWithImagesInBrowser(rawHtml, resolvedCss);
+  const inlinedHtml = inlineCssSimple(mathProcessedHtml, resolvedCss);
   const finalHtml = sanitizeForPlatform(inlinedHtml, currentPlatform);
 
   const fullDoc = `<!DOCTYPE html>

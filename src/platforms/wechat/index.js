@@ -86,6 +86,11 @@ export class WeChatAdapter extends PlatformAdapter {
     return { valid: errors.length === 0, warnings, errors };
   }
 
+  getMathOutput() {
+    // WeChat strips complex DOM structures. SVG data URIs are the safest.
+    return 'svg';
+  }
+
   getCssOverrides() {
     return `
       /* WeChat mobile-friendly overrides */

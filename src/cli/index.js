@@ -26,15 +26,17 @@ program
   .option('-t, --target <platform>', 'Target platform (wechat, zhihu)', 'wechat')
   .option('--theme <theme>', 'Theme name or CSS file path', 'default')
   .option('-o, --output <file>', 'Output HTML file')
-  .action((file, opts) => {
+  .option('--math <mode>', 'Math output mode (svg, png, auto)', 'svg')
+  .action(async (file, opts) => {
     const source = readFileSync(resolve(file), 'utf-8');
     const baseDir = dirname(resolve(file));
     const compiler = new Compiler();
 
-    const result = compiler.compile(source, {
+    const result = await compiler.compile(source, {
       theme: opts.theme,
       platform: opts.target,
       baseDir,
+      mathOutput: opts.math,
     });
 
     const outFile = opts.output || resolve('dist', `${basename(file, extname(file))}.${opts.target}.html`);
@@ -46,6 +48,7 @@ program
     console.log(`Compiled: ${file} -> ${outFile}`);
     console.log(`Platform: ${opts.target}`);
     console.log(`Theme: ${result.theme.name}`);
+    console.log(`Math: ${result.mathOutput} (${result.mathResult.inlineRendered} inline, ${result.mathResult.displayRendered} display)`);
     printValidation(result.validation);
   });
 
@@ -57,12 +60,12 @@ program
   .argument('<file>', 'Markdown file to validate')
   .option('-t, --target <platform>', 'Target platform (wechat, zhihu)', 'wechat')
   .option('--theme <theme>', 'Theme name or CSS file path', 'default')
-  .action((file, opts) => {
+  .action(async (file, opts) => {
     const source = readFileSync(resolve(file), 'utf-8');
     const baseDir = dirname(resolve(file));
     const compiler = new Compiler();
 
-    const result = compiler.compile(source, {
+    const result = await compiler.compile(source, {
       theme: opts.theme,
       platform: opts.target,
       baseDir,

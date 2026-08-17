@@ -91,12 +91,30 @@ describe('Validator', () => {
     const result = validate('<div id="nice"><img src="local.png"></div>', '', { images: [img] });
     expect(result.warnings.some(w => w.includes('local path'))).toBe(true);
   });
+
+  it('should validate formula asset counts', () => {
+    const html = '<div id="nice"><img data-latex="x^2" /><img data-latex="y^2" /></div>';
+    const source = 'inline $x^2$ and $y^2$';
+    const mathResult = { inlineRendered: 2, displayRendered: 0, cached: 0, errors: 0 };
+    const result = validate(html, source, { mathResult });
+    expect(result.stats.formulaAssetsInline).toBe(2);
+    expect(result.stats.formulaAssetsDisplay).toBe(0);
+  });
+
+  it('should error on formula count mismatch', () => {
+    const html = '<div id="nice"><img data-latex="x" /></div>';
+    const source = 'inline $x$ and $y$ and $z$';
+    const mathResult = { inlineRendered: 1, displayRendered: 0, cached: 0, errors: 0 };
+    const result = validate(html, source, { mathResult });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('mismatch'))).toBe(true);
+  });
 });
 
 describe('Full Compiler', () => {
-  it('should compile simple markdown for wechat', () => {
+  it('should compile simple markdown for wechat', async () => {
     const compiler = new Compiler();
-    const result = compiler.compile('# Hello\n\nWorld', {
+    const result = await compiler.compile('# Hello\n\nWorld', {
       theme: 'default',
       platform: 'wechat',
       baseDir: '.',
@@ -109,9 +127,9 @@ describe('Full Compiler', () => {
     expect(result.validation.stats.paragraphs).toBeGreaterThanOrEqual(1);
   });
 
-  it('should compile simple markdown for zhihu', () => {
+  it('should compile simple markdown for zhihu', async () => {
     const compiler = new Compiler();
-    const result = compiler.compile('# Hello\n\nWorld', {
+    const result = await compiler.compile('# Hello\n\nWorld', {
       theme: 'default',
       platform: 'zhihu',
       baseDir: '.',
@@ -121,10 +139,10 @@ describe('Full Compiler', () => {
     expect(result.platform).toBe('zhihu');
   });
 
-  it('should compile the fixture article', () => {
+  it('should compile the fixture article with formula assets', async () => {
     const source = readFileSync(resolve(fixtureDir, 'math_article.md'), 'utf-8');
     const compiler = new Compiler();
-    const result = compiler.compile(source, {
+    const result = await compiler.compile(source, {
       theme: 'default',
       platform: 'wechat',
       baseDir: fixtureDir,
@@ -136,26 +154,34 @@ describe('Full Compiler', () => {
     expect(result.validation.stats.mathTotal).toBeGreaterThan(0);
     expect(result.validation.stats.codeBlocks).toBeGreaterThan(0);
     expect(result.validation.stats.tables).toBeGreaterThan(0);
+
+    // Formula assets should be rendered
+    expect(result.mathResult.inlineRendered + result.mathResult.displayRendered).toBeGreaterThan(0);
+    expect(result.mathResult.errors).toBe(0);
+
+    // No KaTeX HTML remnants
+    expect(result.html).not.toContain('<eq>');
+    expect(result.html).not.toContain('<eqn>');
+    expect(result.html).not.toContain('<annotation');
   });
 
-  it('should not lose paragraphs when styling fails', () => {
+  it('should not lose paragraphs when styling fails', async () => {
     const compiler = new Compiler();
     const source = 'Paragraph one.\n\nParagraph two.\n\nParagraph three.';
-    const result = compiler.compile(source, {
+    const result = await compiler.compile(source, {
       theme: 'default',
       platform: 'wechat',
       baseDir: '.',
     });
 
-    // All three paragraphs must appear in output
     expect(result.html).toContain('Paragraph one');
     expect(result.html).toContain('Paragraph two');
     expect(result.html).toContain('Paragraph three');
   });
 
-  it('should compile with academic-orange theme', () => {
+  it('should compile with academic-orange theme', async () => {
     const compiler = new Compiler();
-    const result = compiler.compile('# Test\n\nHello $x^2$', {
+    const result = await compiler.compile('# Test\n\nHello $x^2$', {
       theme: 'academic-orange',
       platform: 'wechat',
       baseDir: '.',

@@ -24,7 +24,9 @@
     "katex": "^0.18.4",
     "markdown-it": "^15.0.0",
     "markdown-it-footnote": "^4.0.0",
-    "markdown-it-texmath": "^1.0.0"
+    "markdown-it-texmath": "^1.0.0",
+    "mathjax-full": "^3.2.1",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "vite": "^8.2.1",

@@ -35,4 +35,12 @@ export class PlatformAdapter {
   getCssOverrides() {
     return '';
   }
+
+  /**
+   * Get the preferred math output mode for this platform.
+   * Override in adapters. Values: 'svg', 'png', 'auto'.
+   */
+  getMathOutput() {
+    return 'svg';
+  }
 }
