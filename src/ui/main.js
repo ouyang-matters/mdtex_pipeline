@@ -7,8 +7,10 @@ import {
 } from './browser-compiler.js';
 import 'katex/dist/katex.min.css';
 
-// Theme loading
-const themeModules = import.meta.glob('/themes/*.css', { query: '?raw', import: 'default' });
+// Theme loading - load from both builtin and legacy locations
+const builtinThemeModules = import.meta.glob('/themes/builtin/*.css', { query: '?raw', import: 'default' });
+const legacyThemeModules = import.meta.glob('/themes/*.css', { query: '?raw', import: 'default' });
+const themeModules = { ...legacyThemeModules, ...builtinThemeModules };
 
 // State
 let currentTheme = { name: 'default', css: '' };
@@ -35,7 +37,7 @@ const previewPlatformLabel = document.getElementById('preview-platform-label');
 async function init() {
   // Load all themes
   for (const [path, loader] of Object.entries(themeModules)) {
-    const name = path.replace('/themes/', '').replace('.css', '');
+    const name = path.replace('/themes/builtin/', '').replace('/themes/', '').replace('.css', '');
     const css = await loader();
     themes[name] = { name, css, path };
   }
@@ -249,7 +251,7 @@ ${finalHtml}
 async function reloadCss() {
   // Reload themes by re-importing
   for (const [path, loader] of Object.entries(themeModules)) {
-    const name = path.replace('/themes/', '').replace('.css', '');
+    const name = path.replace('/themes/builtin/', '').replace('/themes/', '').replace('.css', '');
     // Vite will return cached version in dev, but we can invalidate
     try {
       const css = await loader();

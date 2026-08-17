@@ -4,6 +4,42 @@ Local publishing pipeline for long-form technical and mathematical articles, tar
 
 Converts Markdown + LaTeX source into platform-ready rich text with customizable CSS themes, live preview, and one-click clipboard copy.
 
+## Install
+
+```bash
+git clone git@github.com:ouyang-matters/mdtex_pipeline.git
+cd mdtex_pipeline
+./install.sh
+```
+
+## Usage
+
+```bash
+# Start the local UI
+publisher preview
+# Or: cd /path/to/mdtex_pipeline && npm run dev
+
+# CLI
+publisher build article.md --target wechat
+publisher build article.md --target zhihu --theme academic-orange
+publisher validate article.md --target wechat
+
+# Manage themes
+publisher themes list
+publisher themes copy academic-orange my-custom
+
+# System
+publisher init
+publisher doctor
+publisher version
+publisher update
+
+# Backups
+publisher backups list
+publisher backups create --label before-experiment
+publisher backups restore <backup-name>
+```
+
 ## Features
 
 - Markdown + LaTeX rendering (KaTeX)
@@ -14,70 +50,51 @@ Converts Markdown + LaTeX source into platform-ready rich text with customizable
 - Rich-text clipboard copy (paste directly into WeChat/Zhihu editor)
 - Live preview with theme/platform switching
 - Validation and diagnostics
-- CLI for batch compilation
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Start the local UI
-npm run dev
-# Open http://localhost:3000
-
-# Or use the CLI
-node src/cli/index.js build article.md --target wechat --theme default
-node src/cli/index.js build article.md --target zhihu --theme academic-orange
-node src/cli/index.js validate article.md --target wechat
-node src/cli/index.js themes
-```
-
-## UI Workflow
-
-1. Open the UI (`npm run dev`)
-2. Paste or open a Markdown file
-3. Select a theme and target platform
-4. Preview the rendered article
-5. Click **Copy for Platform** to copy rich text
-6. Paste into WeChat/Zhihu editor
+- Safe in-place updates with backup
+- User data separated from application code
 
 ## Themes
 
-Themes are CSS files in `themes/`. Two built-in themes:
+Two built-in themes:
 
 - `default` -- Clean, neutral style
 - `academic-orange` -- Warm academic style with orange accents
 
-Add custom themes by dropping `.css` files into `themes/`. See `docs/THEME_GUIDE.md`.
+Custom themes live in `~/.local/share/publisher/themes/`. Built-in themes in `themes/builtin/` are updated with the app but never overwrite user themes.
 
-## Project Structure
+```bash
+publisher themes copy academic-orange my-theme
+# Edit ~/.local/share/publisher/themes/my-theme.css
+```
+
+## Data Layout
 
 ```
-src/
-  core/           Markdown parser, renderer, math, code, images, themes, compiler
-  platforms/      WeChat and Zhihu adapters
-  ui/             Browser-side rendering and UI
-  cli/            CLI commands
-themes/           CSS theme files
-tests/            Test suites and fixtures
-docs/             Documentation
-dist/             Build output (gitignored)
+Application (git repo):   src/, themes/builtin/, tests/, scripts/
+Configuration:            ~/.config/publisher/
+User data & themes:       ~/.local/share/publisher/
+Cache:                    ~/.cache/publisher/
 ```
+
+Updates only change the application directory. User data is never touched.
 
 ## Documentation
 
+- [Installation](docs/INSTALLATION.md)
+- [Updating](docs/UPDATING.md)
+- [Data Layout](docs/DATA_LAYOUT.md)
+- [Migrations](docs/MIGRATIONS.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Reference Analysis](docs/REFERENCE_ANALYSIS.md)
 - [Platform Compatibility](docs/PLATFORM_COMPATIBILITY.md)
 - [Theme Guide](docs/THEME_GUIDE.md)
 - [Phase 2 Plan](docs/PHASE2.md)
+- [Reference Analysis](docs/REFERENCE_ANALYSIS.md)
 
 ## Testing
 
 ```bash
-npm test          # Run all tests
-npm run test:watch  # Watch mode
+npm test            # Run all tests (77 tests)
+publisher doctor    # Full system health check
 ```
 
 ## License

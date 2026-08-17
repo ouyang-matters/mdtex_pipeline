@@ -1,0 +1,292 @@
+/* Academic Orange theme for mdtex-pipeline */
+/* Warm academic style with orange accents */
+
+:root {
+  --primary-color: #2c3e50;
+  --accent-color: #e67e22;
+  --bg-color: #ffffff;
+  --code-bg: #fdf6ec;
+  --blockquote-border: #e67e22;
+  --blockquote-bg: #fef9f1;
+  --blockquote-color: #555;
+  --table-border: #e0d5c1;
+  --table-header-bg: #fdf6ec;
+  --link-color: #d35400;
+  --heading-color: #2c3e50;
+  --font-size: 15px;
+  --line-height: 1.8;
+  --font-family: "Georgia", "Songti SC", "SimSun", serif;
+  --code-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+#nice {
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  color: var(--primary-color);
+  line-height: var(--line-height);
+  background: var(--bg-color);
+  padding: 20px;
+  max-width: 100%;
+  overflow-x: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Headings */
+#nice h1 {
+  font-size: 1.6em;
+  font-weight: bold;
+  color: var(--heading-color);
+  margin: 1.5em 0 0.8em 0;
+  padding-bottom: 0.4em;
+  border-bottom: 2px solid var(--accent-color);
+  text-align: center;
+}
+
+#nice h2 {
+  font-size: 1.35em;
+  font-weight: bold;
+  color: var(--accent-color);
+  margin: 1.5em 0 0.6em 0;
+  padding-left: 12px;
+  border-left: 4px solid var(--accent-color);
+}
+
+#nice h3 {
+  font-size: 1.15em;
+  font-weight: bold;
+  color: var(--heading-color);
+  margin: 1.2em 0 0.5em 0;
+}
+
+#nice h4 {
+  font-size: 1.05em;
+  font-weight: bold;
+  color: var(--heading-color);
+  margin: 1em 0 0.4em 0;
+}
+
+#nice h5, #nice h6 {
+  font-size: 1em;
+  font-weight: bold;
+  color: var(--heading-color);
+  margin: 0.8em 0 0.4em 0;
+}
+
+/* Paragraphs */
+#nice p {
+  margin: 0.8em 0;
+  line-height: var(--line-height);
+  text-align: justify;
+}
+
+/* Bold / Italic / Strikethrough */
+#nice strong {
+  font-weight: bold;
+  color: var(--accent-color);
+}
+
+#nice em {
+  font-style: italic;
+  color: #555;
+}
+
+#nice del {
+  text-decoration: line-through;
+  color: #999;
+}
+
+/* Links */
+#nice a {
+  color: var(--link-color);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--link-color);
+  word-break: break-all;
+}
+
+/* Lists */
+#nice ul {
+  margin: 0.5em 0;
+  padding-left: 2em;
+  list-style-type: disc;
+}
+
+#nice ol {
+  margin: 0.5em 0;
+  padding-left: 2em;
+  list-style-type: decimal;
+}
+
+#nice li {
+  margin: 0.4em 0;
+  line-height: var(--line-height);
+}
+
+#nice ul ul {
+  list-style-type: circle;
+}
+
+#nice ul ul ul {
+  list-style-type: square;
+}
+
+/* Blockquotes - styled as theorem-like boxes */
+#nice blockquote {
+  margin: 1.2em 0;
+  padding: 12px 20px;
+  border-left: 4px solid var(--blockquote-border);
+  background: var(--blockquote-bg);
+  color: var(--blockquote-color);
+  border-radius: 0 4px 4px 0;
+}
+
+#nice blockquote p {
+  margin: 0.4em 0;
+}
+
+/* Tables */
+#nice table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 14px;
+  display: table;
+}
+
+#nice thead {
+  background: var(--table-header-bg);
+}
+
+#nice th {
+  font-weight: bold;
+  border: 1px solid var(--table-border);
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--accent-color);
+}
+
+#nice td {
+  border: 1px solid var(--table-border);
+  padding: 8px 12px;
+}
+
+#nice tr:nth-child(even) {
+  background-color: #fdf6ec;
+}
+
+/* Horizontal rule */
+#nice hr {
+  border: none;
+  border-top: 2px dashed var(--accent-color);
+  margin: 2em 0;
+  opacity: 0.5;
+}
+
+/* Inline code */
+#nice code {
+  font-family: var(--code-font);
+  font-size: 0.9em;
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #c7254e;
+  border: 1px solid #f0e0c8;
+}
+
+/* Code blocks */
+#nice .code-block-wrapper {
+  margin: 1em 0;
+  position: relative;
+}
+
+#nice .code-lang {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  font-size: 12px;
+  color: #b8860b;
+  font-family: var(--code-font);
+  text-transform: uppercase;
+}
+
+#nice pre.code-block {
+  background: #2d2d2d;
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 100%;
+  color: #cccccc;
+}
+
+#nice pre.code-block code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  color: #cccccc;
+  font-size: inherit;
+}
+
+/* Images */
+#nice img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Math */
+#nice .katex-display {
+  margin: 1.2em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#nice .katex {
+  font-size: 1.1em;
+}
+
+/* Footnotes */
+#nice .footnotes {
+  margin-top: 2em;
+  padding-top: 1em;
+  border-top: 1px solid #e0d5c1;
+  font-size: 0.9em;
+}
+
+#nice .footnote-ref {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+  color: var(--accent-color);
+}
+
+#nice .footnote-backref {
+  font-size: 0.75em;
+}
+
+/* Highlight.js dark theme tokens */
+#nice .hljs-keyword { color: #cc99cd; }
+#nice .hljs-string { color: #7ec699; }
+#nice .hljs-number { color: #f08d49; }
+#nice .hljs-comment { color: #999; font-style: italic; }
+#nice .hljs-function { color: #f08d49; }
+#nice .hljs-title { color: #6196cc; }
+#nice .hljs-params { color: #cccccc; }
+#nice .hljs-built_in { color: #cc99cd; }
+#nice .hljs-literal { color: #f08d49; }
+#nice .hljs-type { color: #cc99cd; }
+#nice .hljs-attr { color: #f08d49; }
+#nice .hljs-selector-tag { color: #cc99cd; }
+#nice .hljs-selector-class { color: #6196cc; }
+#nice .hljs-meta { color: #999; }
+#nice .hljs-variable { color: #cc99cd; }
+#nice .hljs-name { color: #e2777a; }
+#nice .hljs-tag { color: #e2777a; }
+#nice .hljs-attribute { color: #e2777a; }
