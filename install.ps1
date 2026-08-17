@@ -2,10 +2,22 @@
 # Run from PowerShell:  .\install.ps1
 # Safe to run multiple times (idempotent).
 
-$ErrorActionPreference = "Stop"
+# Do NOT use $ErrorActionPreference = "Stop" globally — it causes PowerShell
+# to treat stderr output from native commands (npm warnings, git messages)
+# as terminating errors, producing ugly NativeCommandError / CategoryInfo /
+# RemoteException output even when the command succeeds (exit code 0).
+# Instead, check $LASTEXITCODE after each native command.
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AppName = "publisher"
 $MinNodeMajor = 18
+
+function ExitIfFailed($message) {
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: $message (exit code $LASTEXITCODE)" -ForegroundColor Red
+        exit 1
+    }
+}
 
 Write-Host ""
 Write-Host "MDTeX Pipeline Installer" -ForegroundColor White
@@ -14,16 +26,14 @@ Write-Host ""
 
 # ── 1. Check Node.js ────────────────────────────────────────────────────────
 
+$nodeVersion = $null
 try {
     $nodeVersion = & node -v 2>$null
-} catch {
-    Write-Host "Error: Node.js is not installed." -ForegroundColor Red
-    Write-Host "Install Node.js >= $MinNodeMajor from https://nodejs.org/"
-    exit 1
-}
+} catch {}
 
 if (-not $nodeVersion) {
     Write-Host "Error: Node.js is not installed." -ForegroundColor Red
+    Write-Host "Install Node.js >= $MinNodeMajor from https://nodejs.org/"
     exit 1
 }
 
@@ -36,9 +46,12 @@ Write-Host "Node.js: $nodeVersion"
 
 # ── 2. Check npm ────────────────────────────────────────────────────────────
 
+$npmVersion = $null
 try {
     $npmVersion = & npm -v 2>$null
-} catch {
+} catch {}
+
+if (-not $npmVersion) {
     Write-Host "Error: npm is not installed." -ForegroundColor Red
     exit 1
 }
@@ -59,19 +72,41 @@ Write-Host ""
 
 Write-Host "Installing dependencies..." -ForegroundColor White
 Set-Location $ScriptDir
-& npm install --no-audit --no-fund 2>&1 | Select-Object -Last 3
+
+# Run npm install and capture all output (including stderr warnings).
+# npm writes deprecation warnings to stderr; we show them as info, not errors.
+$npmOutput = & npm install --no-audit --no-fund 2>&1
+$npmExit = $LASTEXITCODE
+
+# Show last few lines of output (skip noisy warnings)
+$npmOutput | Where-Object { $_ -is [string] -or $_.ToString() -notmatch '^\s*$' } | Select-Object -Last 3 | ForEach-Object { Write-Host $_.ToString() }
+
+if ($npmExit -ne 0) {
+    Write-Host "Error: npm install failed (exit code $npmExit)" -ForegroundColor Red
+    exit 1
+}
 Write-Host ""
 
 # ── 5. Build UI ─────────────────────────────────────────────────────────────
 
 Write-Host "Building UI..." -ForegroundColor White
-& npx vite build 2>&1 | Select-String -Pattern '(built in|✓)' | ForEach-Object { $_.Line }
+
+$buildOutput = & npx vite build 2>&1
+$buildExit = $LASTEXITCODE
+
+$buildOutput | ForEach-Object { $_.ToString() } | Select-String -Pattern '(built in|modules transformed)' | ForEach-Object { Write-Host $_.Line }
+
+if ($buildExit -ne 0) {
+    Write-Host "Error: UI build failed (exit code $buildExit)" -ForegroundColor Red
+    exit 1
+}
 Write-Host ""
 
 # ── 6. Initialize user directories ─────────────────────────────────────────
 
 Write-Host "Initializing user directories..." -ForegroundColor White
 & node src/cli/index.js init
+ExitIfFailed "Initialization failed"
 Write-Host ""
 
 # ── 7. Run self-test ────────────────────────────────────────────────────────
