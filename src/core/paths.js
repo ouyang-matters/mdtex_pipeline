@@ -3,15 +3,22 @@ import { existsSync, mkdirSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 
 const APP_NAME = 'publisher';
+const IS_WINDOWS = process.platform === 'win32';
 
 function xdgConfig() {
-  return process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+  if (process.env.XDG_CONFIG_HOME) return process.env.XDG_CONFIG_HOME;
+  if (IS_WINDOWS) return process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
+  return join(homedir(), '.config');
 }
 function xdgData() {
-  return process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
+  if (process.env.XDG_DATA_HOME) return process.env.XDG_DATA_HOME;
+  if (IS_WINDOWS) return process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
+  return join(homedir(), '.local', 'share');
 }
 function xdgCache() {
-  return process.env.XDG_CACHE_HOME || join(homedir(), '.cache');
+  if (process.env.XDG_CACHE_HOME) return process.env.XDG_CACHE_HOME;
+  if (IS_WINDOWS) return process.env.TEMP || join(homedir(), 'AppData', 'Local', 'Temp');
+  return join(homedir(), '.cache');
 }
 
 export const paths = {
