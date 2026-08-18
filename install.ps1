@@ -2,12 +2,6 @@
 # Run from PowerShell:  .\install.ps1
 # Safe to run multiple times (idempotent).
 
-# Do NOT use $ErrorActionPreference = "Stop" globally — it causes PowerShell
-# to treat stderr output from native commands (npm warnings, git messages)
-# as terminating errors, producing ugly NativeCommandError / CategoryInfo /
-# RemoteException output even when the command succeeds (exit code 0).
-# Instead, check $LASTEXITCODE after each native command.
-
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AppName = "publisher"
 $MinNodeMajor = 18
@@ -27,9 +21,7 @@ Write-Host ""
 # ── 1. Check Node.js ────────────────────────────────────────────────────────
 
 $nodeVersion = $null
-try {
-    $nodeVersion = & node -v 2>$null
-} catch {}
+try { $nodeVersion = & node -v 2>$null } catch {}
 
 if (-not $nodeVersion) {
     Write-Host "Error: Node.js is not installed." -ForegroundColor Red
@@ -47,9 +39,7 @@ Write-Host "Node.js: $nodeVersion"
 # ── 2. Check npm ────────────────────────────────────────────────────────────
 
 $npmVersion = $null
-try {
-    $npmVersion = & npm -v 2>$null
-} catch {}
+try { $npmVersion = & npm -v 2>$null } catch {}
 
 if (-not $npmVersion) {
     Write-Host "Error: npm is not installed." -ForegroundColor Red
@@ -57,13 +47,28 @@ if (-not $npmVersion) {
 }
 Write-Host "npm: $npmVersion"
 
-# ── 3. Check git ────────────────────────────────────────────────────────────
+# ── 3. Check git and pull latest ────────────────────────────────────────────
 
+Set-Location $ScriptDir
+
+$hasGit = $false
 try {
     $gitVersion = & git --version 2>$null
     Write-Host "git: $gitVersion"
+    $hasGit = $true
 } catch {
-    Write-Host "Warning: git not found. Update command will not work." -ForegroundColor Yellow
+    Write-Host "Warning: git not found. Cannot pull updates." -ForegroundColor Yellow
+}
+
+if ($hasGit -and (Test-Path "$ScriptDir\.git")) {
+    Write-Host ""
+    Write-Host "Pulling latest changes..." -ForegroundColor White
+    $pullOutput = & git pull --ff-only 2>&1
+    $pullExit = $LASTEXITCODE
+    $pullOutput | ForEach-Object { Write-Host "  $_" }
+    if ($pullExit -ne 0) {
+        Write-Host "Warning: git pull failed. Continuing with current version." -ForegroundColor Yellow
+    }
 }
 
 Write-Host ""
@@ -71,14 +76,10 @@ Write-Host ""
 # ── 4. Install dependencies ────────────────────────────────────────────────
 
 Write-Host "Installing dependencies..." -ForegroundColor White
-Set-Location $ScriptDir
 
-# Run npm install and capture all output (including stderr warnings).
-# npm writes deprecation warnings to stderr; we show them as info, not errors.
 $npmOutput = & npm install --no-audit --no-fund 2>&1
 $npmExit = $LASTEXITCODE
 
-# Show last few lines of output (skip noisy warnings)
 $npmOutput | Where-Object { $_ -is [string] -or $_.ToString() -notmatch '^\s*$' } | Select-Object -Last 3 | ForEach-Object { Write-Host $_.ToString() }
 
 if ($npmExit -ne 0) {
@@ -127,11 +128,13 @@ Write-Host ""
 Write-Host "Installation complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Start the UI:"
-Write-Host "  cd $ScriptDir; npm run dev" -ForegroundColor Cyan
+Write-Host "  npm run dev" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Or use the CLI:"
+Write-Host "CLI usage:"
 Write-Host "  node src/cli/index.js build article.md --target wechat" -ForegroundColor Cyan
-Write-Host "  node src/cli/index.js themes list" -ForegroundColor Cyan
 Write-Host "  node src/cli/index.js doctor" -ForegroundColor Cyan
 Write-Host "  node src/cli/index.js version" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "To update later, run this script again:" -ForegroundColor White
+Write-Host "  .\install.ps1" -ForegroundColor Cyan
 Write-Host ""

@@ -56,10 +56,11 @@ node src/cli/index.js doctor
 node src/cli/index.js version
 ```
 
-To update:
+To update on Windows, run the installer again (it pulls and rebuilds):
 
 ```powershell
-node src/cli/index.js update
+cd C:\path\to\mdtex_pipeline
+.\install.ps1
 ```
 
 ## Manual Install (any platform)
