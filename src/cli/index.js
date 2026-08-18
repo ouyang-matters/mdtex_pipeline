@@ -9,6 +9,7 @@ import { listThemes, listBuiltinThemes, listUserThemes, copyTheme } from '../cor
 import { paths, ensureUserDirs, getVersionSync, getGitCommitSync } from '../core/paths.js';
 import { initConfig, migrateConfig, getConfig, CONFIG_VERSION, DATA_VERSION } from '../core/config/index.js';
 import { createBackup, listBackups, restoreBackup } from '../core/config/backup.js';
+import { ArticleLibrary } from '../workspace/library.js';
 
 const program = new Command();
 
@@ -426,6 +427,110 @@ backupsCmd.action(() => {
   for (const b of backups) {
     const label = b.label ? ` (${b.label})` : '';
     console.log(`  ${b.name}${label}  -  ${b.files.length} files`);
+  }
+});
+
+// ── workspace ──────────────────────────────────────────────────────────────────
+
+const wsCmd = program
+  .command('ws')
+  .description('Manage the article workspace');
+
+wsCmd
+  .command('create')
+  .description('Create a new article')
+  .argument('<title>', 'Article title')
+  .option('-f, --folder <folder>', 'Folder path', '')
+  .option('--format <format>', 'Source format (markdown, latex)', 'markdown')
+  .action((title, opts) => {
+    ensureUserDirs();
+    const lib = new ArticleLibrary();
+    try {
+      const article = lib.create({ title, folder: opts.folder, sourceFormat: opts.format });
+      console.log(`Created: ${article.title}`);
+      console.log(`  ID: ${article.id}`);
+      console.log(`  Path: ${article.dir}`);
+      console.log(`  Source: ${article.sourceFile}`);
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+wsCmd
+  .command('list')
+  .description('List articles')
+  .option('-f, --folder <folder>', 'List specific folder')
+  .option('-n, --recent <n>', 'Show N most recent', '20')
+  .action((opts) => {
+    ensureUserDirs();
+    const lib = new ArticleLibrary();
+    const entries = opts.folder ? lib.listFolder(opts.folder) : lib.recent(parseInt(opts.recent));
+
+    if (entries.length === 0) {
+      console.log('No articles found. Create one: publisher ws create "My Article"');
+      return;
+    }
+
+    for (const { article, folder } of entries) {
+      const format = article.sourceFormat === 'latex' ? '[LaTeX]' : '[MD]';
+      const date = article.updatedAt?.slice(0, 10) || '';
+      console.log(`  ${format} ${article.title}  (${date})`);
+      console.log(`       ${folder}`);
+    }
+  });
+
+wsCmd
+  .command('search')
+  .description('Search articles by title or tags')
+  .argument('<query>', 'Search query')
+  .action((query) => {
+    ensureUserDirs();
+    const lib = new ArticleLibrary();
+    const results = lib.search(query);
+
+    if (results.length === 0) {
+      console.log(`No articles matching "${query}".`);
+      return;
+    }
+
+    console.log(`Found ${results.length} article(s):`);
+    for (const { article, folder } of results) {
+      console.log(`  ${article.title}  (${folder})`);
+    }
+  });
+
+wsCmd
+  .command('import')
+  .description('Import a Markdown file into the workspace')
+  .argument('<file>', 'Markdown file to import')
+  .option('-f, --folder <folder>', 'Target folder', '')
+  .action((file, opts) => {
+    ensureUserDirs();
+    const lib = new ArticleLibrary();
+    try {
+      const article = lib.importFile(resolve(file), opts.folder);
+      console.log(`Imported: ${article.title}`);
+      console.log(`  ID: ${article.id}`);
+      console.log(`  Path: ${article.dir}`);
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+wsCmd.action(() => {
+  ensureUserDirs();
+  const lib = new ArticleLibrary();
+  const entries = lib.recent(10);
+  if (entries.length === 0) {
+    console.log('Workspace is empty. Create an article: publisher ws create "My Article"');
+    return;
+  }
+  console.log('Recent articles:');
+  for (const { article, folder } of entries) {
+    const date = article.updatedAt?.slice(0, 10) || '';
+    console.log(`  ${article.title}  (${date})  ${folder}`);
   }
 });
 

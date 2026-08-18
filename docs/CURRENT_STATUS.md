@@ -1,112 +1,164 @@
 # Current Status
 
-## Installation
+## What Is Working
 
+### Core Publishing Pipeline
+- Markdown + LaTeX rendering with KaTeX (preview) and MathJax (publish)
+- Inline SVG formula output for WeChat (no data-URI images, no external CSS)
+- CSS inlining via juice with theme CSS variable resolution
+- Platform adapters: WeChat and Zhihu
+- Formula count validation (source count = rendered count)
+- SVG and PNG formula output modes
+
+### Article Workspace
+- Multi-article library with folder organization
+- Create, rename, search, import articles
+- Stable article IDs across renames and moves
+- Markdown and LaTeX source format support
+- Asset management with safe filenames
+- Article metadata (title, tags, series, targets, theme)
+
+### Themes and Styles
+- Three built-in themes: Classic (default), Minimal, Modern
+- Custom CSS editor in the UI with live preview
+- Custom styles persisted in localStorage (browser) and user data dir (CLI)
+- Built-in styles read-only; user styles editable
+- Styles scoped to `#nice` container
+
+### Installation and Updates
+- `./install.sh` (Linux/macOS), `.\install.ps1` (Windows PowerShell)
+- Safe in-place updates with automatic backup
+- Config migration with unknown-key preservation
+- Rendering regression selftest during update
+
+### AI Backends (Interface Ready)
+- LocalClaudeCodeBackend: invokes installed Claude Code CLI
+- RemoteClaudeClawBackend: connects via HTTP or SSH
+- Scope constraints: content-only, theme-only, metadata-only edits
+
+### Blog Pipeline Integration (Interface Ready)
+- Detects `blogpipe` CLI in PATH
+- Hands off source, metadata, assets to blog pipeline for deployment
+- MDTeX does not reimplement deployment, sync, or rollback
+
+## How To
+
+### Install
 ```bash
 git clone git@github.com:ouyang-matters/mdtex_pipeline.git
 cd mdtex_pipeline
-./install.sh
+./install.sh          # Linux/macOS
+.\install.ps1         # Windows PowerShell
 ```
 
-## Update
-
-```bash
-publisher update
-```
-
-## Start the UI
-
+### Launch the UI
 ```bash
 cd /path/to/mdtex_pipeline && npm run dev
 # Open http://localhost:3000
 ```
 
-## Persistent Data Locations
+### Create and Search Articles
+```bash
+publisher ws create "My Article"
+publisher ws create "Paper" --format latex --folder research
+publisher ws list
+publisher ws search "bayesian"
+publisher ws import existing-article.md
+```
 
-| Category | Path |
-|----------|------|
-| Config | `~/.config/publisher/config.json` |
-| Preferences | `~/.config/publisher/preferences.json` |
-| Platform settings | `~/.config/publisher/platforms.json` |
-| Secrets | `~/.config/publisher/secrets.env` |
-| User themes | `~/.local/share/publisher/themes/` |
-| Workspace | `~/.local/share/publisher/workspace/` |
-| Backups | `~/.local/share/publisher/backups/` |
-| Assets | `~/.local/share/publisher/assets/` |
-| Cache | `~/.cache/publisher/` |
+### Compile for WeChat
+```bash
+publisher build article.md --target wechat
+publisher build article.md --target wechat --math png  # PNG fallback
+```
 
-All paths respect XDG Base Directory Specification (`$XDG_CONFIG_HOME`, `$XDG_DATA_HOME`, `$XDG_CACHE_HOME`).
+### Compile for Zhihu
+```bash
+publisher build article.md --target zhihu
+```
 
-## Migration Behavior
+### Manage Themes
+```bash
+publisher themes list
+publisher themes copy default my-custom
+# Edit ~/.local/share/publisher/themes/my-custom.css
+```
 
-- Config schema version: **1**
-- Data schema version: **1**
-- Migrations add new keys with defaults, never remove existing keys
-- Unknown user keys are preserved
-- Config is backed up before migration
-- Migration files in `migrations/` directory
-
-## Backup Behavior
-
-- Automatic backup before each update (`pre-update` label)
-- Manual backups via `publisher backups create`
-- Backups include: config, preferences, platforms, secrets, user themes, presets
-- Backups exclude: workspace, assets, cache (too large, unchanged by updates)
-- Restore via `publisher backups restore <name>`
-
-## Tested Upgrade Path
-
-| Scenario | Status |
-|----------|--------|
-| Clean installation | Tested |
-| Running installer twice | Tested (idempotent) |
-| Repeated `init` | Tested (preserves existing config) |
-| Upgrade with custom themes | Tested (user themes untouched) |
-| Upgrade with modified preferences | Tested (preferences preserved) |
-| Upgrade with stored secrets | Tested (secrets preserved) |
-| Upgrade with workspace files | Tested (workspace preserved) |
-| Upgrade with generated cache | Tested (cache preserved) |
-| Config schema migration | Tested (v0→v1) |
-| Overlapping theme names | Tested (user theme takes priority) |
-| Unknown config keys | Tested (preserved through migration) |
-| Rendering fixture after upgrade | Tested (selftest) |
-| Dirty git checkout | Tested (aborts with message, --force available) |
+### System Maintenance
+```bash
+publisher doctor        # Full health check
+publisher update        # Safe in-place update
+publisher version       # Version and schema info
+publisher backups list  # List backups
+```
 
 ## Math Rendering
 
-Formulas are rendered using a dual-renderer architecture:
+Dual-renderer architecture:
+- **Preview**: KaTeX HTML (fast, selectable text)
+- **Publish**: MathJax `tex2svg()` → inline SVG with `<path>` elements
 
-- **Preview**: KaTeX HTML (fast, selectable, for live editing)
-- **Publish**: MathJax SVG (self-contained `<path>` elements, no CSS dependency)
+Publishing output: Formulas are embedded as inline `<svg>` elements directly
+in the HTML (mdnice-style), not as `<img src="data:...">` tags. This survives
+WeChat paste because the SVGs contain only `<path>` elements with no external
+CSS, font, `<defs>`, `<use>`, `id`, or `class` dependencies.
 
-Publishing output modes: `--math svg` (default), `--math png` (3x resolution), `--math auto`.
+Formula cache: `~/.cache/publisher/formulas/` with SHA-256 content-hash keys.
 
-Formula assets are cached by content hash in `~/.cache/publisher/formulas/`.
+## Incomplete / Planned
 
-Formula count validation: source formula count must match rendered formula count — any mismatch fails the build.
+| Feature | Status |
+|---------|--------|
+| PDF compilation (latexmk) | Interface planned, not implemented |
+| Blog pipeline CLI integration | Interface defined, needs blogpipe CLI |
+| AI editing integration | Backend interface implemented, UI integration pending |
+| WeChat image CDN upload | Upload interface defined, API not implemented |
+| Full-text article search | Title/tag search implemented, body search pending |
+| Article build target switching in UI | CLI working, UI pending |
 
-## Known Limitations
+## Known WeChat Rendering Limitations
 
-1. `publisher update` requires a git checkout (won't work from downloaded archive)
-2. The web UI loads themes from `themes/builtin/` at build time; user themes from `~/.local/share/publisher/themes/` are only available via CLI
-3. SVG data URIs may not render in all WeChat versions; use `--math png` as fallback
-4. Formula images are data URIs — large math-heavy articles produce large HTML. Phase 2 can upload formula images to WeChat CDN
-5. WeChat content images must be uploaded to WeChat CDN manually (Phase 2 will add API upload)
-6. The `publisher` CLI wrapper is installed to `~/.local/bin/` which may not be in PATH on all systems
+1. Inline SVG formulas are the most compatible approach, but some very old WeChat
+   versions may not render inline SVG. Use `--math png` as fallback.
+2. WeChat content images must be on WeChat CDN (manual upload for now).
+3. Custom fonts are not available in WeChat articles.
+4. `position: fixed/absolute` is unreliable in WeChat.
+5. Very wide equations scroll horizontally on mobile (by design, not clipped).
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `publisher build <file>` | Compile Markdown for a target platform |
+| `publisher build <file>` | Compile for a target platform |
 | `publisher validate <file>` | Validate without compiling |
-| `publisher preview [file]` | Show how to start the preview UI |
-| `publisher themes list` | List all themes (builtin + user) |
-| `publisher themes copy <src> <dst>` | Copy a theme to user themes |
-| `publisher init` | Initialize user directories (idempotent) |
-| `publisher version` | Show version and schema info |
-| `publisher doctor` | Full health check with rendering tests |
+| `publisher preview [file]` | Start preview UI info |
+| `publisher themes list` | List all themes |
+| `publisher themes copy <src> <dst>` | Copy theme for customization |
+| `publisher ws create <title>` | Create a new article |
+| `publisher ws list` | List articles |
+| `publisher ws search <query>` | Search articles |
+| `publisher ws import <file>` | Import a Markdown file |
+| `publisher init` | Initialize user directories |
+| `publisher version` | Version and schema info |
+| `publisher doctor` | Full health check |
 | `publisher update` | Safe in-place update |
-| `publisher backups list` | List all backups |
-| `publisher backups create` | Create a manual backup |
-| `publisher backups restore <name>` | Restore from backup |
+| `publisher backups list/create/restore` | Backup management |
+
+## Persistent Data Locations
+
+| Category | Path |
+|----------|------|
+| Config | `~/.config/publisher/` |
+| User themes | `~/.local/share/publisher/themes/` |
+| Article workspace | `~/.local/share/publisher/workspace/` |
+| Backups | `~/.local/share/publisher/backups/` |
+| Formula cache | `~/.cache/publisher/formulas/` |
+
+## Test Coverage
+
+127 tests across 8 suites:
+- Parser, math rendering, CSS inlining, platform adapters
+- Formula asset generation (SVG, PNG, caching)
+- Formula sizing (dimensions, viewBox, no clipping)
+- Installation, config, themes, backup/restore
+- Article workspace (create, search, import, rename, migrate)
