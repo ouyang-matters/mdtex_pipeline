@@ -8,26 +8,32 @@ import {
 import { replaceKatexWithImagesInBrowser } from './math-to-image.js';
 import 'katex/dist/katex.min.css';
 
-// ── Theme / Style Storage ─────────────────────────────────────────────────────
-// Builtin themes: bundled at build time from themes/builtin/*.css
-// Custom styles: persisted in localStorage under "publisher_custom_styles"
-// Selected style: persisted in localStorage under "publisher_selected_style"
+// ── Storage Keys ──────────────────────────────────────────────────────────────
 
 const STORAGE_KEY_STYLES = 'publisher_custom_styles';
 const STORAGE_KEY_SELECTED = 'publisher_selected_style';
+const STORAGE_KEY_ARTICLES = 'publisher_articles';
+const STORAGE_KEY_CURRENT_ARTICLE = 'publisher_current_article';
+const STORAGE_KEY_LIBRARY_VISIBLE = 'publisher_library_visible';
 
 const builtinThemeModules = import.meta.glob('/themes/builtin/*.css', { query: '?raw', import: 'default' });
 
-// State
-let builtinThemes = {};  // { name: { name, css, source:'builtin' } }
-let customStyles = {};   // { name: { name, css, source:'custom' } }
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let builtinThemes = {};
+let customStyles = {};
 let currentStyle = { name: 'default', css: '', source: 'builtin' };
 let currentPlatform = 'wechat';
 let cssEditorDirty = false;
 let cssEditorOriginal = '';
 let debounceTimer = null;
 
-// DOM
+// Article library state
+let articles = [];       // [{ id, title, content, folder, format, updatedAt }]
+let currentArticle = null;
+
+// ── DOM ───────────────────────────────────────────────────────────────────────
+
 const editor = document.getElementById('editor');
 const previewContent = document.getElementById('preview-content');
 const selectTheme = document.getElementById('select-theme');
@@ -41,6 +47,15 @@ const btnEditCss = document.getElementById('btn-edit-css');
 const diagStats = document.getElementById('diag-stats');
 const diagWarnings = document.getElementById('diag-warnings');
 const previewPlatformLabel = document.getElementById('preview-platform-label');
+const articleTitleDisplay = document.getElementById('article-title');
+
+// Library DOM
+const libraryPanel = document.getElementById('library-panel');
+const libraryList = document.getElementById('library-list');
+const librarySearch = document.getElementById('library-search');
+const btnToggleLibrary = document.getElementById('btn-toggle-library');
+const btnNewArticle = document.getElementById('btn-new-article');
+const editorFormatLabel = document.getElementById('editor-format-label');
 
 // CSS editor DOM
 const cssEditorPanel = document.getElementById('css-editor-panel');
@@ -65,13 +80,9 @@ async function init() {
     builtinThemes[name] = { name, css, source: 'builtin' };
   }
 
-  // Load custom styles from localStorage
   loadCustomStyles();
-
-  // Populate theme selector
   rebuildThemeSelector();
 
-  // Restore selected style
   const savedSelected = localStorage.getItem(STORAGE_KEY_SELECTED);
   if (savedSelected && getAllStyles()[savedSelected]) {
     selectTheme.value = savedSelected;
@@ -81,13 +92,44 @@ async function init() {
     currentStyle = builtinThemes['default'];
   }
 
-  // Load sample content
-  if (!editor.value) {
-    editor.value = getDefaultContent();
+  // Load article library
+  loadArticles();
+  const savedCurrent = localStorage.getItem(STORAGE_KEY_CURRENT_ARTICLE);
+  if (savedCurrent) {
+    const found = articles.find(a => a.id === savedCurrent);
+    if (found) {
+      selectArticle(found);
+    }
   }
 
+  // If no current article, create a scratch one
+  if (!currentArticle) {
+    if (articles.length > 0) {
+      selectArticle(articles[0]);
+    } else {
+      const scratch = createArticle('Untitled');
+      selectArticle(scratch);
+    }
+  }
+
+  // Restore library visibility
+  const libVisible = localStorage.getItem(STORAGE_KEY_LIBRARY_VISIBLE);
+  if (libVisible === 'false') {
+    libraryPanel.classList.add('collapsed');
+  }
+
+  renderLibrary();
+
   // Event listeners
-  editor.addEventListener('input', () => debouncedUpdate());
+  editor.addEventListener('input', () => {
+    if (currentArticle) {
+      currentArticle.content = editor.value;
+      currentArticle.updatedAt = new Date().toISOString();
+      saveArticles();
+    }
+    debouncedUpdate();
+  });
+
   selectTheme.addEventListener('change', onStyleChange);
   selectPlatform.addEventListener('change', () => {
     currentPlatform = selectPlatform.value;
@@ -102,6 +144,34 @@ async function init() {
   btnExport.addEventListener('click', exportHtml);
   btnEditCss.addEventListener('click', toggleCssEditor);
 
+  // Library events
+  btnToggleLibrary.addEventListener('click', () => {
+    libraryPanel.classList.toggle('collapsed');
+    localStorage.setItem(STORAGE_KEY_LIBRARY_VISIBLE, !libraryPanel.classList.contains('collapsed'));
+  });
+
+  btnNewArticle.addEventListener('click', () => {
+    const title = prompt('Article title:', 'Untitled');
+    if (!title || !title.trim()) return;
+    const article = createArticle(title.trim());
+    selectArticle(article);
+    renderLibrary();
+  });
+
+  librarySearch.addEventListener('input', () => renderLibrary());
+
+  articleTitleDisplay.addEventListener('click', () => {
+    if (!currentArticle) return;
+    const name = prompt('Rename article:', currentArticle.title);
+    if (name && name.trim() && name.trim() !== currentArticle.title) {
+      currentArticle.title = name.trim();
+      currentArticle.updatedAt = new Date().toISOString();
+      saveArticles();
+      articleTitleDisplay.textContent = currentArticle.title;
+      renderLibrary();
+    }
+  });
+
   // CSS editor events
   btnCssSave.addEventListener('click', saveCss);
   btnCssSaveAs.addEventListener('click', saveAsCss);
@@ -114,43 +184,136 @@ async function init() {
   cssEditorTextarea.addEventListener('input', () => {
     cssEditorDirty = cssEditorTextarea.value !== cssEditorOriginal;
     unsavedIndicator.classList.toggle('hidden', !cssEditorDirty);
-    // Live preview
     currentStyle = { ...currentStyle, css: cssEditorTextarea.value };
     update();
   });
 
-  // Tab in editor
-  editor.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = editor.selectionStart;
-      const end = editor.selectionEnd;
-      editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
-      editor.selectionStart = editor.selectionEnd = start + 2;
-      debouncedUpdate();
-    }
-  });
-
-  // Tab in CSS editor
-  cssEditorTextarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = cssEditorTextarea.selectionStart;
-      const end = cssEditorTextarea.selectionEnd;
-      cssEditorTextarea.value = cssEditorTextarea.value.substring(0, start) + '  ' + cssEditorTextarea.value.substring(end);
-      cssEditorTextarea.selectionStart = cssEditorTextarea.selectionEnd = start + 2;
-      cssEditorTextarea.dispatchEvent(new Event('input'));
-    }
-  });
+  // Tab keys
+  for (const el of [editor, cssEditorTextarea]) {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const s = el.selectionStart, end = el.selectionEnd;
+        el.value = el.value.substring(0, s) + '  ' + el.value.substring(end);
+        el.selectionStart = el.selectionEnd = s + 2;
+        el.dispatchEvent(new Event('input'));
+      }
+    });
+  }
 
   update();
 }
 
+// ── Article Library ───────────────────────────────────────────────────────────
+
+function loadArticles() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_ARTICLES);
+    articles = stored ? JSON.parse(stored) : [];
+  } catch { articles = []; }
+}
+
+function saveArticles() {
+  localStorage.setItem(STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+}
+
+function createArticle(title, content = '') {
+  const article = {
+    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+    title,
+    content: content || `# ${title}\n\n`,
+    folder: '',
+    format: 'markdown',
+    updatedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  };
+  articles.unshift(article);
+  saveArticles();
+  return article;
+}
+
+function selectArticle(article) {
+  // Save current content
+  if (currentArticle) {
+    currentArticle.content = editor.value;
+    saveArticles();
+  }
+
+  currentArticle = article;
+  editor.value = article.content || '';
+  articleTitleDisplay.textContent = article.title;
+  editorFormatLabel.textContent = article.format === 'latex' ? 'TeX' : 'MD';
+  localStorage.setItem(STORAGE_KEY_CURRENT_ARTICLE, article.id);
+
+  update();
+  renderLibrary();
+}
+
+function deleteArticle(article) {
+  if (!confirm(`Delete "${article.title}"?`)) return;
+  articles = articles.filter(a => a.id !== article.id);
+  saveArticles();
+
+  if (currentArticle?.id === article.id) {
+    if (articles.length > 0) {
+      selectArticle(articles[0]);
+    } else {
+      const scratch = createArticle('Untitled');
+      selectArticle(scratch);
+    }
+  }
+  renderLibrary();
+}
+
+function renderLibrary() {
+  const query = (librarySearch.value || '').toLowerCase().trim();
+  let filtered = articles;
+  if (query) {
+    filtered = articles.filter(a =>
+      (a.title || '').toLowerCase().includes(query) ||
+      (a.folder || '').toLowerCase().includes(query)
+    );
+  }
+
+  // Sort by updatedAt descending
+  filtered.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+
+  if (filtered.length === 0) {
+    libraryList.innerHTML = `<div class="library-empty">
+      ${query ? 'No matching articles.' : 'No articles yet.<br>Click <b>+ New</b> or <b>Open</b> a file.'}
+    </div>`;
+    return;
+  }
+
+  libraryList.innerHTML = filtered.map(a => {
+    const active = currentArticle?.id === a.id ? ' active' : '';
+    const date = (a.updatedAt || '').slice(0, 10);
+    const fmt = a.format === 'latex' ? 'TeX' : 'MD';
+    return `<div class="library-item${active}" data-id="${a.id}">
+      <span class="library-item-title">${escapeHtml(a.title)}</span>
+      <span class="library-item-meta">${fmt} · ${date}</span>
+    </div>`;
+  }).join('');
+
+  // Click handlers
+  libraryList.querySelectorAll('.library-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const article = articles.find(a => a.id === el.dataset.id);
+      if (article) selectArticle(article);
+    });
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const article = articles.find(a => a.id === el.dataset.id);
+      if (article && confirm(`Delete "${article.title}"?`)) {
+        deleteArticle(article);
+      }
+    });
+  });
+}
+
 // ── Style Management ──────────────────────────────────────────────────────────
 
-function getAllStyles() {
-  return { ...builtinThemes, ...customStyles };
-}
+function getAllStyles() { return { ...builtinThemes, ...customStyles }; }
 
 function loadCustomStyles() {
   try {
@@ -162,20 +325,17 @@ function loadCustomStyles() {
         customStyles[name] = { name, css: data.css, source: 'custom' };
       }
     }
-  } catch { /* ignore corrupt data */ }
+  } catch {}
 }
 
 function saveCustomStyles() {
   const toStore = {};
-  for (const [name, data] of Object.entries(customStyles)) {
-    toStore[name] = { css: data.css };
-  }
+  for (const [name, data] of Object.entries(customStyles)) toStore[name] = { css: data.css };
   localStorage.setItem(STORAGE_KEY_STYLES, JSON.stringify(toStore));
 }
 
 function rebuildThemeSelector() {
   selectTheme.innerHTML = '';
-  const all = getAllStyles();
   const builtinNames = Object.keys(builtinThemes).sort();
   const customNames = Object.keys(customStyles).sort();
 
@@ -184,8 +344,7 @@ function rebuildThemeSelector() {
     group.label = 'Built-in';
     for (const name of builtinNames) {
       const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
+      opt.value = name; opt.textContent = name;
       group.appendChild(opt);
     }
     selectTheme.appendChild(group);
@@ -196,8 +355,7 @@ function rebuildThemeSelector() {
     group.label = 'Custom';
     for (const name of customNames) {
       const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
+      opt.value = name; opt.textContent = name;
       group.appendChild(opt);
     }
     selectTheme.appendChild(group);
@@ -210,10 +368,7 @@ function onStyleChange() {
   if (all[name]) {
     currentStyle = all[name];
     localStorage.setItem(STORAGE_KEY_SELECTED, name);
-    // Update CSS editor if open
-    if (!cssEditorPanel.classList.contains('hidden')) {
-      openCssEditor();
-    }
+    if (!cssEditorPanel.classList.contains('hidden')) openCssEditor();
     update();
   }
 }
@@ -234,11 +389,8 @@ function openCssEditor() {
   cssEditorOriginal = currentStyle.css;
   cssEditorDirty = false;
   unsavedIndicator.classList.add('hidden');
-
   const label = currentStyle.source === 'builtin' ? `[builtin] ${currentStyle.name}` : currentStyle.name;
   cssEditorTitle.textContent = `Style: ${label}`;
-
-  // Builtin styles: disable save/rename/delete, enable save-as/duplicate
   const isBuiltin = currentStyle.source === 'builtin';
   btnCssSave.disabled = isBuiltin;
   btnCssRename.disabled = isBuiltin;
@@ -247,100 +399,78 @@ function openCssEditor() {
 }
 
 function saveCss() {
-  if (currentStyle.source === 'builtin') {
-    showToast('Cannot overwrite built-in style. Use "Save As" to create a custom copy.', 'error');
-    return;
-  }
+  if (currentStyle.source === 'builtin') { showToast('Use "Save As" for built-in styles.', 'error'); return; }
   currentStyle.css = cssEditorTextarea.value;
   customStyles[currentStyle.name] = { ...currentStyle };
   saveCustomStyles();
   cssEditorOriginal = cssEditorTextarea.value;
   cssEditorDirty = false;
   unsavedIndicator.classList.add('hidden');
-  showToast(`Style "${currentStyle.name}" saved.`, 'success');
+  showToast(`"${currentStyle.name}" saved.`, 'success');
 }
 
 function saveAsCss() {
-  const name = prompt('Name for new custom style:', `${currentStyle.name}-custom`);
-  if (!name || !name.trim()) return;
-  const trimmed = name.trim();
-
-  if (builtinThemes[trimmed]) {
-    showToast('Cannot use a built-in style name.', 'error');
-    return;
-  }
-
-  customStyles[trimmed] = { name: trimmed, css: cssEditorTextarea.value, source: 'custom' };
+  const name = prompt('Name for new style:', `${currentStyle.name}-custom`);
+  if (!name?.trim()) return;
+  const t = name.trim();
+  if (builtinThemes[t]) { showToast('Cannot use a built-in name.', 'error'); return; }
+  customStyles[t] = { name: t, css: cssEditorTextarea.value, source: 'custom' };
   saveCustomStyles();
   rebuildThemeSelector();
-
-  selectTheme.value = trimmed;
-  currentStyle = customStyles[trimmed];
-  localStorage.setItem(STORAGE_KEY_SELECTED, trimmed);
+  selectTheme.value = t;
+  currentStyle = customStyles[t];
+  localStorage.setItem(STORAGE_KEY_SELECTED, t);
   openCssEditor();
   update();
-  showToast(`Custom style "${trimmed}" created.`, 'success');
+  showToast(`"${t}" created.`, 'success');
 }
 
 function duplicateCss() {
-  const name = prompt('Name for duplicate:', `${currentStyle.name}-copy`);
-  if (!name || !name.trim()) return;
-  const trimmed = name.trim();
-
-  if (builtinThemes[trimmed]) {
-    showToast('Cannot use a built-in style name.', 'error');
-    return;
-  }
-
-  customStyles[trimmed] = { name: trimmed, css: currentStyle.css, source: 'custom' };
+  const name = prompt('Name for copy:', `${currentStyle.name}-copy`);
+  if (!name?.trim()) return;
+  const t = name.trim();
+  if (builtinThemes[t]) { showToast('Cannot use a built-in name.', 'error'); return; }
+  customStyles[t] = { name: t, css: currentStyle.css, source: 'custom' };
   saveCustomStyles();
   rebuildThemeSelector();
-  selectTheme.value = trimmed;
-  currentStyle = customStyles[trimmed];
-  localStorage.setItem(STORAGE_KEY_SELECTED, trimmed);
+  selectTheme.value = t;
+  currentStyle = customStyles[t];
+  localStorage.setItem(STORAGE_KEY_SELECTED, t);
   openCssEditor();
   update();
-  showToast(`Style duplicated as "${trimmed}".`, 'success');
+  showToast(`Duplicated as "${t}".`, 'success');
 }
 
 function renameCss() {
   if (currentStyle.source === 'builtin') return;
   const name = prompt('New name:', currentStyle.name);
-  if (!name || !name.trim() || name.trim() === currentStyle.name) return;
-  const trimmed = name.trim();
-
-  if (builtinThemes[trimmed] || customStyles[trimmed]) {
-    showToast('A style with that name already exists.', 'error');
-    return;
-  }
-
-  const oldName = currentStyle.name;
-  delete customStyles[oldName];
-  customStyles[trimmed] = { name: trimmed, css: currentStyle.css, source: 'custom' };
+  if (!name?.trim() || name.trim() === currentStyle.name) return;
+  const t = name.trim();
+  if (builtinThemes[t] || customStyles[t]) { showToast('Name already exists.', 'error'); return; }
+  const old = currentStyle.name;
+  delete customStyles[old];
+  customStyles[t] = { name: t, css: currentStyle.css, source: 'custom' };
   saveCustomStyles();
   rebuildThemeSelector();
-  selectTheme.value = trimmed;
-  currentStyle = customStyles[trimmed];
-  localStorage.setItem(STORAGE_KEY_SELECTED, trimmed);
+  selectTheme.value = t;
+  currentStyle = customStyles[t];
+  localStorage.setItem(STORAGE_KEY_SELECTED, t);
   openCssEditor();
-  showToast(`Renamed "${oldName}" to "${trimmed}".`, 'success');
+  showToast(`Renamed to "${t}".`, 'success');
 }
 
 function deleteCss() {
   if (currentStyle.source === 'builtin') return;
-  if (!confirm(`Delete custom style "${currentStyle.name}"?`)) return;
-
+  if (!confirm(`Delete "${currentStyle.name}"?`)) return;
   delete customStyles[currentStyle.name];
   saveCustomStyles();
   rebuildThemeSelector();
-
-  // Switch to default
   currentStyle = builtinThemes['default'] || Object.values(builtinThemes)[0];
   selectTheme.value = currentStyle.name;
   localStorage.setItem(STORAGE_KEY_SELECTED, currentStyle.name);
   openCssEditor();
   update();
-  showToast('Style deleted.', 'success');
+  showToast('Deleted.', 'success');
 }
 
 function revertCss() {
@@ -362,7 +492,7 @@ function debouncedUpdate() {
 function update() {
   const source = editor.value;
   if (!source.trim()) {
-    previewContent.innerHTML = '<div id="nice"><p style="color:#999;text-align:center;">Enter Markdown to preview...</p></div>';
+    previewContent.innerHTML = '<div id="nice"><p style="color:#999;text-align:center;">Start writing...</p></div>';
     diagStats.textContent = '';
     diagWarnings.textContent = '';
     return;
@@ -373,21 +503,17 @@ function update() {
   previewContent.innerHTML = `<style>${resolvedCss}</style>\n${rawHtml}`;
 
   const validation = validate(rawHtml, source, currentPlatform);
-  updateDiagnostics(validation);
-}
-
-function updateDiagnostics(validation) {
-  const { stats, warnings, errors } = validation;
   diagStats.textContent = [
-    `${stats.paragraphs}P`, `${stats.headings}H`, `${stats.mathTotal}Math`,
-    `${stats.codeBlocks}Code`, `${stats.images}Img`, `${stats.tables}Tbl`,
+    `${validation.stats.paragraphs}P`, `${validation.stats.headings}H`,
+    `${validation.stats.mathTotal}Math`, `${validation.stats.codeBlocks}Code`,
+    `${validation.stats.images}Img`, `${validation.stats.tables}Tbl`,
   ].join(' | ');
 
   const issues = [];
-  for (const e of errors) issues.push(`[E] ${e}`);
-  for (const w of warnings) issues.push(`[W] ${w}`);
+  for (const e of validation.errors) issues.push(`[E] ${e}`);
+  for (const w of validation.warnings) issues.push(`[W] ${w}`);
   diagWarnings.textContent = issues.join(' | ');
-  diagWarnings.className = errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : '';
+  diagWarnings.className = validation.errors.length > 0 ? 'error' : validation.warnings.length > 0 ? 'warning' : '';
 }
 
 // ── File / Export ─────────────────────────────────────────────────────────────
@@ -396,7 +522,24 @@ function handleFileOpen(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (ev) => { editor.value = ev.target.result; update(); showToast(`Opened: ${file.name}`, 'success'); };
+  reader.onload = (ev) => {
+    const content = ev.target.result;
+    const title = file.name.replace(/\.(md|markdown|txt|tex)$/i, '');
+
+    // Check if this file is already in the library
+    const existing = articles.find(a => a.title === title);
+    if (existing) {
+      existing.content = content;
+      existing.updatedAt = new Date().toISOString();
+      saveArticles();
+      selectArticle(existing);
+    } else {
+      const article = createArticle(title, content);
+      selectArticle(article);
+    }
+    renderLibrary();
+    showToast(`Opened: ${file.name}`, 'success');
+  };
   reader.readAsText(file);
   fileInput.value = '';
 }
@@ -404,7 +547,6 @@ function handleFileOpen(e) {
 async function copyRichText() {
   const source = editor.value;
   if (!source.trim()) return;
-
   const rawHtml = renderMarkdown(source);
   const resolvedCss = resolveCssVariables(currentStyle.css);
   const mathProcessedHtml = await replaceKatexWithImagesInBrowser(rawHtml, resolvedCss);
@@ -412,15 +554,14 @@ async function copyRichText() {
   const finalHtml = sanitizeForPlatform(inlinedHtml, currentPlatform);
 
   try {
-    const blob = new Blob([finalHtml], { type: 'text/html' });
-    const plainBlob = new Blob([stripHtml(finalHtml)], { type: 'text/plain' });
-    await navigator.clipboard.write([new ClipboardItem({ 'text/html': blob, 'text/plain': plainBlob })]);
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([finalHtml], { type: 'text/html' }),
+      'text/plain': new Blob([stripHtml(finalHtml)], { type: 'text/plain' }),
+    })]);
     showToast(`Copied for ${currentPlatform === 'wechat' ? 'WeChat' : 'Zhihu'}!`, 'success');
   } catch (err) {
-    try {
-      await navigator.clipboard.writeText(finalHtml);
-      showToast('Copied HTML as text (rich text not supported in this browser)', 'success');
-    } catch { showToast('Copy failed: ' + err.message, 'error'); }
+    try { await navigator.clipboard.writeText(finalHtml); showToast('Copied as text.', 'success'); }
+    catch { showToast('Copy failed: ' + err.message, 'error'); }
   }
 }
 
@@ -444,10 +585,13 @@ async function exportHtml() {
   const mathProcessedHtml = await replaceKatexWithImagesInBrowser(rawHtml, resolvedCss);
   const inlinedHtml = inlineCssSimple(mathProcessedHtml, resolvedCss);
   const finalHtml = sanitizeForPlatform(inlinedHtml, currentPlatform);
-  const fullDoc = `<!DOCTYPE html>\n<html lang="zh-CN">\n<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Article</title></head>\n<body>\n${finalHtml}\n</body>\n</html>`;
+  const fullDoc = `<!DOCTYPE html>\n<html lang="zh-CN">\n<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(currentArticle?.title || 'Article')}</title></head>\n<body>\n${finalHtml}\n</body>\n</html>`;
   const blob = new Blob([fullDoc], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `article.${currentPlatform}.html`; a.click();
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(currentArticle?.title || 'article').replace(/[^a-zA-Z0-9_-]/g, '_')}.${currentPlatform}.html`;
+  a.click();
   URL.revokeObjectURL(url);
   showToast('Exported!', 'success');
 }
@@ -463,39 +607,13 @@ function showToast(message, type = 'success') {
 }
 
 function stripHtml(html) {
-  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
   return tmp.textContent || tmp.innerText || '';
 }
 
-function getDefaultContent() {
-  return `# Hello MDTeX Pipeline
-
-Write your **Markdown** with $\\LaTeX$ math here.
-
-## Inline Math
-
-The quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$.
-
-## Display Math
-
-$$
-\\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi}
-$$
-
-## Code
-
-\`\`\`python
-def hello():
-    print("Hello, WeChat!")
-\`\`\`
-
-> This is a blockquote with math: $E = mc^2$
-
-| Column A | Column B |
-|----------|----------|
-| 1        | 2        |
-| 3        | 4        |
-`;
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 init();
