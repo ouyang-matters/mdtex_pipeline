@@ -51,10 +51,10 @@ export function validate(html, source, { platform = 'wechat', images = [], mathR
       warnings.push('Unreplaced KaTeX math elements found in output');
     }
 
-    // Check formula images in output
-    const formulaImgs = (html.match(/data-latex="/g) || []).length;
-    if (formulaImgs < totalRendered) {
-      warnings.push(`Only ${formulaImgs} formula image(s) found in final HTML, expected ${totalRendered}`);
+    // Check formula elements in output (inline SVG or img tags with data-latex)
+    const formulaNodes = (html.match(/data-latex="/g) || []).length;
+    if (formulaNodes < totalRendered) {
+      warnings.push(`Only ${formulaNodes} formula node(s) found in final HTML, expected ${totalRendered}`);
     }
   } else {
     // Legacy validation: check for KaTeX errors in KaTeX HTML output
@@ -66,10 +66,7 @@ export function validate(html, source, { platform = 'wechat', images = [], mathR
     }
   }
 
-  // Check for zero-sized or invalid formula images
-  if (/src="data:[^"]*"[^>]*style="[^"]*height:\s*0/i.test(html)) {
-    errors.push('Zero-height formula image detected');
-  }
+  // Check for empty image sources
   if (/src=""/.test(html)) {
     errors.push('Empty image src detected in formula');
   }

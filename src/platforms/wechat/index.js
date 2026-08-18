@@ -57,11 +57,13 @@ export class WeChatAdapter extends PlatformAdapter {
     result = result.replace(/\s+on\w+='[^']*'/gi, '');
 
     // Remove class attributes (they serve no purpose after inlining)
-    // Keep data- attributes for potential debugging
     result = result.replace(/\s+class="[^"]*"/gi, '');
 
     // Remove id attributes except the root #nice
     result = result.replace(/(<(?!section)[^>]*)\s+id="(?!nice)[^"]*"/gi, '$1');
+
+    // Strip xmlns:xlink if present (WeChat may not handle it)
+    result = result.replace(/\s+xmlns:xlink="[^"]*"/gi, '');
 
     return result;
   }

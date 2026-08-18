@@ -7,13 +7,12 @@ import { resolve } from 'path';
 const fixtureDir = resolve(import.meta.dirname, 'fixtures');
 
 describe('Formula SVG dimensions', () => {
-  it('should produce pixel-based width/height (not ex)', () => {
+  it('should retain ex-based width/height in SVG for proper scaling', () => {
     const r = renderLatexToSvg('E=mc^2', false);
     expect(r.error).toBeNull();
-    expect(r.svg).toMatch(/width="\d+"/);
-    expect(r.svg).toMatch(/height="\d+"/);
-    expect(r.svg).not.toMatch(/width="[\d.]+ex"/);
-    expect(r.svg).not.toMatch(/height="[\d.]+ex"/);
+    // SVG retains ex units; the container wrapper handles em conversion
+    expect(r.svg).toMatch(/width="[\d.]+ex"/);
+    expect(r.svg).toMatch(/height="[\d.]+ex"/);
   });
 
   it('should have valid viewBox', () => {
@@ -26,56 +25,50 @@ describe('Formula SVG dimensions', () => {
     expect(parts[3]).toBeGreaterThan(0);
   });
 
-  it('should provide widthPx/heightPx as positive numbers', () => {
+  it('should provide widthEx/heightEx as positive numbers', () => {
     const r = renderLatexToSvg('x_i^2', false);
-    expect(r.widthPx).toBeGreaterThan(0);
-    expect(r.heightPx).toBeGreaterThan(0);
-    expect(isNaN(r.widthPx)).toBe(false);
-    expect(isNaN(r.heightPx)).toBe(false);
-  });
-
-  it('should provide widthEx/heightEx for em conversion', () => {
-    const r = renderLatexToSvg('\\int_0^1 x\\,dx', true);
     expect(r.widthEx).toBeGreaterThan(0);
     expect(r.heightEx).toBeGreaterThan(0);
+    expect(isNaN(r.widthEx)).toBe(false);
   });
 
-  it('should not include inline style attribute in SVG', () => {
+  it('should not include inline style in SVG element', () => {
     const r = renderLatexToSvg('x', false);
     expect(r.svg).not.toMatch(/<svg[^>]*style="/);
   });
+
+  it('should strip role and focusable attributes', () => {
+    const r = renderLatexToSvg('x', false);
+    expect(r.svg).not.toContain('role=');
+    expect(r.svg).not.toContain('focusable=');
+  });
 });
 
-describe('Formula img tag sizing', () => {
-  it('inline formula should use em-based height', async () => {
+describe('Inline SVG formula sizing in output', () => {
+  it('inline formula should use em-based span wrapper', async () => {
     const compiler = new Compiler();
     const result = await compiler.compile('Text $x^2$ text.', {
       theme: 'default', platform: 'wechat', baseDir: '.',
     });
 
-    const imgMatch = result.html.match(/<img[^>]*data-display="false"[^>]*style="([^"]*)"/);
-    expect(imgMatch).not.toBeNull();
-    const style = imgMatch[1];
-    // em-based height (may have spaces from juice: "height: 0.893em")
-    expect(style).toMatch(/height:\s*[\d.]+em/);
-    expect(style).toMatch(/width:\s*[\d.]+em/);
+    // Should have a span wrapper with em-based sizing
+    const spanMatch = result.html.match(/<span[^>]*data-display="false"[^>]*style="([^"]*)"/);
+    expect(spanMatch).not.toBeNull();
+    const style = spanMatch[1];
+    expect(style).toContain('inline-block');
     expect(style).toMatch(/vertical-align:\s*-?[\d.]+em/);
-    // Must not be zero
-    const heightVal = parseFloat(style.match(/height:\s*([\d.]+)em/)[1]);
-    expect(heightVal).toBeGreaterThan(0);
   });
 
-  it('display formula should have max-width constraint', async () => {
+  it('display formula should be in centered section', async () => {
     const compiler = new Compiler();
     const result = await compiler.compile('Display:\n\n$$\\sum_{i=1}^n x_i$$', {
       theme: 'default', platform: 'wechat', baseDir: '.',
     });
 
-    const imgMatch = result.html.match(/<img[^>]*data-display="true"[^>]*style="([^"]*)"/);
-    expect(imgMatch).not.toBeNull();
-    const style = imgMatch[1];
-    expect(style).toMatch(/max-width:\s*100%/);
-    expect(style).toMatch(/height:\s*auto/);
+    const sectionMatch = result.html.match(/<section[^>]*data-display="true"[^>]*style="([^"]*)"/);
+    expect(sectionMatch).not.toBeNull();
+    const style = sectionMatch[1];
+    expect(style).toMatch(/text-align:\s*center/);
   });
 
   it('display formula container should not clip content', async () => {
@@ -84,28 +77,24 @@ describe('Formula img tag sizing', () => {
       theme: 'default', platform: 'wechat', baseDir: '.',
     });
 
-    // Should not have overflow:hidden or overflow-y:hidden
     expect(result.html).not.toMatch(/overflow:\s*hidden/);
     expect(result.html).not.toMatch(/overflow-y:\s*hidden/);
   });
 
-  it('long display equation width should be positive em value', async () => {
+  it('long display equation should contain max-width constraint', async () => {
     const longEq = '\\mathcal{L}(\\theta; \\mathcal{D}) = \\sum_{i=1}^{N} \\left[ y_i \\log \\sigma(\\theta^T x_i) + (1 - y_i) \\log(1 - \\sigma(\\theta^T x_i)) \\right]';
     const compiler = new Compiler();
     const result = await compiler.compile(`Display:\n\n$$${longEq}$$`, {
       theme: 'default', platform: 'wechat', baseDir: '.',
     });
 
-    const imgMatch = result.html.match(/<img[^>]*data-display="true"[^>]*style="([^"]*)"/);
-    const style = imgMatch[1];
-    expect(style).toMatch(/max-width:\s*100%/);
-    const widthVal = parseFloat(style.match(/width:\s*([\d.]+)em/)[1]);
-    expect(widthVal).toBeGreaterThan(0);
+    // The inner wrapper should have max-width:100%
+    expect(result.html).toMatch(/max-width:\s*100%/);
   });
 });
 
 describe('Formula sizing in full fixture', () => {
-  it('should render all formula types with valid dimensions', async () => {
+  it('should render all formula types with valid inline SVGs', async () => {
     const source = readFileSync(resolve(fixtureDir, 'math_formulas.md'), 'utf-8');
     const compiler = new Compiler();
     const result = await compiler.compile(source, {
@@ -114,22 +103,35 @@ describe('Formula sizing in full fixture', () => {
 
     expect(result.mathResult.errors).toBe(0);
 
-    // No zero or NaN em dimensions (with or without spaces from juice)
-    expect(result.html).not.toMatch(/width:\s*0\.000em/);
-    expect(result.html).not.toMatch(/height:\s*0\.000em/);
-    expect(result.html).not.toMatch(/width:\s*NaNem/);
+    // All formulas should be inline SVGs
+    expect(result.html).toContain('<svg');
+    expect(result.html).toContain('viewBox=');
 
-    // All display formulas should have max-width constraint
-    const displayImgs = result.html.match(/<img[^>]*data-display="true"[^>]*/g) || [];
-    for (const img of displayImgs) {
-      expect(img).toMatch(/max-width:\s*100%/);
-    }
+    // All display formulas should be centered sections
+    const displaySections = result.html.match(/<section[^>]*data-display="true"/g) || [];
+    expect(displaySections.length).toBeGreaterThan(0);
 
-    // All inline formulas should have positive em-based sizing
-    const inlineStyles = [...result.html.matchAll(/<img[^>]*data-display="false"[^>]*style="([^"]*)"/g)];
-    for (const [, style] of inlineStyles) {
-      const h = parseFloat(style.match(/height:\s*([\d.]+)em/)?.[1] || '0');
-      expect(h).toBeGreaterThan(0);
-    }
+    // All inline formulas should be span wrappers
+    const inlineSpans = result.html.match(/<span[^>]*data-display="false"/g) || [];
+    expect(inlineSpans.length).toBeGreaterThan(0);
+
+    // No data URI images for SVG mode
+    expect(result.html).not.toMatch(/src="data:image\/svg/);
+  });
+
+  it('WeChat output should not depend on external KaTeX CSS', async () => {
+    const source = readFileSync(resolve(fixtureDir, 'math_formulas.md'), 'utf-8');
+    const compiler = new Compiler();
+    const result = await compiler.compile(source, {
+      theme: 'default', platform: 'wechat', baseDir: fixtureDir,
+    });
+
+    // No external stylesheet references
+    expect(result.html).not.toContain('<link');
+    expect(result.html).not.toContain('katex');
+    expect(result.html).not.toContain('<style');
+
+    // Theme CSS should be fully inlined
+    expect(result.html).not.toMatch(/class="katex/);
   });
 });

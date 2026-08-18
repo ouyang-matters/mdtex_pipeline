@@ -7,11 +7,6 @@ import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
 
 let _instance = null;
 
-// 1ex ≈ 0.4313em in MathJax's default metrics.
-// We convert ex→px at a fixed ratio so SVGs have deterministic pixel dimensions.
-// At 16px base font: 1ex ≈ 6.9px. We use 7 for clean rounding.
-const EX_TO_PX = 7;
-
 function getMathJax() {
   if (_instance) return _instance;
 
@@ -25,7 +20,7 @@ function getMathJax() {
   });
 
   const svg = new SVG({
-    fontCache: 'none',
+    fontCache: 'none', // Self-contained: each SVG has its own <path> glyphs
   });
 
   const doc = mathjax.document('', { InputJax: tex, OutputJax: svg });
@@ -35,14 +30,16 @@ function getMathJax() {
 }
 
 /**
- * Render LaTeX to a self-contained SVG string with pixel dimensions.
+ * Render LaTeX to a self-contained, WeChat-safe inline SVG string.
  *
- * MathJax outputs width/height in `ex` units. We convert these to pixels
- * so the SVG has deterministic absolute dimensions when embedded as a
- * data-URI <img>. The <img> tag then uses em-based sizing to scale
- * proportionally with surrounding text.
+ * MathJax with fontCache:'none' outputs SVGs containing only <path> elements —
+ * no <defs>, <use>, id, class, or clip-path attributes. This is critical for
+ * WeChat compatibility, which strips those constructs.
  *
- * Returns { svg, widthPx, heightPx, widthEx, heightEx, verticalAlign, verticalAlignPx, error }
+ * The SVG retains its original ex-based width/height and viewBox for accurate
+ * intrinsic dimensions. The container wrapper handles display sizing.
+ *
+ * Returns { svg, widthEx, heightEx, verticalAlignEx, viewBox, error }
  */
 export function renderLatexToSvg(latex, displayMode = false) {
   const { adaptor, doc } = getMathJax();
@@ -51,69 +48,72 @@ export function renderLatexToSvg(latex, displayMode = false) {
     const node = doc.convert(latex, { display: displayMode });
     let svg = adaptor.outerHTML(node);
 
-    // Extract original ex-based dimensions
+    // Extract original ex-based dimensions from MathJax output
     const widthMatch = svg.match(/width="([\d.]+)ex"/);
     const heightMatch = svg.match(/height="([\d.]+)ex"/);
     const valignMatch = svg.match(/style="[^"]*vertical-align:\s*(-?[\d.]+)ex/);
+    const viewBoxMatch = svg.match(/viewBox="([^"]+)"/);
 
     const widthEx = widthMatch ? parseFloat(widthMatch[1]) : 1;
     const heightEx = heightMatch ? parseFloat(heightMatch[1]) : 1;
     const verticalAlignEx = valignMatch ? parseFloat(valignMatch[1]) : 0;
+    const viewBox = viewBoxMatch ? viewBoxMatch[1] : '0 0 100 100';
 
-    // Convert to pixels
-    const widthPx = Math.ceil(widthEx * EX_TO_PX);
-    const heightPx = Math.ceil(heightEx * EX_TO_PX);
-    const verticalAlignPx = Math.round(verticalAlignEx * EX_TO_PX);
-
-    // Extract the inner SVG from MathJax's container
+    // Extract the inner SVG from MathJax's <mjx-container> wrapper
     const svgMatch = svg.match(/<svg[\s\S]*<\/svg>/);
     if (svgMatch) {
       svg = svgMatch[0];
     }
 
-    // Ensure xmlns
+    // Ensure xmlns for standalone SVG validity
     if (!svg.includes('xmlns="http://www.w3.org/2000/svg"')) {
       svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
     }
 
-    // Replace ex-based width/height with pixel values so the SVG
-    // renders at a deterministic size when used as <img src="data:...">
-    svg = svg.replace(/width="[\d.]+ex"/, `width="${widthPx}"`);
-    svg = svg.replace(/height="[\d.]+ex"/, `height="${heightPx}"`);
-
-    // Remove the inline style (vertical-align is handled by the <img> tag)
+    // Strip MathJax's inline style attribute (vertical-align is handled by the wrapper)
     svg = svg.replace(/\s*style="[^"]*"/, '');
 
+    // Strip role and focusable attributes (unnecessary noise, WeChat may choke)
+    svg = svg.replace(/\s*role="[^"]*"/, '');
+    svg = svg.replace(/\s*focusable="[^"]*"/, '');
+
+    // Strip data-mml-node and data-c attributes to reduce size
+    svg = svg.replace(/\s*data-mml-node="[^"]*"/g, '');
+    svg = svg.replace(/\s*data-c="[^"]*"/g, '');
+    svg = svg.replace(/\s*data-mjx-texclass="[^"]*"/g, '');
+
     if (!svg || svg.length < 50) {
-      return { svg: null, widthPx: 0, heightPx: 0, widthEx: 0, heightEx: 0, verticalAlign: null, verticalAlignPx: 0, error: 'Empty SVG output' };
+      return { svg: null, widthEx: 0, heightEx: 0, verticalAlignEx: 0, viewBox: '', error: 'Empty SVG output' };
     }
 
     return {
       svg,
-      widthPx,
-      heightPx,
       widthEx,
       heightEx,
-      verticalAlign: `${verticalAlignEx}ex`,
-      verticalAlignPx,
+      verticalAlignEx,
+      viewBox,
       error: null,
-      // Keep legacy fields for compatibility
-      width: `${widthPx}`,
-      height: `${heightPx}`,
     };
   } catch (e) {
-    return { svg: null, widthPx: 0, heightPx: 0, widthEx: 0, heightEx: 0, verticalAlign: null, verticalAlignPx: 0, error: e.message || String(e), width: null, height: null };
+    return { svg: null, widthEx: 0, heightEx: 0, verticalAlignEx: 0, viewBox: '', error: e.message || String(e) };
   }
 }
 
 /**
- * Render LaTeX to an SVG data URI.
+ * Render LaTeX to an SVG data URI (for PNG conversion or fallback).
  */
 export function renderLatexToDataUri(latex, displayMode = false) {
   const result = renderLatexToSvg(latex, displayMode);
   if (result.error || !result.svg) return result;
 
-  const encoded = Buffer.from(result.svg).toString('base64');
+  // For data URI, convert ex dimensions to pixels for deterministic rendering
+  const EX_TO_PX = 7;
+  let pxSvg = result.svg;
+  pxSvg = pxSvg.replace(/width="[\d.]+ex"/, `width="${Math.ceil(result.widthEx * EX_TO_PX)}"`);
+  pxSvg = pxSvg.replace(/height="[\d.]+ex"/, `height="${Math.ceil(result.heightEx * EX_TO_PX)}"`);
+
+  const encoded = Buffer.from(pxSvg).toString('base64');
   result.dataUri = `data:image/svg+xml;base64,${encoded}`;
+  result.pxSvg = pxSvg;
   return result;
 }

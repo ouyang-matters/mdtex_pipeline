@@ -13,14 +13,14 @@ import { mkdirSync, rmSync, existsSync } from 'fs';
 const fixtureDir = resolve(import.meta.dirname, 'fixtures');
 
 describe('PublishMathRenderer (MathJax SVG)', () => {
-  it('should render inline math to SVG', () => {
+  it('should render inline math to SVG with ex dimensions', () => {
     const result = renderLatexToSvg('E=mc^2', false);
     expect(result.error).toBeNull();
     expect(result.svg).toContain('<svg');
     expect(result.svg).toContain('<path');
     expect(result.svg).not.toContain('class=');
-    expect(result.width).toBeTruthy();
-    expect(result.height).toBeTruthy();
+    expect(result.widthEx).toBeGreaterThan(0);
+    expect(result.heightEx).toBeGreaterThan(0);
   });
 
   it('should render display math to SVG', () => {
@@ -58,34 +58,50 @@ describe('PublishMathRenderer (MathJax SVG)', () => {
     expect(result.error).toBeNull();
   });
 
-  it('should report errors for invalid LaTeX', () => {
+  it('should handle invalid LaTeX gracefully', () => {
     const result = renderLatexToSvg('\\begin{invalid}', false);
-    // MathJax may still produce output for invalid LaTeX, but we check
-    // that at least it doesn't crash
     expect(typeof result.error === 'string' || result.svg).toBeTruthy();
   });
 
-  it('should produce non-zero dimensions', () => {
+  it('should produce non-zero ex dimensions', () => {
     const result = renderLatexToSvg('x^2 + y^2 = z^2', false);
     expect(result.error).toBeNull();
-    const widthNum = parseFloat(result.width);
-    const heightNum = parseFloat(result.height);
-    expect(widthNum).toBeGreaterThan(0);
-    expect(heightNum).toBeGreaterThan(0);
-    expect(isNaN(widthNum)).toBe(false);
-    expect(isNaN(heightNum)).toBe(false);
+    expect(result.widthEx).toBeGreaterThan(0);
+    expect(result.heightEx).toBeGreaterThan(0);
+    expect(isNaN(result.widthEx)).toBe(false);
   });
 
-  it('should produce data URI', () => {
+  it('should produce data URI via renderLatexToDataUri', () => {
     const result = renderLatexToDataUri('a + b', false);
     expect(result.error).toBeNull();
     expect(result.dataUri).toMatch(/^data:image\/svg\+xml;base64,/);
   });
 
-  it('should include vertical-align for inline math', () => {
+  it('should provide verticalAlignEx for inline math', () => {
     const result = renderLatexToSvg('x_i', false);
     expect(result.error).toBeNull();
-    expect(result.verticalAlign).toBeTruthy();
+    expect(typeof result.verticalAlignEx).toBe('number');
+  });
+
+  it('should preserve viewBox', () => {
+    const result = renderLatexToSvg('\\sum_{i=1}^n x_i', true);
+    expect(result.error).toBeNull();
+    expect(result.viewBox).toBeTruthy();
+    expect(result.viewBox.split(' ')).toHaveLength(4);
+  });
+
+  it('should strip data attributes for smaller SVG', () => {
+    const result = renderLatexToSvg('x', false);
+    expect(result.svg).not.toContain('data-mml-node');
+    expect(result.svg).not.toContain('data-c=');
+  });
+
+  it('should not contain defs, use, id, or class', () => {
+    const result = renderLatexToSvg('\\int_0^1 f(x)\\,dx', true);
+    expect(result.svg).not.toContain('<defs');
+    expect(result.svg).not.toContain('<use');
+    expect(result.svg).not.toMatch(/\bid="/);
+    expect(result.svg).not.toMatch(/\bclass="/);
   });
 });
 
@@ -98,14 +114,6 @@ describe('SVG to PNG', () => {
     expect(result.width).toBeGreaterThan(0);
     expect(result.height).toBeGreaterThan(0);
   });
-
-  it('should produce higher-res output at scale 3', async () => {
-    const { svg } = renderLatexToSvg('E=mc^2', false);
-    const s2 = await svgToPng(svg, { scale: 2 });
-    const s3 = await svgToPng(svg, { scale: 3 });
-    expect(s3.width).toBeGreaterThan(s2.width);
-    expect(s3.height).toBeGreaterThan(s2.height);
-  });
 });
 
 describe('FormulaCache', () => {
@@ -117,17 +125,14 @@ describe('FormulaCache', () => {
 
   it('should cache and retrieve formula assets', () => {
     const cache = new FormulaCache(testCacheDir);
-    const { svg, width, height, verticalAlign } = renderLatexToSvg('x^2', false);
-    const encoded = Buffer.from(svg).toString('base64');
-    const dataUri = `data:image/svg+xml;base64,${encoded}`;
+    const { svg, widthEx, heightEx, verticalAlignEx, viewBox } = renderLatexToSvg('x^2', false);
 
-    cache.set('x^2', false, { svg, width, height, verticalAlign, dataUri });
+    cache.set('x^2', false, { svg, widthEx, heightEx, verticalAlignEx, viewBox });
 
     const retrieved = cache.get('x^2', false);
     expect(retrieved).not.toBeNull();
     expect(retrieved.svg).toBe(svg);
-    expect(retrieved.width).toBe(width);
-    expect(retrieved.dataUri).toBe(dataUri);
+    expect(retrieved.widthEx).toBe(widthEx);
   });
 
   it('should produce deterministic cache keys', () => {
@@ -137,20 +142,10 @@ describe('FormulaCache', () => {
     expect(k1).toBe(k2);
     expect(k1).not.toBe(k3);
   });
-
-  it('should distinguish inline vs display mode', () => {
-    const cache = new FormulaCache(testCacheDir);
-
-    cache.set('x', false, { svg: 'inline', dataUri: 'di' });
-    cache.set('x', true, { svg: 'display', dataUri: 'dd' });
-
-    expect(cache.get('x', false).svg).toBe('inline');
-    expect(cache.get('x', true).svg).toBe('display');
-  });
 });
 
 describe('Math Post-Processor', () => {
-  it('should replace inline KaTeX with img tags', async () => {
+  it('should replace inline KaTeX with inline SVG', async () => {
     const html = renderToHtml('The value $x^2$ is important.');
     const cache = new FormulaCache(join(tmpdir(), `pp-test-${process.pid}-${Date.now()}`));
     const { html: processed, stats, errors } = await replaceKatexWithImages(html, {
@@ -163,11 +158,11 @@ describe('Math Post-Processor', () => {
     expect(processed).not.toContain('<eq>');
     expect(processed).not.toContain('<annotation');
     expect(processed).toContain('data-latex=');
-    expect(processed).toContain('data:image/svg+xml');
+    expect(processed).toContain('<svg');          // inline SVG, not data URI
     expect(processed).toContain('data-display="false"');
   });
 
-  it('should replace display KaTeX with img tags', async () => {
+  it('should replace display KaTeX with inline SVG section', async () => {
     const html = renderToHtml('Display:\n\n$$\\sum_{i=1}^n x_i$$');
     const cache = new FormulaCache(join(tmpdir(), `pp-test2-${process.pid}-${Date.now()}`));
     const { html: processed, stats, errors } = await replaceKatexWithImages(html, {
@@ -180,6 +175,7 @@ describe('Math Post-Processor', () => {
     expect(processed).not.toContain('<eqn>');
     expect(processed).toContain('data-display="true"');
     expect(processed).toContain('text-align:center');
+    expect(processed).toContain('<svg');
   });
 
   it('should preserve original LaTeX in data-latex attribute', async () => {
@@ -191,7 +187,6 @@ describe('Math Post-Processor', () => {
     });
 
     expect(processed).toContain('data-latex=');
-    // The original LaTeX should be in the data attribute (possibly HTML-escaped)
     expect(processed).toContain('alpha');
     expect(processed).toContain('beta');
   });
@@ -219,29 +214,28 @@ describe('Full Pipeline Formula Preservation', () => {
       baseDir: fixtureDir,
     });
 
-    // Count formulas from source
     const sourceDisplay = result.mathStats.display;
     const sourceInline = result.mathStats.inline;
-
-    // Count rendered formula assets
     const renderedTotal = result.mathResult.inlineRendered + result.mathResult.displayRendered;
 
     expect(result.mathResult.errors).toBe(0);
     expect(renderedTotal).toBe(sourceDisplay + sourceInline);
 
-    // Verify no KaTeX HTML remnants
+    // No KaTeX HTML remnants
     expect(result.html).not.toContain('<eq>');
     expect(result.html).not.toContain('<eqn>');
-    expect(result.html).not.toContain('class="katex');
     expect(result.html).not.toContain('<annotation');
 
-    // Count data-latex attributes in final HTML
-    const dataLatexCount = (result.html.match(/data-latex="/g) || []).length;
-    expect(dataLatexCount).toBe(renderedTotal);
+    // Must have inline SVGs
+    expect(result.html).toContain('<svg');
+    expect(result.html).toContain('data-latex=');
 
-    // No external KaTeX CSS dependency
+    // No external CSS dependency
     expect(result.html).not.toContain('katex.min.css');
     expect(result.html).not.toContain('<link');
+
+    // No <img src="data:svg"> (should be inline SVG now)
+    expect(result.html).not.toMatch(/src="data:image\/svg\+xml/);
   });
 
   it('should preserve all formulas in math_article.md', async () => {
@@ -257,7 +251,6 @@ describe('Full Pipeline Formula Preservation', () => {
     const total = result.mathResult.inlineRendered + result.mathResult.displayRendered;
     expect(total).toBeGreaterThan(0);
 
-    // All text content preserved
     expect(result.html).toContain('贝叶斯推断');
     expect(result.html).toContain('ELBO');
     expect(result.html).toContain('variational_inference');

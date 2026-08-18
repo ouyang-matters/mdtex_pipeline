@@ -6,23 +6,22 @@ import { FormulaCache } from './formula-cache.js';
  * Math output modes for publishing.
  */
 export const MathOutput = {
-  SVG: 'svg',
-  PNG: 'png',
-  AUTO: 'auto', // SVG preferred, PNG fallback
+  SVG: 'svg',    // Inline SVG (primary, best WeChat compat)
+  PNG: 'png',    // PNG <img> fallback
+  AUTO: 'auto',  // SVG preferred
 };
 
 /**
  * Post-process rendered HTML to replace KaTeX math elements with
- * self-contained image assets for publishing.
+ * self-contained publishing representations.
  *
- * Extracts LaTeX from <annotation> elements, renders to SVG/PNG,
- * replaces KaTeX DOM with <img> tags.
+ * For SVG mode: embeds the MathJax SVG directly inline in the HTML
+ * (not as <img src="data:...">). This is the mdnice-style approach
+ * that survives WeChat paste because the SVG contains only <path>
+ * elements with no external CSS/font dependencies.
  *
- * @param {string} html - Rendered HTML containing KaTeX output
- * @param {object} options
- * @param {string} options.mathOutput - 'svg', 'png', or 'auto'
- * @param {FormulaCache} options.cache - Optional formula cache
- * @returns {Promise<{ html: string, stats: object, errors: string[] }>}
+ * For PNG mode: falls back to <img src="data:image/png;base64,...">
+ * for maximum compatibility.
  */
 export async function replaceKatexWithImages(html, options = {}) {
   const { mathOutput = MathOutput.SVG, cache = new FormulaCache() } = options;
@@ -30,11 +29,11 @@ export async function replaceKatexWithImages(html, options = {}) {
   const errors = [];
   const stats = { inlineRendered: 0, displayRendered: 0, cached: 0, errors: 0 };
 
-  // Process display math first (they're wrapped in <section><eqn>...</eqn></section>)
+  // Process display math first (wrapped in <section><eqn>...</eqn></section>)
   html = await replacePattern(
     html,
     /<section>\s*<eqn>([\s\S]*?)<\/eqn>\s*<\/section>/g,
-    true, // displayMode
+    true,
     mathOutput, cache, stats, errors,
   );
 
@@ -42,21 +41,17 @@ export async function replaceKatexWithImages(html, options = {}) {
   html = await replacePattern(
     html,
     /<eq>([\s\S]*?)<\/eq>/g,
-    false, // inline
+    false,
     mathOutput, cache, stats, errors,
   );
 
   return { html, stats, errors };
 }
 
-/**
- * Replace all matches of a pattern with rendered formula images.
- */
 async function replacePattern(html, pattern, displayMode, mathOutput, cache, stats, errors) {
   const matches = [];
   let match;
 
-  // Collect all matches first (can't do async replacements in a regex callback)
   while ((match = pattern.exec(html)) !== null) {
     matches.push({
       fullMatch: match[0],
@@ -65,11 +60,9 @@ async function replacePattern(html, pattern, displayMode, mathOutput, cache, sta
     });
   }
 
-  // Process in reverse order to preserve indices
   for (let i = matches.length - 1; i >= 0; i--) {
     const m = matches[i];
 
-    // Extract LaTeX from the <annotation> element
     const latex = extractLatex(m.content);
     if (!latex) {
       errors.push(`Could not extract LaTeX from math element at position ${m.index}`);
@@ -79,17 +72,19 @@ async function replacePattern(html, pattern, displayMode, mathOutput, cache, sta
 
     // Check cache
     let cached = cache.get(latex, displayMode);
-    if (cached && !cached.error) {
-      // If PNG is requested but only SVG is cached, generate PNG from cached SVG
-      if (mathOutput === MathOutput.PNG && !cached.pngDataUri && cached.svg) {
+    if (cached && !cached.error && cached.svg) {
+      // Regenerate PNG if needed
+      if (mathOutput === MathOutput.PNG && !cached.pngDataUri) {
         try {
-          const pngResult = await svgToPngDataUri(cached.svg, { scale: 3 });
+          const dataUriResult = renderLatexToDataUri(latex, displayMode);
+          const pngResult = await svgToPngDataUri(dataUriResult.pxSvg || cached.svg, { scale: 3 });
           cached.pngDataUri = pngResult.pngDataUri;
           cache.set(latex, displayMode, { ...cached, pngBuffer: pngResult.pngBuffer });
         } catch { /* fall back to SVG */ }
       }
-      const imgTag = buildImgTag(cached, latex, displayMode, mathOutput);
-      html = html.slice(0, m.index) + imgTag + html.slice(m.index + m.fullMatch.length);
+
+      const replacement = buildFormulaHtml(cached, latex, displayMode, mathOutput);
+      html = html.slice(0, m.index) + replacement + html.slice(m.index + m.fullMatch.length);
       if (displayMode) stats.displayRendered++; else stats.inlineRendered++;
       stats.cached++;
       continue;
@@ -100,54 +95,44 @@ async function replacePattern(html, pattern, displayMode, mathOutput, cache, sta
     if (svgResult.error || !svgResult.svg) {
       errors.push(`Failed to render formula: ${latex.slice(0, 50)}... — ${svgResult.error}`);
       stats.errors++;
-      // Keep the original KaTeX HTML rather than dropping the formula
       continue;
     }
 
-    // Build the asset
     const asset = {
       svg: svgResult.svg,
-      width: svgResult.width,
-      height: svgResult.height,
-      widthPx: svgResult.widthPx,
-      heightPx: svgResult.heightPx,
       widthEx: svgResult.widthEx,
       heightEx: svgResult.heightEx,
-      verticalAlign: svgResult.verticalAlign,
-      verticalAlignPx: svgResult.verticalAlignPx,
+      verticalAlignEx: svgResult.verticalAlignEx,
+      viewBox: svgResult.viewBox,
       dataUri: null,
       pngDataUri: null,
       pngBuffer: null,
       error: null,
     };
 
-    // Generate data URIs based on output mode
-    if (mathOutput === MathOutput.SVG || mathOutput === MathOutput.AUTO) {
-      const encoded = Buffer.from(svgResult.svg).toString('base64');
-      asset.dataUri = `data:image/svg+xml;base64,${encoded}`;
-    }
-
+    // Generate PNG if requested
     if (mathOutput === MathOutput.PNG || mathOutput === MathOutput.AUTO) {
       try {
-        const pngResult = await svgToPngDataUri(svgResult.svg, { scale: 3 });
-        asset.pngDataUri = pngResult.pngDataUri;
-        asset.pngBuffer = pngResult.pngBuffer;
+        const dataUriResult = renderLatexToDataUri(latex, displayMode);
+        asset.dataUri = dataUriResult.dataUri;
+        if (mathOutput === MathOutput.PNG) {
+          const pngResult = await svgToPngDataUri(dataUriResult.pxSvg, { scale: 3 });
+          asset.pngDataUri = pngResult.pngDataUri;
+          asset.pngBuffer = pngResult.pngBuffer;
+        }
       } catch (e) {
         if (mathOutput === MathOutput.PNG) {
-          errors.push(`PNG conversion failed for: ${latex.slice(0, 50)}... — ${e.message}`);
+          errors.push(`PNG conversion failed: ${latex.slice(0, 50)}... — ${e.message}`);
           stats.errors++;
           continue;
         }
-        // AUTO mode: SVG is fine, PNG failed, non-fatal
       }
     }
 
-    // Cache the result
     cache.set(latex, displayMode, asset);
 
-    // Build <img> tag
-    const imgTag = buildImgTag(asset, latex, displayMode, mathOutput);
-    html = html.slice(0, m.index) + imgTag + html.slice(m.index + m.fullMatch.length);
+    const replacement = buildFormulaHtml(asset, latex, displayMode, mathOutput);
+    html = html.slice(0, m.index) + replacement + html.slice(m.index + m.fullMatch.length);
     if (displayMode) stats.displayRendered++; else stats.inlineRendered++;
   }
 
@@ -156,75 +141,91 @@ async function replacePattern(html, pattern, displayMode, mathOutput, cache, sta
 
 /**
  * Extract LaTeX source from KaTeX-rendered HTML.
- * Looks for <annotation encoding="application/x-tex"> content.
  */
 function extractLatex(katexHtml) {
   const match = katexHtml.match(/<annotation encoding="application\/x-tex">([\s\S]*?)<\/annotation>/);
-  if (match) {
-    return decodeHtmlEntities(match[1].trim());
-  }
+  if (match) return decodeHtmlEntities(match[1].trim());
 
-  // Fallback: try to find LaTeX in data attributes
   const dataMatch = katexHtml.match(/data-latex="([^"]*)"/);
-  if (dataMatch) {
-    return decodeHtmlEntities(dataMatch[1]);
-  }
+  if (dataMatch) return decodeHtmlEntities(dataMatch[1]);
 
   return null;
 }
 
 /**
- * Build an <img> tag for a rendered formula.
+ * Build the publishing HTML for a formula.
  *
- * Sizing strategy:
- * - SVGs have absolute pixel dimensions (converted from MathJax ex units).
- * - The <img> tag uses em-based width/height so the formula scales with
- *   surrounding text size.
- * - 1ex ≈ 0.4313em, so we convert widthEx/heightEx to em for the img style.
- * - Display equations use max-width:100% and auto height to never overflow.
- * - Inline equations use height in em to match text, with vertical-align.
+ * SVG mode: Embeds the SVG directly inline, wrapped in a <section> container.
+ * This is the approach used by mdnice and doocs/md for WeChat compatibility.
+ * The SVG itself contains only <path> elements — no CSS classes, no <defs>,
+ * no external dependencies.
+ *
+ * The container uses inline styles that survive WeChat paste:
+ * - Display: centered section with the SVG inside
+ * - Inline: span wrapper with vertical-align for baseline alignment
+ *
+ * PNG mode: Falls back to <img> tags with PNG data URIs.
  */
-function buildImgTag(asset, latex, displayMode, mathOutput = MathOutput.SVG) {
-  let src;
-  if (mathOutput === MathOutput.PNG) {
-    src = asset.pngDataUri || asset.dataUri;
-  } else {
-    src = asset.dataUri || asset.pngDataUri;
-  }
-  if (!src) return `<span class="math-error">[formula rendering failed]</span>`;
-
+function buildFormulaHtml(asset, latex, displayMode, mathOutput = MathOutput.SVG) {
   const escapedLatex = escapeAttr(latex);
 
-  // Convert ex dimensions to em for text-relative sizing (1ex ≈ 0.4313em)
-  const EX_TO_EM = 0.4313;
-  const widthEx = asset.widthEx || (asset.widthPx ? asset.widthPx / 7 : 0);
-  const heightEx = asset.heightEx || (asset.heightPx ? asset.heightPx / 7 : 0);
-  const widthEm = (widthEx * EX_TO_EM).toFixed(3);
-  const heightEm = (heightEx * EX_TO_EM).toFixed(3);
+  if (mathOutput === MathOutput.PNG && asset.pngDataUri) {
+    return buildPngFallback(asset, escapedLatex, displayMode);
+  }
+
+  // SVG inline mode (primary)
+  if (!asset.svg) return `<span data-latex="${escapedLatex}">[formula]</span>`;
+
+  // Prepare the inline SVG with proper sizing
+  let svg = asset.svg;
 
   if (displayMode) {
-    // Display equation: centered, width-constrained, never clipped.
-    // Use max-width:min(100%, Wem) so wide equations shrink to fit,
-    // and height:auto preserves aspect ratio.
-    return `<section style="text-align:center;margin:1em 0;overflow-x:auto;">`
-      + `<img src="${src}" `
-      + `alt="${escapedLatex}" `
-      + `data-latex="${escapedLatex}" `
-      + `data-display="true" `
-      + `style="max-width:100%;width:${widthEm}em;height:auto;vertical-align:middle;" `
-      + `/>`
+    // Display equation: centered block.
+    // Set SVG width to 100% of container with preserved aspect ratio via viewBox.
+    // The container constrains the maximum visual width.
+    // Wide equations scale down; narrow ones center naturally.
+    const maxWidthEm = (asset.widthEx * 0.44).toFixed(2); // ex → em approx
+
+    // Replace SVG width/height: use max-width container + auto sizing via viewBox
+    svg = svg.replace(/width="[\d.]+ex"/, `width="${maxWidthEm}em"`);
+    svg = svg.replace(/height="[\d.]+ex"/, '');  // remove height, let viewBox control aspect ratio
+
+    return `<section data-latex="${escapedLatex}" data-display="true" `
+      + `style="text-align:center;margin:1em 0;overflow-x:auto;overflow-y:visible;">`
+      + `<section style="display:inline-block;max-width:100%;">`
+      + svg
+      + `</section></section>`;
+  } else {
+    // Inline equation: SVG sized relative to surrounding text.
+    // Use em-based dimensions so the formula scales with font-size.
+    const heightEm = (asset.heightEx * 0.44).toFixed(3);
+    const widthEm = (asset.widthEx * 0.44).toFixed(3);
+    const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
+
+    svg = svg.replace(/width="[\d.]+ex"/, `width="${widthEm}em"`);
+    svg = svg.replace(/height="[\d.]+ex"/, `height="${heightEm}em"`);
+
+    return `<span data-latex="${escapedLatex}" data-display="false" `
+      + `style="display:inline-block;vertical-align:${valignEm}em;margin:0 0.1em;">`
+      + svg
+      + `</span>`;
+  }
+}
+
+function buildPngFallback(asset, escapedLatex, displayMode) {
+  const src = asset.pngDataUri;
+  if (displayMode) {
+    const widthEm = (asset.widthEx * 0.44).toFixed(2);
+    return `<section data-latex="${escapedLatex}" data-display="true" `
+      + `style="text-align:center;margin:1em 0;overflow-x:auto;">`
+      + `<img src="${src}" alt="${escapedLatex}" `
+      + `style="max-width:100%;width:${widthEm}em;height:auto;vertical-align:middle;" />`
       + `</section>`;
   } else {
-    // Inline equation: sized proportionally to surrounding text.
-    const valignEx = asset.verticalAlignPx != null ? asset.verticalAlignPx : -2;
-    const valignEm = (valignEx / 7 * EX_TO_EM).toFixed(3);
-
-    return `<img src="${src}" `
-      + `alt="${escapedLatex}" `
-      + `data-latex="${escapedLatex}" `
-      + `data-display="false" `
-      + `style="height:${heightEm}em;width:${widthEm}em;vertical-align:${valignEm}em;margin:0 0.15em;display:inline;" `
-      + `/>`;
+    const heightEm = (asset.heightEx * 0.44).toFixed(3);
+    const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
+    return `<img src="${src}" alt="${escapedLatex}" data-latex="${escapedLatex}" data-display="false" `
+      + `style="height:${heightEm}em;vertical-align:${valignEm}em;margin:0 0.1em;display:inline;" />`;
   }
 }
 
