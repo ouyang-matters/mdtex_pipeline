@@ -105,16 +105,45 @@ CSS, font, `<defs>`, `<use>`, `id`, or `class` dependencies.
 
 Formula cache: `~/.cache/publisher/formulas/` with SHA-256 content-hash keys.
 
+### Compile PDF
+PDF compilation requires a LaTeX distribution (TeX Live / MiKTeX):
+```bash
+# LaTeX projects: latexmk compiles main.tex
+# Markdown projects: converted to LaTeX intermediate first
+```
+
+### AI Editing
+The AI panel is in the bottom panel (click "AI" button). Backends:
+- **Local**: Uses installed Claude Code CLI (`claude`)
+- **Remote**: Connects to ClaudeClaw worker via HTTP/SSH
+- Configure in `~/.config/publisher/config.json`
+
+### Blog Pipeline
+If `blogpipe` CLI is installed, articles can be handed off for deployment.
+MDTeX delegates to blog-pipeline for GitHub sync, releases, and deployment.
+
+## Workspace UI Features
+
+- **Three-pane layout**: Library (left) + Editor (center) + Preview (right)
+- **Article library**: Create, search, rename, delete articles
+- **Folder organization**: Create folders, organize articles
+- **Drag-and-drop images**: Drop images onto editor to insert
+- **Clipboard paste images**: Paste screenshots directly into editor
+- **Image button**: Insert images via file chooser
+- **Bottom panel with tabs**: CSS Editor, AI Assistant, Build Output
+- **Style editor**: Live CSS editing with Save/SaveAs/Duplicate/Rename/Delete
+- **Target selector**: Switch between WeChat and Zhihu preview
+- **Library toggle**: Collapse sidebar for more editor space
+
 ## Incomplete / Planned
 
 | Feature | Status |
 |---------|--------|
-| PDF compilation (latexmk) | Interface planned, not implemented |
-| Blog pipeline CLI integration | Interface defined, needs blogpipe CLI |
-| AI editing integration | Backend interface implemented, UI integration pending |
+| PDF preview in UI | Backend implemented, UI preview pending |
+| Blog pipeline publish button | Interface defined, needs blogpipe CLI |
+| AI Claude Code integration | Backend implemented, needs local claude CLI |
 | WeChat image CDN upload | Upload interface defined, API not implemented |
 | Full-text article search | Title/tag search implemented, body search pending |
-| Article build target switching in UI | CLI working, UI pending |
 
 ## Known WeChat Rendering Limitations
 
