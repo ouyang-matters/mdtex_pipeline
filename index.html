@@ -57,9 +57,14 @@
         <div class="pane-header">
           <span>Source</span>
           <span id="editor-format-label" class="format-label">MD</span>
-          <button id="btn-insert-image" class="toolbar-btn" title="Insert image" style="margin-left:auto;padding:1px 6px;font-size:11px;">Image</button>
+          <div class="editor-toolbar" id="editor-toolbar"></div>
+          <button id="btn-insert-image" class="toolbar-btn" title="Insert image" style="padding:1px 6px;font-size:11px;">Img</button>
+          <button id="btn-snippets" class="toolbar-btn" title="Insert snippet" style="padding:1px 6px;font-size:11px;">Insert</button>
+          <button id="btn-compile-pdf" class="toolbar-btn" title="Compile PDF" style="padding:1px 6px;font-size:11px;">PDF</button>
         </div>
         <textarea id="editor" spellcheck="false" placeholder="Write Markdown or LaTeX here. Drag & drop images into the editor."></textarea>
+        <!-- Snippet palette (hidden by default) -->
+        <div id="snippet-palette" class="snippet-palette hidden"></div>
       </div>
 
       <!-- Right: Live preview -->
@@ -111,6 +116,9 @@
             <select id="ai-scope" class="toolbar-btn" style="font-size:11px;">
               <option value="content">Edit Content</option>
               <option value="theme">Edit Theme CSS</option>
+              <option value="convert-to-latex">Convert MD → LaTeX</option>
+              <option value="convert-to-md">Convert LaTeX → MD</option>
+              <option value="fix-compile">Fix Compile Error</option>
             </select>
             <input type="text" id="ai-prompt" class="ai-prompt-input" placeholder="e.g. Make the h2 headings use a left blue border..." />
             <button id="btn-ai-send" class="toolbar-btn primary" style="padding:3px 10px;">Send</button>
