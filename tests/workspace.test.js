@@ -58,10 +58,13 @@ describe('Article', () => {
     writeFileSync(imgPath, 'fake-png-data');
 
     const a = new Article({ title: 'Asset Test', _dir: dir });
-    const ref = a.importAsset(imgPath);
+    const asset = a.importAsset(imgPath);
 
-    expect(ref).toContain('![');
-    expect(ref).toContain('assets/');
+    expect(asset.reference).toContain('![');
+    expect(asset.reference).toContain('assets/');
+    expect(asset.relativePath).toBe(`assets/${asset.name}`);
+    // Spaces and parentheses must not survive into the stored filename.
+    expect(asset.name).not.toMatch(/[ ()]/);
     expect(existsSync(join(dir, 'assets'))).toBe(true);
 
     const assets = a.listAssets();

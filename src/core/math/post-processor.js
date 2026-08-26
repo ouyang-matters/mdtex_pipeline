@@ -11,6 +11,9 @@ export const MathOutput = {
   AUTO: 'auto',  // SVG preferred
 };
 
+const DISPLAY_PATTERN = /<section>\s*<eqn>([\s\S]*?)<\/eqn>\s*<\/section>/g;
+const INLINE_PATTERN = /<eq>([\s\S]*?)<\/eq>/g;
+
 /**
  * Post-process rendered HTML to replace KaTeX math elements with
  * self-contained publishing representations.
@@ -22,121 +25,149 @@ export const MathOutput = {
  *
  * For PNG mode: falls back to <img src="data:image/png;base64,...">
  * for maximum compatibility.
+ *
+ * Reports progress as `{ done, total }` so callers can show
+ * "Rendering formulas 18/42", and honours an AbortSignal between formulas.
  */
 export async function replaceKatexWithImages(html, options = {}) {
-  const { mathOutput = MathOutput.SVG, cache = new FormulaCache() } = options;
+  const {
+    mathOutput = MathOutput.SVG,
+    cache = new FormulaCache(),
+    onProgress = null,
+    signal = null,
+    yieldEvery = 12,
+  } = options;
 
   const errors = [];
-  const stats = { inlineRendered: 0, displayRendered: 0, cached: 0, errors: 0 };
+  const stats = { inlineRendered: 0, displayRendered: 0, cached: 0, errors: 0, total: 0 };
 
-  // Process display math first (wrapped in <section><eqn>...</eqn></section>)
-  html = await replacePattern(
-    html,
-    /<section>\s*<eqn>([\s\S]*?)<\/eqn>\s*<\/section>/g,
-    true,
-    mathOutput, cache, stats, errors,
-  );
+  // Collect every match up front so progress has a real denominator and each
+  // replacement can be applied by index without rescanning the document.
+  const matches = [
+    ...collectMatches(html, DISPLAY_PATTERN, true),
+    ...collectMatches(html, INLINE_PATTERN, false),
+  ].sort((a, b) => a.index - b.index);
 
-  // Process inline math (<eq>...</eq>)
-  html = await replacePattern(
-    html,
-    /<eq>([\s\S]*?)<\/eq>/g,
-    false,
-    mathOutput, cache, stats, errors,
-  );
+  stats.total = matches.length;
+  onProgress?.({ done: 0, total: matches.length });
 
-  return { html, stats, errors };
-}
+  const replacements = new Array(matches.length).fill(null);
+  let done = 0;
 
-async function replacePattern(html, pattern, displayMode, mathOutput, cache, stats, errors) {
-  const matches = [];
-  let match;
+  for (let i = 0; i < matches.length; i++) {
+    if (signal?.aborted) throw abortError();
 
-  while ((match = pattern.exec(html)) !== null) {
-    matches.push({
-      fullMatch: match[0],
-      content: match[1],
-      index: match.index,
-    });
-  }
-
-  for (let i = matches.length - 1; i >= 0; i--) {
     const m = matches[i];
-
     const latex = extractLatex(m.content);
     if (!latex) {
       errors.push(`Could not extract LaTeX from math element at position ${m.index}`);
       stats.errors++;
+      done++;
       continue;
     }
 
-    // Check cache
-    let cached = cache.get(latex, displayMode);
-    if (cached && !cached.error && cached.svg) {
-      // Regenerate PNG if needed
-      if (mathOutput === MathOutput.PNG && !cached.pngDataUri) {
-        try {
-          const dataUriResult = renderLatexToDataUri(latex, displayMode);
-          const pngResult = await svgToPngDataUri(dataUriResult.pxSvg || cached.svg, { scale: 3 });
-          cached.pngDataUri = pngResult.pngDataUri;
-          cache.set(latex, displayMode, { ...cached, pngBuffer: pngResult.pngBuffer });
-        } catch { /* fall back to SVG */ }
-      }
-
-      const replacement = buildFormulaHtml(cached, latex, displayMode, mathOutput);
-      html = html.slice(0, m.index) + replacement + html.slice(m.index + m.fullMatch.length);
-      if (displayMode) stats.displayRendered++; else stats.inlineRendered++;
-      stats.cached++;
-      continue;
-    }
-
-    // Render to SVG
-    const svgResult = renderLatexToSvg(latex, displayMode);
-    if (svgResult.error || !svgResult.svg) {
-      errors.push(`Failed to render formula: ${latex.slice(0, 50)}... — ${svgResult.error}`);
+    const outcome = await renderOne(latex, m.displayMode, mathOutput, cache);
+    if (outcome.error) {
+      errors.push(outcome.error);
       stats.errors++;
-      continue;
+    } else {
+      replacements[i] = buildFormulaHtml(outcome.asset, latex, m.displayMode, mathOutput);
+      if (m.displayMode) stats.displayRendered++; else stats.inlineRendered++;
+      if (outcome.fromCache) stats.cached++;
     }
 
-    const asset = {
-      svg: svgResult.svg,
-      widthEx: svgResult.widthEx,
-      heightEx: svgResult.heightEx,
-      verticalAlignEx: svgResult.verticalAlignEx,
-      viewBox: svgResult.viewBox,
-      dataUri: null,
-      pngDataUri: null,
-      pngBuffer: null,
-      error: null,
-    };
+    done++;
+    onProgress?.({ done, total: matches.length });
 
-    // Generate PNG if requested
-    if (mathOutput === MathOutput.PNG || mathOutput === MathOutput.AUTO) {
-      try {
-        const dataUriResult = renderLatexToDataUri(latex, displayMode);
-        asset.dataUri = dataUriResult.dataUri;
-        if (mathOutput === MathOutput.PNG) {
-          const pngResult = await svgToPngDataUri(dataUriResult.pxSvg, { scale: 3 });
-          asset.pngDataUri = pngResult.pngDataUri;
-          asset.pngBuffer = pngResult.pngBuffer;
-        }
-      } catch (e) {
-        if (mathOutput === MathOutput.PNG) {
-          errors.push(`PNG conversion failed: ${latex.slice(0, 50)}... — ${e.message}`);
-          stats.errors++;
-          continue;
-        }
-      }
+    // Yield to the event loop periodically so a long article does not block
+    // health checks, cancellation or a second concurrent build.
+    if (yieldEvery > 0 && done % yieldEvery === 0) {
+      await new Promise(r => setImmediate(r));
     }
-
-    cache.set(latex, displayMode, asset);
-
-    const replacement = buildFormulaHtml(asset, latex, displayMode, mathOutput);
-    html = html.slice(0, m.index) + replacement + html.slice(m.index + m.fullMatch.length);
-    if (displayMode) stats.displayRendered++; else stats.inlineRendered++;
   }
 
-  return html;
+  // Apply replacements back-to-front so earlier indices stay valid.
+  let result = html;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const replacement = replacements[i];
+    if (replacement === null) continue;
+    const m = matches[i];
+    result = result.slice(0, m.index) + replacement + result.slice(m.index + m.fullMatch.length);
+  }
+
+  return { html: result, stats, errors };
+}
+
+function collectMatches(html, pattern, displayMode) {
+  const found = [];
+  pattern.lastIndex = 0;
+  let match;
+  while ((match = pattern.exec(html)) !== null) {
+    found.push({
+      fullMatch: match[0],
+      content: match[1],
+      index: match.index,
+      displayMode,
+    });
+  }
+  return found;
+}
+
+async function renderOne(latex, displayMode, mathOutput, cache) {
+  const cached = cache.get(latex, displayMode);
+  if (cached && !cached.error && cached.svg) {
+    if (mathOutput === MathOutput.PNG && !cached.pngDataUri) {
+      try {
+        const dataUriResult = renderLatexToDataUri(latex, displayMode);
+        const pngResult = await svgToPngDataUri(dataUriResult.pxSvg || cached.svg, { scale: 3 });
+        cached.pngDataUri = pngResult.pngDataUri;
+        cache.set(latex, displayMode, { ...cached, pngBuffer: pngResult.pngBuffer });
+      } catch { /* fall back to SVG */ }
+    }
+    return { asset: cached, fromCache: true, error: null };
+  }
+
+  const svgResult = renderLatexToSvg(latex, displayMode);
+  if (svgResult.error || !svgResult.svg) {
+    return { asset: null, fromCache: false, error: `Failed to render formula: ${latex.slice(0, 50)}… — ${svgResult.error}` };
+  }
+
+  const asset = {
+    svg: svgResult.svg,
+    widthEx: svgResult.widthEx,
+    heightEx: svgResult.heightEx,
+    verticalAlignEx: svgResult.verticalAlignEx,
+    viewBox: svgResult.viewBox,
+    dataUri: null,
+    pngDataUri: null,
+    pngBuffer: null,
+    error: null,
+  };
+
+  if (mathOutput === MathOutput.PNG || mathOutput === MathOutput.AUTO) {
+    try {
+      const dataUriResult = renderLatexToDataUri(latex, displayMode);
+      asset.dataUri = dataUriResult.dataUri;
+      if (mathOutput === MathOutput.PNG) {
+        const pngResult = await svgToPngDataUri(dataUriResult.pxSvg, { scale: 3 });
+        asset.pngDataUri = pngResult.pngDataUri;
+        asset.pngBuffer = pngResult.pngBuffer;
+      }
+    } catch (e) {
+      if (mathOutput === MathOutput.PNG) {
+        return { asset: null, fromCache: false, error: `PNG conversion failed: ${latex.slice(0, 50)}… — ${e.message}` };
+      }
+    }
+  }
+
+  cache.set(latex, displayMode, asset);
+  return { asset, fromCache: false, error: null };
+}
+
+function abortError() {
+  const e = new Error('Compilation cancelled.');
+  e.name = 'AbortError';
+  return e;
 }
 
 /**
@@ -161,8 +192,11 @@ function extractLatex(katexHtml) {
  * no external dependencies.
  *
  * The container uses inline styles that survive WeChat paste:
- * - Display: centered section with the SVG inside
- * - Inline: span wrapper with vertical-align for baseline alignment
+ * - Display: centered section that scrolls horizontally if the equation is
+ *   genuinely wider than the column. The SVG keeps its full viewBox, so the
+ *   expression is never cropped.
+ * - Inline: span wrapper with vertical-align for baseline alignment, and
+ *   explicitly no overflow container, so text flow and baselines are preserved.
  *
  * PNG mode: Falls back to <img> tags with PNG data URIs.
  */
@@ -176,57 +210,56 @@ function buildFormulaHtml(asset, latex, displayMode, mathOutput = MathOutput.SVG
   // SVG inline mode (primary)
   if (!asset.svg) return `<span data-latex="${escapedLatex}">[formula]</span>`;
 
-  // Prepare the inline SVG with proper sizing
   let svg = asset.svg;
 
   if (displayMode) {
-    // Display equation: centered block.
-    // Set SVG width to 100% of container with preserved aspect ratio via viewBox.
-    // The container constrains the maximum visual width.
-    // Wide equations scale down; narrow ones center naturally.
-    const maxWidthEm = (asset.widthEx * 0.44).toFixed(2); // ex → em approx
-
-    // Replace SVG width/height: use max-width container + auto sizing via viewBox
-    svg = svg.replace(/width="[\d.]+ex"/, `width="${maxWidthEm}em"`);
-    svg = svg.replace(/height="[\d.]+ex"/, '');  // remove height, let viewBox control aspect ratio
-
-    return `<section data-latex="${escapedLatex}" data-display="true" `
-      + `style="text-align:center;margin:1em 0;overflow-x:auto;overflow-y:visible;">`
-      + `<section style="display:inline-block;max-width:100%;">`
-      + svg
-      + `</section></section>`;
-  } else {
-    // Inline equation: SVG sized relative to surrounding text.
-    // Use em-based dimensions so the formula scales with font-size.
-    const heightEm = (asset.heightEx * 0.44).toFixed(3);
-    const widthEm = (asset.widthEx * 0.44).toFixed(3);
-    const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
+    // Display equation: centered block that shrinks to the column width when it
+    // can, and scrolls when shrinking further would make it unreadable.
+    // max-width:100% on the SVG does the shrinking; the outer section provides
+    // the scroll container. The viewBox is left untouched, so nothing is cropped.
+    const widthEm = (asset.widthEx * 0.44).toFixed(2);
+    const heightEm = (asset.heightEx * 0.44).toFixed(2);
 
     svg = svg.replace(/width="[\d.]+ex"/, `width="${widthEm}em"`);
     svg = svg.replace(/height="[\d.]+ex"/, `height="${heightEm}em"`);
+    svg = svg.replace('<svg', '<svg style="max-width:100%;height:auto;display:inline-block;vertical-align:middle;"');
 
-    return `<span data-latex="${escapedLatex}" data-display="false" `
-      + `style="display:inline-block;vertical-align:${valignEm}em;margin:0 0.1em;">`
+    return `<section data-latex="${escapedLatex}" data-display="true" data-mdtex-math="display" `
+      + `style="text-align:center;margin:1em 0;max-width:100%;overflow-x:auto;overflow-y:visible;">`
+      + `<section style="display:inline-block;max-width:100%;">`
       + svg
-      + `</span>`;
+      + `</section></section>`;
   }
+
+  // Inline equation: sized in em so it scales with the surrounding text.
+  // No overflow container — an inline formula must never grow a scrollbar.
+  const heightEm = (asset.heightEx * 0.44).toFixed(3);
+  const widthEm = (asset.widthEx * 0.44).toFixed(3);
+  const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
+
+  svg = svg.replace(/width="[\d.]+ex"/, `width="${widthEm}em"`);
+  svg = svg.replace(/height="[\d.]+ex"/, `height="${heightEm}em"`);
+
+  return `<span data-latex="${escapedLatex}" data-display="false" data-mdtex-math="inline" `
+    + `style="display:inline-block;vertical-align:${valignEm}em;margin:0 0.1em;overflow:visible;">`
+    + svg
+    + `</span>`;
 }
 
 function buildPngFallback(asset, escapedLatex, displayMode) {
   const src = asset.pngDataUri;
   if (displayMode) {
     const widthEm = (asset.widthEx * 0.44).toFixed(2);
-    return `<section data-latex="${escapedLatex}" data-display="true" `
-      + `style="text-align:center;margin:1em 0;overflow-x:auto;">`
+    return `<section data-latex="${escapedLatex}" data-display="true" data-mdtex-math="display" `
+      + `style="text-align:center;margin:1em 0;max-width:100%;overflow-x:auto;overflow-y:visible;">`
       + `<img src="${src}" alt="${escapedLatex}" `
       + `style="max-width:100%;width:${widthEm}em;height:auto;vertical-align:middle;" />`
       + `</section>`;
-  } else {
-    const heightEm = (asset.heightEx * 0.44).toFixed(3);
-    const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
-    return `<img src="${src}" alt="${escapedLatex}" data-latex="${escapedLatex}" data-display="false" `
-      + `style="height:${heightEm}em;vertical-align:${valignEm}em;margin:0 0.1em;display:inline;" />`;
   }
+  const heightEm = (asset.heightEx * 0.44).toFixed(3);
+  const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
+  return `<img src="${src}" alt="${escapedLatex}" data-latex="${escapedLatex}" data-display="false" data-mdtex-math="inline" `
+    + `style="height:${heightEm}em;vertical-align:${valignEm}em;margin:0 0.1em;display:inline;" />`;
 }
 
 function escapeAttr(str) {
