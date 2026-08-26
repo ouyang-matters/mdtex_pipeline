@@ -61,16 +61,6 @@ export function markdownToLatexBody(source, options = {}) {
   const warnings = [];
   const stats = { headings: 0, mathInline: 0, mathBlock: 0, codeBlocks: 0, tables: 0, images: 0, links: 0 };
 
-  // markdown-it-footnote puts definitions in env.footnotes.list, referenced by
-  // index from footnote_ref tokens. Render each definition once, inline.
-  const footnoteBodies = [];
-  if (env.footnotes?.list) {
-    for (const def of env.footnotes.list) {
-      const inner = def.tokens ? renderTokens(def.tokens, ctxFor()) : '';
-      footnoteBodies.push(inner.trim());
-    }
-  }
-
   // A leading level-1 heading becomes the document title rather than a section.
   let title = null;
   let startIndex = 0;
@@ -85,13 +75,51 @@ export function markdownToLatexBody(source, options = {}) {
   // Heading depth offset: with the title extracted, `##` should be \section.
   const headingOffset = title !== null ? -1 : 0;
 
+  // markdown-it-footnote only moves definition tokens into env.footnotes.list
+  // during render(); after parse() alone they are still in the main token
+  // stream as footnote_open ... footnote_close blocks, keyed by meta.id.
+  // Collect them from there and render each definition once, inline.
+  const footnoteBodies = [];
+
   function ctxFor() {
     return { warnings, stats, resolveImage, headingOffset, footnoteBodies };
   }
 
+  footnoteBodies.push(...collectFootnotes(tokens, ctxFor));
+
   const body = renderTokens(tokens.slice(startIndex), ctxFor()).replace(/\n{3,}/g, '\n\n').trim();
 
   return { body, title, warnings, stats };
+}
+
+/**
+ * Extract footnote definition bodies from the parsed token stream.
+ * Returns an array indexed by the id that footnote_ref tokens carry.
+ */
+function collectFootnotes(tokens, ctxFor) {
+  const bodies = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].type !== 'footnote_open') continue;
+
+    const id = tokens[i].meta?.id ?? bodies.length;
+    const inner = [];
+    let depth = 1;
+
+    for (let j = i + 1; j < tokens.length; j++) {
+      if (tokens[j].type === 'footnote_open') depth++;
+      if (tokens[j].type === 'footnote_close') {
+        depth--;
+        if (depth === 0) { i = j; break; }
+      }
+      // The back-link anchor is a rendering artefact with no LaTeX equivalent.
+      if (tokens[j].type !== 'footnote_anchor') inner.push(tokens[j]);
+    }
+
+    bodies[id] = renderTokens(inner, ctxFor()).replace(/\s+/g, ' ').trim();
+  }
+
+  return bodies;
 }
 
 // ── Token rendering ──────────────────────────────────────────────────────────

@@ -1,21 +1,30 @@
-# MDTeX Pipeline Installer for Windows
+# MDTeX Studio Installer (Windows)
+#
 # Run from PowerShell:  .\install.ps1
 # Safe to run multiple times (idempotent).
+#
+# The command contract is identical on Windows and Linux:
+#   publisher start | init | doctor | update | build <article> --target <t> | version
+#
+# This script creates publisher.cmd and publisher.ps1 shims in a user-writable
+# bin directory and adds that directory to the user PATH, so the plain
+# `publisher` command works in both PowerShell and CMD without activating any
+# environment or typing a path to a script.
+
+$ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AppName = "publisher"
 $MinNodeMajor = 18
 
-function ExitIfFailed($message) {
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: $message (exit code $LASTEXITCODE)" -ForegroundColor Red
-        exit 1
-    }
-}
+function Write-Step($msg)  { Write-Host $msg -ForegroundColor White }
+function Write-Ok($msg)    { Write-Host $msg -ForegroundColor Green }
+function Write-Warn($msg)  { Write-Host $msg -ForegroundColor Yellow }
+function Write-Fail($msg)  { Write-Host $msg -ForegroundColor Red }
 
 Write-Host ""
-Write-Host "MDTeX Pipeline Installer" -ForegroundColor White
-Write-Host "========================" -ForegroundColor White
+Write-Step "MDTeX Studio Installer"
+Write-Step "======================"
 Write-Host ""
 
 # ── 1. Check Node.js ────────────────────────────────────────────────────────
@@ -24,25 +33,26 @@ $nodeVersion = $null
 try { $nodeVersion = & node -v 2>$null } catch {}
 
 if (-not $nodeVersion) {
-    Write-Host "Error: Node.js is not installed." -ForegroundColor Red
+    Write-Fail "Error: Node.js is not installed."
     Write-Host "Install Node.js >= $MinNodeMajor from https://nodejs.org/"
     exit 1
 }
 
 $nodeMajor = [int]($nodeVersion -replace '^v(\d+).*', '$1')
 if ($nodeMajor -lt $MinNodeMajor) {
-    Write-Host "Error: Node.js $nodeVersion is too old. Need >= v$MinNodeMajor." -ForegroundColor Red
+    Write-Fail "Error: Node.js $nodeVersion is too old. Need >= v$MinNodeMajor."
     exit 1
 }
 Write-Host "Node.js: $nodeVersion"
+
+$nodeExe = (Get-Command node).Source
 
 # ── 2. Check npm ────────────────────────────────────────────────────────────
 
 $npmVersion = $null
 try { $npmVersion = & npm -v 2>$null } catch {}
-
 if (-not $npmVersion) {
-    Write-Host "Error: npm is not installed." -ForegroundColor Red
+    Write-Fail "Error: npm is not installed."
     exit 1
 }
 Write-Host "npm: $npmVersion"
@@ -57,17 +67,17 @@ try {
     Write-Host "git: $gitVersion"
     $hasGit = $true
 } catch {
-    Write-Host "Warning: git not found. Cannot pull updates." -ForegroundColor Yellow
+    Write-Warn "Warning: git not found. 'publisher update' will not work."
 }
 
-if ($hasGit -and (Test-Path "$ScriptDir\.git")) {
+if ($hasGit -and (Test-Path "$ScriptDir\.git") -and $env:MDTEX_SKIP_PULL -ne "1") {
     Write-Host ""
-    Write-Host "Pulling latest changes..." -ForegroundColor White
+    Write-Step "Pulling latest changes..."
     $pullOutput = & git pull --ff-only 2>&1
     $pullExit = $LASTEXITCODE
     $pullOutput | ForEach-Object { Write-Host "  $_" }
     if ($pullExit -ne 0) {
-        Write-Host "Warning: git pull failed. Continuing with current version." -ForegroundColor Yellow
+        Write-Warn "Warning: git pull failed. Continuing with the current checkout."
     }
 }
 
@@ -75,66 +85,125 @@ Write-Host ""
 
 # ── 4. Install dependencies ────────────────────────────────────────────────
 
-Write-Host "Installing dependencies..." -ForegroundColor White
-
-$npmOutput = & npm install --no-audit --no-fund 2>&1
-$npmExit = $LASTEXITCODE
-
-$npmOutput | Where-Object { $_ -is [string] -or $_.ToString() -notmatch '^\s*$' } | Select-Object -Last 3 | ForEach-Object { Write-Host $_.ToString() }
-
-if ($npmExit -ne 0) {
-    Write-Host "Error: npm install failed (exit code $npmExit)" -ForegroundColor Red
+Write-Step "Installing dependencies..."
+& npm install --no-audit --no-fund 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "  $_" }
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail "Error: npm install failed (exit code $LASTEXITCODE)"
     exit 1
 }
 Write-Host ""
 
 # ── 5. Build UI ─────────────────────────────────────────────────────────────
 
-Write-Host "Building UI..." -ForegroundColor White
-
+Write-Step "Building UI..."
 $buildOutput = & npx vite build 2>&1
-$buildExit = $LASTEXITCODE
-
-$buildOutput | ForEach-Object { $_.ToString() } | Select-String -Pattern '(built in|modules transformed)' | ForEach-Object { Write-Host $_.Line }
-
-if ($buildExit -ne 0) {
-    Write-Host "Error: UI build failed (exit code $buildExit)" -ForegroundColor Red
+if ($LASTEXITCODE -ne 0) {
+    $buildOutput | ForEach-Object { Write-Host "  $_" }
+    Write-Fail "Error: UI build failed (exit code $LASTEXITCODE)"
     exit 1
 }
+$buildOutput | ForEach-Object { $_.ToString() } |
+    Select-String -Pattern '(built in|modules transformed)' |
+    ForEach-Object { Write-Host "  $($_.Line)" }
 Write-Host ""
 
 # ── 6. Initialize user directories ─────────────────────────────────────────
 
-Write-Host "Initializing user directories..." -ForegroundColor White
-& node src/cli/index.js init
-ExitIfFailed "Initialization failed"
+Write-Step "Initializing user directories..."
+& node "$ScriptDir\src\cli\index.js" init
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail "Error: initialization failed."
+    exit 1
+}
 Write-Host ""
 
-# ── 7. Run self-test ────────────────────────────────────────────────────────
+# ── 7. Install the `publisher` command ─────────────────────────────────────
 
-Write-Host "Running self-test..." -ForegroundColor White
+Write-Step "Setting up the publisher command..."
+
+$BinDir = if ($env:MDTEX_BIN_DIR) { $env:MDTEX_BIN_DIR } else { Join-Path $env:LOCALAPPDATA "Programs\MDTeX\bin" }
+New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+
+# CMD shim - makes `publisher` work in cmd.exe and in PowerShell.
+$cmdShim = @"
+@echo off
+setlocal
+"$nodeExe" "$ScriptDir\src\cli\index.js" %*
+endlocal
+"@
+Set-Content -Path (Join-Path $BinDir "$AppName.cmd") -Value $cmdShim -Encoding ASCII
+
+# PowerShell shim - preferred by PowerShell when both exist, and forwards the
+# child process exit code so scripting with `publisher` behaves correctly.
+$ps1Shim = @"
+#!/usr/bin/env pwsh
+# MDTeX Studio launcher - generated by install.ps1
+& "$nodeExe" "$ScriptDir\src\cli\index.js" @args
+exit `$LASTEXITCODE
+"@
+Set-Content -Path (Join-Path $BinDir "$AppName.ps1") -Value $ps1Shim -Encoding UTF8
+
+Write-Host "  Installed: $(Join-Path $BinDir "$AppName.cmd")"
+Write-Host "  Installed: $(Join-Path $BinDir "$AppName.ps1")"
+
+# Add the bin directory to the *user* PATH (no admin rights needed), only once.
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ([string]::IsNullOrEmpty($userPath)) { $userPath = "" }
+
+$alreadyOnPath = $userPath.Split(';') | Where-Object { $_.TrimEnd('\') -ieq $BinDir.TrimEnd('\') }
+
+if ($alreadyOnPath) {
+    Write-Host "  PATH already contains $BinDir"
+} else {
+    $newPath = if ($userPath.TrimEnd(';') -eq "") { $BinDir } else { "$($userPath.TrimEnd(';'));$BinDir" }
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Host "  Added to user PATH: $BinDir"
+    Write-Warn "  Open a new terminal for the PATH change to take effect."
+}
+
+# Make it usable in *this* session too.
+if (-not ($env:Path.Split(';') | Where-Object { $_.TrimEnd('\') -ieq $BinDir.TrimEnd('\') })) {
+    $env:Path = "$env:Path;$BinDir"
+}
+
+Write-Host ""
+
+# ── 8. LaTeX detection ──────────────────────────────────────────────────────
+
+Write-Step "Checking for LaTeX..."
+& node "$ScriptDir\src\cli\index.js" latex 2>&1 | ForEach-Object { Write-Host "  $_" }
+Write-Host ""
+
+# ── 9. Self-test ────────────────────────────────────────────────────────────
+
+Write-Step "Running self-test..."
 & node "$ScriptDir\scripts\selftest.js"
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
-    Write-Host "Self-test passed." -ForegroundColor Green
+    Write-Ok "Self-test passed."
 } else {
     Write-Host ""
-    Write-Host "Warning: Some self-tests failed. Run 'node src/cli/index.js doctor' for details." -ForegroundColor Yellow
+    Write-Warn "Warning: Some self-tests failed. Run 'publisher doctor' for details."
 }
 
-# ── 8. Done ─────────────────────────────────────────────────────────────────
+# ── 10. Done ────────────────────────────────────────────────────────────────
 
 Write-Host ""
-Write-Host "Installation complete!" -ForegroundColor Green
+Write-Ok "Installation complete!"
 Write-Host ""
-Write-Host "Start the UI:"
-Write-Host "  npm run dev" -ForegroundColor Cyan
+Write-Host "Start MDTeX Studio:"
+Write-Host "  publisher start" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "CLI usage:"
-Write-Host "  node src/cli/index.js build article.md --target wechat" -ForegroundColor Cyan
-Write-Host "  node src/cli/index.js doctor" -ForegroundColor Cyan
-Write-Host "  node src/cli/index.js version" -ForegroundColor Cyan
+Write-Host "Other commands (identical on Windows and Linux):"
+Write-Host "  publisher init" -ForegroundColor Cyan
+Write-Host "  publisher doctor" -ForegroundColor Cyan
+Write-Host "  publisher update" -ForegroundColor Cyan
+Write-Host "  publisher build <article-dir> --target pdf" -ForegroundColor Cyan
+Write-Host "  publisher build <article-dir> --target wechat" -ForegroundColor Cyan
+Write-Host "  publisher version" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "To update later, run this script again:" -ForegroundColor White
-Write-Host "  .\install.ps1" -ForegroundColor Cyan
+Write-Host "Configuration:  $env:LOCALAPPDATA\publisher\"
+Write-Host "Workspace:      $env:LOCALAPPDATA\publisher\workspace\"
+Write-Host ""
+Write-Host "To update later, run this script again, or: publisher update"
 Write-Host ""

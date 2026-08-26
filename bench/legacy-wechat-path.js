@@ -2,21 +2,18 @@
  * Frozen snapshot of the pre-backend browser WeChat path.
  *
  * This is the code that used to run on the browser main thread when the user
- * pressed "Copy for Platform", preserved verbatim (minus Vite-specific asset
- * imports) so scripts/bench-wechat.js can keep measuring what was replaced.
+ * pressed "Copy for Platform". It is preserved verbatim (only the katex.min.css
+ * source is parameterised) so the benchmark can keep measuring what was
+ * replaced, in the same engine, against the same fixture.
  *
- * DO NOT use this in the application. It exists only for the benchmark.
+ * DO NOT use this in the application. It exists only for scripts/bench-wechat.js.
  */
 
-import { readFileSync } from 'fs';
-import { join, resolve } from 'path';
 import MarkdownIt from 'markdown-it';
 import footnotePlugin from 'markdown-it-footnote';
 import texmathPlugin from 'markdown-it-texmath';
 import katex from 'katex';
 import hljs from 'highlight.js';
-
-const appRoot = resolve(import.meta.dirname, '..');
 
 function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -75,21 +72,11 @@ export function resolveCssVariables(css) {
 
 // ── The two hot spots ────────────────────────────────────────────────────────
 
-let _katexCss = null;
-function getKatexCss() {
-  if (_katexCss === null) {
-    _katexCss = readFileSync(join(appRoot, 'node_modules', 'katex', 'dist', 'katex.min.css'), 'utf-8');
-  }
-  return _katexCss;
-}
-
 /**
  * Original math-to-image.js: renders every formula into its own foreignObject
  * SVG data URI, with a full copy of katex.min.css embedded in each one.
  */
-export async function replaceKatexWithImagesInBrowser(html, themeCss) {
-  const katexCss = getKatexCss();
-
+export function replaceKatexWithImagesInBrowser(html, themeCss, katexCss) {
   const container = document.createElement('div');
   container.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;';
   container.innerHTML = `<style>${katexCss}\n${themeCss}</style>\n${html}`;
@@ -165,7 +152,7 @@ function katexElementToImg(katexEl, latex, displayMode, katexCss) {
 
 /**
  * Original browser-compiler.js inliner: one getComputedStyle() per element plus
- * a full rules × elements matches() sweep.
+ * a full rules x elements matches() sweep.
  */
 export function inlineCssSimple(html, css) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -219,10 +206,4 @@ export function sanitizeForPlatform(html, platform) {
     result = result.replace(/\s+id="[^"]*"/gi, '');
   }
   return result;
-}
-
-// Browser `unescape(encodeURIComponent(s))` turns a JS string into a latin1
-// binary string, which is what btoa() expects. This is the Node equivalent.
-function unescape(s) {
-  return Buffer.from(decodeURIComponent(s), 'utf8').toString('latin1');
 }

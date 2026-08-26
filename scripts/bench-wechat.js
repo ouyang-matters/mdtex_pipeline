@@ -2,181 +2,237 @@
 /**
  * WeChat compilation benchmark.
  *
- * Stage-by-stage timings for:
- *   legacy  — the original browser main-thread path (DOM CSS inlining +
- *             per-formula foreignObject SVG data URIs), reproduced under jsdom
- *   backend — the current local-backend path (MathJax path-only SVG + juice)
+ * Runs both paths in a real browser against a real backend:
  *
- * jsdom cannot reproduce Chrome's layout/reflow cost, so the legacy numbers
- * here are a LOWER BOUND on what the browser actually did. The point of the
- * benchmark is the shape of the cost, not an exact wall-clock match.
+ *   legacy  — the original browser main-thread path, preserved verbatim in
+ *             bench/legacy-wechat-path.js
+ *   backend — the current path, where the browser asks the local backend to
+ *             compile and the heavy work happens off the UI thread
  *
- *   node scripts/bench-wechat.js [--json] [--fixture <path>]
+ * The numbers that matter are wall-clock time AND the worst main-thread gap:
+ * a compile that takes a second but never blocks the editor is a different
+ * experience from one that takes the same second with the window frozen.
+ *
+ *   node scripts/bench-wechat.js [--json] [--markdown] [--fixture <path>]
  */
 
-import { readFileSync } from 'fs';
-import { join, resolve, dirname } from 'path';
-import { performance } from 'perf_hooks';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join, resolve, basename } from 'path';
+import { execFileSync } from 'child_process';
+import { launchChrome } from './lib/chrome.js';
 
 const appRoot = resolve(import.meta.dirname, '..');
-
 const argv = process.argv.slice(2);
 const asJson = argv.includes('--json');
+const asMarkdown = argv.includes('--markdown');
 const fixtureArg = argv.indexOf('--fixture');
 const fixturePath = fixtureArg >= 0
   ? resolve(argv[fixtureArg + 1])
   : join(appRoot, 'tests', 'fixtures', 'long_technical_article.md');
+const scaleArg = argv.indexOf('--scale');
+// Repeat the fixture body N times, to show how each path scales with article
+// length rather than only reporting one size.
+const scale = scaleArg >= 0 ? Math.max(1, Number(argv[scaleArg + 1]) || 1) : 1;
 
-const source = readFileSync(fixturePath, 'utf-8');
-const themeCss = readFileSync(join(appRoot, 'themes', 'builtin', 'default.css'), 'utf-8');
+const BENCH_DIR = join(appRoot, 'dist', 'bench');
 
-function ms(t) { return Math.round(t * 10) / 10; }
-
-async function time(label, fn) {
-  const t0 = performance.now();
-  const value = await fn();
-  return { label, ms: ms(performance.now() - t0), value };
-}
-
-// ── Legacy browser path (reproduced under jsdom) ─────────────────────────────
-
-async function benchLegacy() {
-  const { JSDOM } = await import('jsdom');
-  const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
-    pretendToBeVisual: true,
+function buildBenchPage() {
+  execFileSync('npx', ['vite', 'build', '--config', 'vite.bench.config.js'], {
+    cwd: appRoot,
+    stdio: asJson ? 'ignore' : 'inherit',
   });
-  const { window } = dom;
+}
 
-  // jsdom has no layout engine: every rect is 0x0, which would make the legacy
-  // formula converter bail out before doing its work. Stub in plausible boxes so
-  // the serialization cost we are measuring actually runs.
-  window.Element.prototype.getBoundingClientRect = function () {
-    const display = this.closest?.('.katex-display') || this.classList?.contains('katex-display');
-    const w = display ? 320 : 48;
-    const h = display ? 42 : 18;
-    return { x: 0, y: 0, top: 0, left: 0, right: w, bottom: h, width: w, height: h };
-  };
-
-  const g = globalThis;
-  const saved = {};
-  for (const k of ['window', 'document', 'DOMParser', 'CSSRule', 'Element', 'Node', 'btoa', 'getComputedStyle']) {
-    saved[k] = g[k];
+async function main() {
+  if (!existsSync(join(BENCH_DIR, 'index.html')) || argv.includes('--rebuild')) {
+    if (!asJson) console.log('Building the benchmark page…\n');
+    buildBenchPage();
   }
-  g.window = window;
-  g.document = window.document;
-  g.DOMParser = window.DOMParser;
-  g.CSSRule = window.CSSRule;
-  g.Element = window.Element;
-  g.Node = window.Node;
-  g.btoa = window.btoa ? window.btoa.bind(window) : (s) => Buffer.from(s, 'binary').toString('base64');
-  g.getComputedStyle = window.getComputedStyle.bind(window);
 
+  // The page fetches its fixture and theme from its own directory.
+  const base = readFileSync(fixturePath, 'utf-8');
+  const source = scale > 1 ? scaleFixture(base, scale) : base;
+  writeFileSync(join(BENCH_DIR, 'fixture.md'), source, 'utf-8');
+  copyFileSync(join(appRoot, 'themes', 'builtin', 'default.css'), join(BENCH_DIR, 'theme.css'));
+
+  // A private cache directory, so "cold" really is cold.
+  const cacheHome = mkdtempSync(join(tmpdir(), 'mdtex-bench-cache-'));
+  const workspace = mkdtempSync(join(tmpdir(), 'mdtex-bench-ws-'));
+  process.env.XDG_CACHE_HOME = cacheHome;
+
+  const { startServer } = await import('../src/server/index.js');
+  const server = await startServer({
+    port: 0,
+    serveUi: true,
+    uiDir: BENCH_DIR,
+    writeRuntime: false,
+    workspaceRoot: workspace,
+    quiet: true,
+  });
+
+  const chrome = await launchChrome({ headless: true });
+  const page = await chrome.browser.newPage();
+  await page.enable();
+
+  let report;
   try {
-    const legacy = await import('./legacy-browser-path.js');
-    const stages = [];
-
-    const render = await time('markdown + KaTeX render', () => legacy.renderMarkdown(source));
-    stages.push(render);
-    const rawHtml = render.value;
-
-    const css = await time('resolve CSS variables', () => legacy.resolveCssVariables(themeCss));
-    stages.push(css);
-    const resolvedCss = css.value;
-
-    const math = await time('formula → foreignObject data URI', () =>
-      legacy.replaceKatexWithImagesInBrowser(rawHtml, resolvedCss));
-    stages.push(math);
-    const mathHtml = math.value;
-
-    const inline = await time('CSS inlining (getComputedStyle per element)', () =>
-      legacy.inlineCssSimple(mathHtml, resolvedCss));
-    stages.push(inline);
-    const inlinedHtml = inline.value;
-
-    const sanitize = await time('platform sanitize', () =>
-      legacy.sanitizeForPlatform(inlinedHtml, 'wechat'));
-    stages.push(sanitize);
-
-    return {
-      stages,
-      totalMs: ms(stages.reduce((a, s) => a + s.ms, 0)),
-      outputBytes: sanitize.value.length,
-    };
+    // The benchmark writes to the clipboard, which headless Chrome refuses
+    // without permission and without a focused document.
+    await page.grantClipboard(server.url);
+    await page.cdp('Emulation.setFocusEmulationEnabled', { enabled: true });
+    await page.goto(`${server.url}/index.html?token=${encodeURIComponent(server.token)}`);
+    await page.waitFor('window.__BENCH_RESULT__ !== undefined', {
+      timeout: 20 * 60 * 1000,
+      interval: 500,
+      label: 'benchmark completion',
+    });
+    report = await page.eval('window.__BENCH_RESULT__');
   } finally {
-    for (const [k, v] of Object.entries(saved)) {
-      if (v === undefined) delete g[k]; else g[k] = v;
-    }
-    window.close();
+    await page.close().catch(() => {});
+    await chrome.close();
+    await server.stop();
+    rmSync(cacheHome, { recursive: true, force: true });
+    rmSync(workspace, { recursive: true, force: true });
   }
-}
 
-// ── Current backend path ─────────────────────────────────────────────────────
-
-async function benchBackend({ warmCache }) {
-  const { Compiler } = await import('../src/core/compiler/index.js');
-  const { FormulaCache } = await import('../src/core/math/formula-cache.js');
-  const { mkdtempSync, rmSync } = await import('fs');
-  const { tmpdir } = await import('os');
-
-  // A private formula cache dir so "cold" really means cold.
-  const cacheDir = mkdtempSync(join(tmpdir(), 'mdtex-bench-'));
-  try {
-    const compiler = new Compiler();
-    compiler.formulaCache = new FormulaCache(cacheDir);
-
-    if (warmCache) {
-      await compiler.compile(source, { theme: 'default', platform: 'wechat', baseDir: dirname(fixturePath) });
-    }
-
-    const stages = [];
-    const run = await time('full compile (MathJax SVG + juice + adapter)', () =>
-      compiler.compile(source, { theme: 'default', platform: 'wechat', baseDir: dirname(fixturePath) }));
-    stages.push(run);
-
-    const result = run.value;
-    return {
-      stages,
-      totalMs: run.ms,
-      outputBytes: result.html.length,
-      formulas: result.mathResult.inlineRendered + result.mathResult.displayRendered,
-      cachedFormulas: result.mathResult.cached,
-    };
-  } finally {
-    rmSync(cacheDir, { recursive: true, force: true });
+  if (report.error) {
+    console.error('Benchmark failed inside the page:\n', report.error);
+    process.exit(1);
   }
+
+  report.fixture = scale > 1 ? `${basename(fixturePath)} x${scale}` : basename(fixturePath);
+  report.scale = scale;
+  report.formulaCount = countFormulas(source);
+  report.node = process.version;
+
+  if (asJson) {
+    console.log(JSON.stringify(report, null, 2));
+  } else if (asMarkdown) {
+    console.log(renderMarkdownReport(report));
+  } else {
+    console.log(renderTextReport(report));
+  }
+
+  process.exit(0);
 }
 
-// ── Run ──────────────────────────────────────────────────────────────────────
-
-const legacy = await benchLegacy();
-const backendCold = await benchBackend({ warmCache: false });
-const backendWarm = await benchBackend({ warmCache: true });
-
-const report = {
-  fixture: fixturePath.replace(appRoot + '/', ''),
-  sourceBytes: source.length,
-  formulas: backendCold.formulas,
-  node: process.version,
-  legacy,
-  backendCold,
-  backendWarm,
-};
-
-if (asJson) {
-  console.log(JSON.stringify(report, null, 2));
-} else {
-  console.log(`Fixture: ${report.fixture} (${report.sourceBytes} bytes, ${report.formulas} formulas)`);
-  console.log(`Node ${report.node}\n`);
-
-  console.log('Legacy browser main-thread path (jsdom lower bound):');
-  for (const s of legacy.stages) console.log(`  ${String(s.ms).padStart(8)} ms  ${s.label}`);
-  console.log(`  ${String(legacy.totalMs).padStart(8)} ms  TOTAL   → ${legacy.outputBytes} bytes of HTML\n`);
-
-  console.log('Local backend path, cold formula cache:');
-  for (const s of backendCold.stages) console.log(`  ${String(s.ms).padStart(8)} ms  ${s.label}`);
-  console.log(`  ${String(backendCold.totalMs).padStart(8)} ms  TOTAL   → ${backendCold.outputBytes} bytes of HTML\n`);
-
-  console.log('Local backend path, warm formula cache:');
-  console.log(`  ${String(backendWarm.totalMs).padStart(8)} ms  TOTAL   → ${backendWarm.outputBytes} bytes of HTML`);
-  console.log(`            (${backendWarm.cachedFormulas}/${backendWarm.formulas} formulas served from cache)`);
+/**
+ * Repeat an article body, renumbering headings so the result reads as one long
+ * document rather than N copies stacked on top of each other.
+ */
+function scaleFixture(source, times) {
+  const [head, ...rest] = source.split(/^## /m);
+  const body = rest.map(s => `## ${s}`).join('');
+  let out = head;
+  for (let i = 0; i < times; i++) {
+    out += body.replace(/^## (\d+)\./gm, (_, n) => `## ${Number(n) + i * 100}.`)
+               .replace(/^### (\d+)\.(\d+)/gm, (_, a, b) => `### ${Number(a) + i * 100}.${b}`);
+  }
+  return out;
 }
+
+function countFormulas(source) {
+  const display = (source.match(/^\$\$$/gm) || []).length / 2;
+  const inline = (source.match(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g) || []).length;
+  return { display, inline, total: display + inline };
+}
+
+function renderTextReport(r) {
+  const lines = [];
+  lines.push(`Fixture: ${r.fixture} — ${r.fixtureBytes} bytes, ${r.formulaCount.total} formulas `
+    + `(${r.formulaCount.display} display, ${r.formulaCount.inline} inline)`);
+  lines.push(`Browser: ${r.userAgent.match(/Chrome\/[\d.]+/)?.[0] || r.userAgent}`);
+  lines.push(`Node: ${r.node}`);
+  lines.push('');
+
+  lines.push('Legacy browser main-thread path');
+  for (const s of r.legacy.stages) {
+    lines.push(`  ${String(s.ms).padStart(9)} ms  ${s.label}`);
+  }
+  lines.push(`  ${String(r.legacy.totalMs).padStart(9)} ms  TOTAL`);
+  lines.push(`  worst main-thread gap: ${r.legacy.worstGapMs} ms`);
+  lines.push(`  output: ${formatBytes(r.legacy.outputBytes)}`);
+  lines.push('');
+
+  lines.push('Current path (local backend), cold formula cache');
+  lines.push(`  ${String(r.backendCold.totalMs).padStart(9)} ms  TOTAL`);
+  if (r.backendCold.timings) {
+    for (const [phase, ms] of Object.entries(r.backendCold.timings)) {
+      lines.push(`  ${String(ms).padStart(9)} ms    ${phase}`);
+    }
+  }
+  lines.push(`  worst main-thread gap: ${r.backendCold.worstGapMs} ms`);
+  lines.push(`  output: ${formatBytes(r.backendCold.bytes || 0)}`);
+  lines.push('');
+
+  lines.push('Current path, warm cache');
+  lines.push(`  ${String(r.backendWarm.totalMs).padStart(9)} ms  TOTAL${r.backendWarm.cached ? ' (cache hit)' : ''}`);
+  lines.push(`  worst main-thread gap: ${r.backendWarm.worstGapMs} ms`);
+  lines.push('');
+
+  if (r.copy) {
+    lines.push('Pressing Copy on prepared output (fetch stored bytes + clipboard write)');
+    lines.push(`  ${String(r.copy.ms).padStart(9)} ms  TOTAL`);
+    if (r.copy.clip) {
+      lines.push(`  ${String(r.copy.clip.ms ?? '?').padStart(9)} ms    clipboard write of ${formatBytes(r.copy.clip.bytes)}`);
+    }
+    lines.push(`  worst main-thread gap: ${r.copy.worstGapMs} ms`);
+    lines.push('');
+  }
+
+  if (r.legacy.clipboard) {
+    lines.push('Legacy clipboard write');
+    lines.push(r.legacy.clipboard.error
+      ? `  failed: ${r.legacy.clipboard.error}`
+      : `  ${String(r.legacy.clipboard.ms).padStart(9)} ms  writing ${formatBytes(r.legacy.clipboard.bytes)}`);
+    lines.push('');
+  }
+
+  const legacyPerCopy = r.legacy.totalMs + (r.legacy.clipboard?.ms || 0);
+  const newPerCopy = r.copy ? r.copy.ms : r.backendWarm.totalMs;
+  lines.push(`Every press of Copy used to cost ${legacyPerCopy} ms of blocked main thread `
+    + `(worst stall ${r.legacy.worstGapMs} ms) and produce ${formatBytes(r.legacy.outputBytes)}.`);
+  lines.push(`It now costs ${newPerCopy} ms with a worst stall of ${r.copy ? r.copy.worstGapMs : r.backendWarm.worstGapMs} ms, `
+    + `on ${formatBytes(r.backendCold.bytes || 0)} of output.`);
+
+  return lines.join('\n');
+}
+
+function renderMarkdownReport(r) {
+  const lines = [];
+  lines.push(`Fixture: \`${r.fixture}\` — ${r.fixtureBytes} bytes, ${r.formulaCount.total} formulas `
+    + `(${r.formulaCount.display} display, ${r.formulaCount.inline} inline).`);
+  lines.push('');
+  lines.push('| Path | Total | Worst main-thread gap | Output |');
+  lines.push('| --- | ---: | ---: | ---: |');
+  lines.push(`| Legacy browser main thread | ${r.legacy.totalMs} ms | ${r.legacy.worstGapMs} ms | ${formatBytes(r.legacy.outputBytes)} |`);
+  lines.push(`| Local backend, cold cache | ${r.backendCold.totalMs} ms | ${r.backendCold.worstGapMs} ms | ${formatBytes(r.backendCold.bytes || 0)} |`);
+  lines.push(`| Local backend, warm cache | ${r.backendWarm.totalMs} ms | ${r.backendWarm.worstGapMs} ms | — |`);
+  lines.push('');
+  lines.push('Legacy stage breakdown:');
+  lines.push('');
+  lines.push('| Stage | Time |');
+  lines.push('| --- | ---: |');
+  for (const s of r.legacy.stages) lines.push(`| ${s.label} | ${s.ms} ms |`);
+  if (r.backendCold.timings) {
+    lines.push('');
+    lines.push('Backend stage breakdown (cold cache):');
+    lines.push('');
+    lines.push('| Stage | Time |');
+    lines.push('| --- | ---: |');
+    for (const [phase, ms] of Object.entries(r.backendCold.timings)) lines.push(`| ${phase} | ${ms} ms |`);
+  }
+  return lines.join('\n');
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+main().catch((e) => {
+  console.error('Benchmark failed:', e);
+  process.exit(1);
+});

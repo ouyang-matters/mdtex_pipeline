@@ -10,6 +10,11 @@ import { paths, ensureUserDirs, getVersionSync, getGitCommitSync } from '../core
 import { initConfig, migrateConfig, getConfig, CONFIG_VERSION, DATA_VERSION } from '../core/config/index.js';
 import { createBackup, listBackups, restoreBackup } from '../core/config/backup.js';
 import { ArticleLibrary } from '../workspace/library.js';
+import { startCommand } from './commands/start.js';
+import { buildCommand, printValidation } from './commands/build.js';
+import { doctorCommand } from './commands/doctor.js';
+import { detectLatexEnvironment } from '../core/latex/environment.js';
+import { listPdfTemplates } from '../core/latex/templates.js';
 
 const program = new Command();
 
@@ -18,76 +23,68 @@ program
   .description('Markdown + LaTeX publishing pipeline for WeChat and Zhihu')
   .version(getVersionSync());
 
+// ── start ─────────────────────────────────────────────────────────────────────
+
+program
+  .command('start')
+  .description('Start MDTeX Studio (local backend + UI) and open it in a browser')
+  .option('-p, --port <port>', 'Port to listen on', '4173')
+  .option('--no-open', 'Do not open a browser')
+  .option('--force', 'Start even if another instance is already running')
+  .action(async (opts) => {
+    await startCommand(opts);
+  });
+
 // ── build ──────────────────────────────────────────────────────────────────────
 
 program
   .command('build')
-  .description('Compile a Markdown file for a target platform')
-  .argument('<file>', 'Markdown file to compile')
-  .option('-t, --target <platform>', 'Target platform (wechat, zhihu)', 'wechat')
-  .option('--theme <theme>', 'Theme name or CSS file path', 'default')
-  .option('-o, --output <file>', 'Output HTML file')
+  .description('Compile an article for a target (wechat, zhihu, pdf)')
+  .argument('<article>', 'Markdown/LaTeX file, article directory, or workspace article')
+  .option('-t, --target <target>', 'Target: wechat, zhihu or pdf', 'wechat')
+  .option('--theme <theme>', 'Theme name or CSS file path (platform targets)')
+  .option('--template <template>', 'PDF template (pdf target)')
+  .option('--engine <engine>', 'LaTeX engine: xelatex, lualatex, pdflatex (pdf target)')
+  .option('-o, --output <path>', 'Output file (platform targets) or directory (pdf)')
   .option('--math <mode>', 'Math output mode (svg, png, auto)', 'svg')
-  .action(async (file, opts) => {
-    const source = readFileSync(resolve(file), 'utf-8');
-    const baseDir = dirname(resolve(file));
-    const compiler = new Compiler();
-
-    const result = await compiler.compile(source, {
-      theme: opts.theme,
-      platform: opts.target,
-      baseDir,
-      mathOutput: opts.math,
-    });
-
-    const outFile = opts.output || resolve('dist', `${basename(file, extname(file))}.${opts.target}.html`);
-    const outDir = dirname(outFile);
-    if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
-
-    writeFileSync(outFile, result.html, 'utf-8');
-
-    console.log(`Compiled: ${file} -> ${outFile}`);
-    console.log(`Platform: ${opts.target}`);
-    console.log(`Theme: ${result.theme.name}`);
-    console.log(`Math: ${result.mathOutput} (${result.mathResult.inlineRendered} inline, ${result.mathResult.displayRendered} display)`);
-    printValidation(result.validation);
+  .option('-q, --quiet', 'Suppress progress output')
+  .action(async (article, opts) => {
+    try {
+      await buildCommand(article, opts);
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
   });
 
 // ── validate ───────────────────────────────────────────────────────────────────
 
 program
   .command('validate')
-  .description('Validate a Markdown file for a target platform')
-  .argument('<file>', 'Markdown file to validate')
+  .description('Validate an article for a target platform without writing output')
+  .argument('<article>', 'Markdown/LaTeX file, article directory, or workspace article')
   .option('-t, --target <platform>', 'Target platform (wechat, zhihu)', 'wechat')
-  .option('--theme <theme>', 'Theme name or CSS file path', 'default')
-  .action(async (file, opts) => {
-    const source = readFileSync(resolve(file), 'utf-8');
-    const baseDir = dirname(resolve(file));
-    const compiler = new Compiler();
-
-    const result = await compiler.compile(source, {
-      theme: opts.theme,
-      platform: opts.target,
-      baseDir,
-    });
-
-    printValidation(result.validation);
+  .option('--theme <theme>', 'Theme name or CSS file path')
+  .action(async (article, opts) => {
+    try {
+      // `validate` takes exactly the same argument forms as `build`; it simply
+      // does not write the compiled HTML anywhere.
+      await buildCommand(article, { ...opts, dryRun: true, quiet: true });
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
   });
 
 // ── preview ────────────────────────────────────────────────────────────────────
 
 program
   .command('preview')
-  .description('Start the local preview server')
-  .argument('[file]', 'Markdown file to preview')
-  .option('-p, --port <port>', 'Server port', '3000')
-  .action((file, opts) => {
-    console.log(`To start the preview UI, run: npm run dev`);
-    console.log(`Or from any directory: cd ${paths.appRoot} && npm run dev`);
-    if (file) {
-      console.log(`Then open the UI and load: ${resolve(file)}`);
-    }
+  .description('Alias for `publisher start`')
+  .option('-p, --port <port>', 'Port to listen on', '4173')
+  .option('--no-open', 'Do not open a browser')
+  .action(async (opts) => {
+    await startCommand(opts);
   });
 
 // ── themes ─────────────────────────────────────────────────────────────────────
@@ -195,62 +192,42 @@ program
 
 program
   .command('doctor')
-  .description('Verify installation health')
-  .action(async () => {
-    console.log('Running diagnostics...\n');
+  .description('Verify installation health, including LaTeX and AI availability')
+  .option('-v, --verbose', 'List every directory searched for LaTeX tools')
+  .action(async (opts) => {
+    await doctorCommand(opts);
+  });
 
-    const checks = [];
-    function check(label, condition) {
-      checks.push({ label, passed: condition });
-      console.log(`  ${condition ? '✓' : '✗'} ${label}`);
+// ── latex ──────────────────────────────────────────────────────────────────────
+
+program
+  .command('latex')
+  .description('Show the detected LaTeX environment')
+  .option('-v, --verbose', 'List every directory searched')
+  .action(async (opts) => {
+    const env = await detectLatexEnvironment({ force: true });
+    console.log(`Available: ${env.available ? 'yes' : 'no'}`);
+    console.log(`Distribution: ${env.distribution}`);
+    console.log(`Default engine: ${env.defaultEngine || 'none'}`);
+    if (env.latexmk) console.log(`latexmk: ${env.latexmk.path}  (${env.latexmk.version})`);
+    for (const [name, info] of Object.entries(env.engines)) {
+      console.log(`${name}: ${info.path}  (${info.version})`);
     }
-
-    // Runtime
-    const nodeVersion = process.version;
-    const major = parseInt(nodeVersion.slice(1));
-    check(`Node.js ${nodeVersion}`, major >= 18);
-
-    // App structure
-    check('Application root', existsSync(paths.appRoot));
-    check('Package.json', existsSync(join(paths.appRoot, 'package.json')));
-    check('Node modules', existsSync(join(paths.appRoot, 'node_modules')));
-    check('Builtin themes', existsSync(paths.builtinThemes) && readdirSync(paths.builtinThemes).some(f => f.endsWith('.css')));
-    check('Test fixtures', existsSync(join(paths.testFixtures, 'math_article.md')));
-
-    // User dirs
-    check('Config directory', existsSync(paths.configDir));
-    check('User themes directory', existsSync(paths.userThemes));
-    check('Data directory', existsSync(paths.dataDir));
-    check('Cache directory', existsSync(paths.cacheDir));
-
-    // Config readability
-    try {
-      getConfig();
-      check('Config readable', true);
-    } catch {
-      check('Config readable', false);
+    for (const [name, info] of Object.entries(env.tools)) {
+      if (info) console.log(`${name}: ${info.path}`);
     }
-
-    // Frontend build
-    check('UI build', existsSync(join(paths.appRoot, 'dist', 'ui', 'index.html')));
-
-    // Rendering self-tests
-    console.log('\n  Rendering tests:');
-    try {
-      const { runSelftest } = await import('../../scripts/selftest.js');
-      const { passed, results } = await runSelftest();
-      for (const r of results) {
-        console.log(`    ${r.passed ? '✓' : '✗'} ${r.label}`);
-      }
-      if (!passed) checks.push({ label: 'Rendering self-test', passed: false });
-    } catch (e) {
-      console.log(`    ✗ Self-test failed: ${e.message}`);
-      checks.push({ label: 'Rendering self-test', passed: false });
+    for (const note of env.notes || []) console.log(`Warning: ${note}`);
+    if (!env.available && env.hint) {
+      console.log(`\n${env.hint.summary}`);
+      for (const option of env.hint.options) console.log(`  ${option.label}: ${option.detail}`);
+      console.log(`  ${env.hint.note}`);
     }
-
-    const failed = checks.filter(c => !c.passed);
-    console.log(`\n${failed.length === 0 ? 'All checks passed.' : `${failed.length} check(s) failed.`}`);
-    process.exit(failed.length === 0 ? 0 : 1);
+    if (opts.verbose) {
+      console.log('\nSearched:');
+      for (const dir of env.searchedDirs) console.log(`  ${dir}`);
+    }
+    console.log('\nPDF templates:');
+    for (const t of listPdfTemplates()) console.log(`  ${t.id} — ${t.description} [${t.source}]`);
   });
 
 // ── update ─────────────────────────────────────────────────────────────────────
@@ -533,34 +510,5 @@ wsCmd.action(() => {
     console.log(`  ${article.title}  (${date})  ${folder}`);
   }
 });
-
-// ── helpers ────────────────────────────────────────────────────────────────────
-
-function printValidation(validation) {
-  const { stats, warnings, errors } = validation;
-
-  console.log('\nStats:');
-  console.log(`  ${stats.paragraphs} paragraphs`);
-  console.log(`  ${stats.headings} headings`);
-  console.log(`  ${stats.mathTotal} equations (${stats.mathDisplay} display, ${stats.mathInline} inline)`);
-  console.log(`  ${stats.images} images`);
-  console.log(`  ${stats.codeBlocks} code blocks`);
-  console.log(`  ${stats.tables} tables`);
-  console.log(`  ${stats.links} links`);
-
-  if (errors.length > 0) {
-    console.log('\nERRORS:');
-    for (const e of errors) console.log(`  ✗ ${e}`);
-  }
-
-  if (warnings.length > 0) {
-    console.log('\nWARNINGS:');
-    for (const w of warnings) console.log(`  ⚠ ${w}`);
-  }
-
-  if (errors.length === 0 && warnings.length === 0) {
-    console.log('\n✓ No issues found.');
-  }
-}
 
 program.parse();

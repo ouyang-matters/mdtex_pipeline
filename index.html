@@ -1,143 +1,137 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MDTeX – Academic Writing & Publishing</title>
+  <title>MDTeX Studio</title>
   <link rel="stylesheet" href="/src/ui/styles.css" />
 </head>
 <body>
   <div id="app">
+
     <!-- Toolbar -->
     <header class="toolbar">
-      <div class="toolbar-left">
-        <button id="btn-toggle-library" class="toolbar-btn" title="Toggle article library">Library</button>
+      <div class="toolbar-group toolbar-left">
+        <button id="btn-toggle-library" class="icon-btn" title="Toggle the article library">☰</button>
         <span class="app-title">MDTeX</span>
-        <button id="btn-open" class="toolbar-btn" title="Open .md/.tex file">Open</button>
-        <input type="file" id="file-input" accept=".md,.markdown,.txt,.tex" hidden />
+        <button id="btn-open" class="btn btn-sm" title="Import a .md or .tex file">Import</button>
+        <input type="file" id="file-input" accept=".md,.markdown,.txt,.tex,.ltx" hidden />
         <input type="file" id="image-input" accept="image/*" hidden />
       </div>
-      <div class="toolbar-center">
-        <span id="article-title" class="article-title-display" title="Click to rename"></span>
-        <label>Style:
+
+      <div class="toolbar-group toolbar-center">
+        <button id="article-title" class="article-title" title="Article properties"></button>
+        <span id="article-meta" class="article-meta"></span>
+        <span id="save-state" class="save-state"></span>
+      </div>
+
+      <div class="toolbar-group toolbar-right">
+        <label class="toolbar-field">Style
           <select id="select-theme"></select>
         </label>
-        <button id="btn-edit-css" class="toolbar-btn" title="Edit CSS style">CSS</button>
-        <label>Target:
+        <button id="btn-edit-css" class="btn btn-sm" title="Edit the theme stylesheet">CSS</button>
+        <label class="toolbar-field">Target
           <select id="select-platform">
             <option value="wechat" selected>WeChat</option>
             <option value="zhihu">Zhihu</option>
           </select>
         </label>
-      </div>
-      <div class="toolbar-right">
-        <button id="btn-copy-rich" class="toolbar-btn primary" title="Copy as rich text">Copy for Platform</button>
-        <button id="btn-copy-html" class="toolbar-btn" title="Copy raw HTML">HTML</button>
-        <button id="btn-export" class="toolbar-btn" title="Export HTML file">Export</button>
-        <button id="btn-toggle-ai" class="toolbar-btn" title="Toggle AI panel">AI</button>
+        <span class="toolbar-divider"></span>
+        <button id="btn-prepare" class="btn btn-sm" title="Compile the platform representation now">Compile</button>
+        <button id="btn-copy-rich" class="btn btn-primary btn-sm" title="Copy the prepared rich text">Copy</button>
+        <button id="btn-copy-html" class="btn btn-sm" title="Copy raw HTML">HTML</button>
+        <button id="btn-export" class="btn btn-sm" title="Export a standalone HTML file">Export</button>
+        <span class="toolbar-divider"></span>
+        <button id="btn-toggle-ai" class="btn btn-sm" title="AI assistant">AI</button>
+        <button id="btn-settings" class="icon-btn" title="Settings (Ctrl+,)">⚙</button>
       </div>
     </header>
 
     <!-- Main layout -->
     <main class="workspace-layout">
-      <!-- Left: Article Library -->
+
+      <!-- Library -->
       <aside id="library-panel" class="library-panel">
         <div class="library-header">
-          <input id="library-search" type="text" placeholder="Search articles..." class="library-search" />
+          <input id="library-search" type="search" placeholder="Search articles…" class="library-search"
+                 aria-label="Search articles" />
         </div>
         <div class="library-actions">
-          <button id="btn-new-article" class="toolbar-btn" title="New article">+ Article</button>
-          <button id="btn-new-folder" class="toolbar-btn" title="New folder">+ Folder</button>
+          <button id="btn-new-article" class="btn btn-sm" title="New article (Ctrl+Shift+N)">+ Article</button>
+          <button id="btn-new-folder" class="btn btn-sm" title="New folder">+ Folder</button>
         </div>
-        <div id="library-list" class="library-list"></div>
+        <div id="library-list" class="library-list" role="tree"></div>
       </aside>
 
-      <!-- Center: Source editor -->
-      <div class="editor-pane" id="editor-pane">
+      <!-- Editor -->
+      <section class="editor-pane" id="editor-pane">
         <div class="pane-header">
-          <span>Source</span>
-          <span id="editor-format-label" class="format-label">MD</span>
+          <span class="pane-title">Source</span>
+          <span id="editor-format-label" class="format-chip">MD</span>
           <div class="editor-toolbar" id="editor-toolbar"></div>
-          <button id="btn-insert-image" class="toolbar-btn" title="Insert image" style="padding:1px 6px;font-size:11px;">Img</button>
-          <button id="btn-snippets" class="toolbar-btn" title="Insert snippet" style="padding:1px 6px;font-size:11px;">Insert</button>
-          <button id="btn-compile-pdf" class="toolbar-btn" title="Compile PDF" style="padding:1px 6px;font-size:11px;">PDF</button>
+          <button id="btn-insert-image" class="btn btn-xs" title="Insert an image">Image</button>
+          <button id="btn-snippets" class="btn btn-xs" title="Insert a snippet">Insert</button>
+          <button id="btn-compile-pdf" class="btn btn-xs" title="Compile PDF (Ctrl+Shift+P)">PDF</button>
         </div>
-        <textarea id="editor" spellcheck="false" placeholder="Write Markdown or LaTeX here. Drag & drop images into the editor."></textarea>
-        <!-- Snippet palette (hidden by default) -->
+        <textarea id="editor" spellcheck="false"
+                  placeholder="Write Markdown or LaTeX here. Drag images onto the editor to insert them."></textarea>
         <div id="snippet-palette" class="snippet-palette hidden"></div>
-      </div>
+      </section>
 
-      <!-- Right: Live preview -->
-      <div class="preview-pane">
+      <!-- Preview -->
+      <section class="preview-pane" id="preview-pane">
         <div class="pane-header">
-          Preview
+          <span class="pane-title">Preview</span>
           <span id="preview-platform-label" class="platform-label">WeChat</span>
+          <span id="target-state" class="target-state stale">not compiled</span>
+          <button id="btn-close-pdf" class="btn btn-xs pdf-only" title="Back to the live preview">Close PDF</button>
         </div>
         <div id="preview-container" class="preview-container">
           <div id="preview-content"></div>
         </div>
-      </div>
+        <div id="pdf-preview" class="pdf-preview">
+          <iframe id="pdf-frame" title="PDF preview" src="about:blank"></iframe>
+        </div>
+      </section>
     </main>
 
-    <!-- Bottom panels (CSS editor / AI / Build output) -->
+    <!-- Bottom panel -->
     <div id="bottom-panel" class="bottom-panel hidden">
-      <!-- Tab bar -->
       <div class="bottom-panel-tabs">
-        <button class="bottom-tab active" data-tab="css">CSS Editor</button>
+        <button class="bottom-tab active" data-tab="css">Style</button>
         <button class="bottom-tab" data-tab="ai">AI Assistant</button>
         <button class="bottom-tab" data-tab="build">Build Output</button>
-        <button id="btn-close-bottom" class="toolbar-btn" style="margin-left:auto;padding:1px 6px;font-size:11px;">Close</button>
+        <button id="btn-close-bottom" class="icon-btn" title="Close panel">×</button>
       </div>
 
-      <!-- CSS Editor tab -->
       <div class="bottom-tab-content active" data-tab="css">
         <div class="css-editor-header">
           <span id="css-editor-title">Style</span>
           <span id="css-unsaved-indicator" class="unsaved-indicator hidden">unsaved</span>
           <div class="css-editor-actions">
-            <button id="btn-css-save" class="toolbar-btn">Save</button>
-            <button id="btn-css-save-as" class="toolbar-btn">Save As</button>
-            <button id="btn-css-duplicate" class="toolbar-btn">Dup</button>
-            <button id="btn-css-rename" class="toolbar-btn">Rename</button>
-            <button id="btn-css-delete" class="toolbar-btn">Del</button>
-            <button id="btn-css-revert" class="toolbar-btn">Revert</button>
+            <button id="btn-css-save" class="btn btn-xs">Save</button>
+            <button id="btn-css-save-as" class="btn btn-xs">Save as…</button>
+            <button id="btn-css-rename" class="btn btn-xs">Rename…</button>
+            <button id="btn-css-delete" class="btn btn-xs">Delete</button>
+            <button id="btn-css-revert" class="btn btn-xs">Revert</button>
           </div>
         </div>
-        <textarea id="css-editor" spellcheck="false" placeholder="/* CSS scoped under #nice */"></textarea>
+        <textarea id="css-editor" spellcheck="false" placeholder="/* Styles are scoped under #nice */"></textarea>
       </div>
 
-      <!-- AI Assistant tab -->
       <div class="bottom-tab-content" data-tab="ai">
-        <div class="ai-panel">
-          <div class="ai-messages" id="ai-messages">
-            <div class="ai-welcome">Ask Claude to edit your article content or CSS theme.</div>
-          </div>
-          <div class="ai-input-row">
-            <select id="ai-scope" class="toolbar-btn" style="font-size:11px;">
-              <option value="content">Edit Content</option>
-              <option value="theme">Edit Theme CSS</option>
-              <option value="convert-to-latex">Convert MD → LaTeX</option>
-              <option value="convert-to-md">Convert LaTeX → MD</option>
-              <option value="fix-compile">Fix Compile Error</option>
-            </select>
-            <input type="text" id="ai-prompt" class="ai-prompt-input" placeholder="e.g. Make the h2 headings use a left blue border..." />
-            <button id="btn-ai-send" class="toolbar-btn primary" style="padding:3px 10px;">Send</button>
-          </div>
-        </div>
+        <div id="ai-panel-root" class="ai-panel"></div>
       </div>
 
-      <!-- Build Output tab -->
       <div class="bottom-tab-content" data-tab="build">
-        <div id="build-output" class="build-output">
-          <div class="ai-welcome">Build output will appear here after compilation.</div>
-        </div>
+        <div id="build-panel-root" class="build-panel"></div>
       </div>
     </div>
 
-    <!-- Diagnostics bar -->
-    <footer class="diagnostics-bar" id="diagnostics">
+    <!-- Diagnostics -->
+    <footer class="diagnostics-bar">
       <span id="diag-stats"></span>
-      <span id="diag-warnings"></span>
+      <span id="diag-issues"></span>
     </footer>
   </div>
 

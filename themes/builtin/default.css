@@ -118,7 +118,13 @@
 
 #nice img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 
-#nice .katex-display { margin: 1em 0; overflow-x: auto; }
+/* Display mathematics.
+   MDTeX owns the overflow behaviour: in the preview a .math-block wrapper
+   scales the equation to fit and only scrolls when it must, and published
+   output ships its own <section> scroll container. A theme that adds its own
+   overflow here would promote overflow-y to auto and paint a stray vertical
+   scrollbar beside every equation. */
+#nice .katex-display { margin: 1em 0; overflow: visible; }
 #nice .katex { font-size: 1.1em; }
 #nice .footnotes { margin-top: 2em; padding-top: 1em; border-top: 1px solid #eaecef; font-size: 0.9em; }
 #nice .footnote-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
