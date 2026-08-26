@@ -1,193 +1,210 @@
 # Current Status
 
-## What Is Working
+This document is the honest inventory of what MDTeX Studio does. The first
+table is the one that matters: it separates what works **from the UI**, what
+works **only from the command line**, and what is genuinely **not built yet**.
 
-### Core Publishing Pipeline
-- Markdown + LaTeX rendering with KaTeX (preview) and MathJax (publish)
-- Inline SVG formula output for WeChat (no data-URI images, no external CSS)
-- CSS inlining via juice with theme CSS variable resolution
-- Platform adapters: WeChat and Zhihu
-- Formula count validation (source count = rendered count)
-- SVG and PNG formula output modes
+Last verified: 2026-08-25, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
+Chrome 146) with `npx vitest run`, `node scripts/e2e.js` and
+`node scripts/bench-wechat.js`.
 
-### Article Workspace
-- Multi-article library with folder organization
-- Create, rename, search, import articles
-- Stable article IDs across renames and moves
-- Markdown and LaTeX source format support
-- Asset management with safe filenames
-- Article metadata (title, tags, series, targets, theme)
+---
 
-### Themes and Styles
-- Three built-in themes: Classic (default), Minimal, Modern
-- Custom CSS editor in the UI with live preview
-- Custom styles persisted in localStorage (browser) and user data dir (CLI)
-- Built-in styles read-only; user styles editable
-- Styles scoped to `#nice` container
+## Feature status
 
-### Installation and Updates
-- `./install.sh` (Linux/macOS), `.\install.ps1` (Windows PowerShell)
-- Safe in-place updates with automatic backup
-- Config migration with unknown-key preservation
-- Rendering regression selftest during update
+### Fully functional in the UI
 
-### AI Backends (Interface Ready)
-- LocalClaudeCodeBackend: invokes installed Claude Code CLI
-- RemoteClaudeClawBackend: connects via HTTP or SSH
-- Scope constraints: content-only, theme-only, metadata-only edits
+No terminal required. Each of these was exercised end to end in a real browser
+by `scripts/e2e.js`.
 
-### Blog Pipeline Integration (Interface Ready)
-- Detects `blogpipe` CLI in PATH
-- Hands off source, metadata, assets to blog pipeline for deployment
-- MDTeX does not reimplement deployment, sync, or rollback
+| Feature | Notes |
+| --- | --- |
+| **Compile PDF** | `PDF` button in the editor header, or Ctrl+Shift+P. Runs `latexmk` locally, streams progress, shows parsed errors and warnings with jump-to-line, and previews the result in the right-hand pane. |
+| **Markdown → PDF** | Deterministic token-based conversion into the selected PDF template. Images (including pasted data URIs) are materialised into the build directory. |
+| **LaTeX project → PDF** | Compiles the real project with `latexmk`: multi-file `\input`, local `.sty`/`.cls`, `.bib` bibliographies, figures, cross-references and repeated passes. |
+| **Compile for WeChat / Zhihu** | `Compile` button, or automatically in the background after you stop typing. Progress is reported stage by stage and can be cancelled. |
+| **Copy for WeChat / Zhihu** | Writes the already-prepared bytes. Never triggers a compile when the output is current. |
+| **Export standalone HTML** | `Export` button. |
+| **Create / rename / move / duplicate articles** | Library context menu, keyboard (F2, Delete), and drag-and-drop between folders. |
+| **Create / rename / delete folders** | Folder context menu. |
+| **Delete and restore articles** | Deletion goes to a trash you can restore from, with an Undo toast. |
+| **Article properties** | Full metadata editor: title, subtitle, author, language, summary, tags, series and position, status, folder, publishing targets, WeChat theme, PDF template, PDF engine, source format. |
+| **Search** | Title, folder, tags, series and summary; optional full-text search of the article body. |
+| **Insert images** | Button, drag-and-drop at the cursor position, or paste. Stored in the article's `assets/` directory. |
+| **Theme editing** | Live CSS editing with save / save-as / rename / delete / revert. Built-in themes are read-only and duplicating one is offered automatically. |
+| **Settings** | General, Editor, Publishing, AI, LaTeX and Storage tabs. Stored on disk, shared with the CLI. |
+| **Quick AI Connection** | Local Claude Code, Remote ClaudeClaw and Anthropic API, offered directly in the AI panel with local detection already done. |
+| **AI editing** | Scoped runs that read the source and selection, apply patches, edit themes, compile PDFs, inspect build logs and validate WeChat output. Every change arrives as a reviewable diff and is checkpointed before it is applied. |
+| **Switch AI backend** | From the AI panel header. Takes effect immediately — no restart. |
+| **LaTeX setup state** | When LaTeX is missing, the PDF button opens a setup card with platform-specific install instructions and a Check again button, instead of pretending the feature is available. |
+| **Checkpoints** | Every AI edit is checkpointed; checkpoints can be listed and restored. |
 
-## How To
+### Works from the command line as well as the UI
 
-### Install
-```bash
-git clone git@github.com:ouyang-matters/mdtex_pipeline.git
-cd mdtex_pipeline
-./install.sh          # Linux/macOS
-.\install.ps1         # Windows PowerShell
+| Feature | Command |
+| --- | --- |
+| Launch the application | `publisher start` |
+| Compile any target | `publisher build <article> --target wechat\|zhihu\|pdf` |
+| Validate without writing output | `publisher validate <article> --target wechat` |
+| Inspect the LaTeX environment | `publisher latex [--verbose]` |
+| Health check | `publisher doctor [--verbose]` |
+| Update in place | `publisher update` |
+| Workspace listing / search / import | `publisher ws list\|search\|import\|create` |
+| Theme management | `publisher themes list\|copy` |
+| Backups | `publisher backups list\|create\|restore` |
+
+### CLI-only, by design
+
+| Feature | Why |
+| --- | --- |
+| `publisher update` | Pulls, reinstalls dependencies, rebuilds the UI and runs migrations. It restarts the application, so it does not belong behind a button in the application it is restarting. |
+| `publisher backups` | Disaster-recovery tooling. Intentionally kept away from a single mis-click. |
+| `publisher init` | Run by the installer; only needed manually to repair a broken user directory. |
+
+### Not built yet
+
+| Feature | State |
+| --- | --- |
+| WeChat image CDN upload | Images are embedded or referenced locally; the WeChat validator warns that they need manual upload. The uploader interface exists (`src/core/images/index.js`), the WeChat API client does not. |
+| Blog Pipeline publish button | The backend detects the `blogpipe` CLI and the AI layer can run read-only status checks. There is no publish button in the UI: deployment is `blogpipe`'s job and MDTeX does not reimplement it. |
+| Zhihu-specific preview chrome | Zhihu compiles and copies correctly, but the preview pane styles it with the WeChat theme. |
+| PDF ↔ source position sync | SyncTeX data is generated during the build but nothing consumes it yet. |
+| Collaborative editing | Out of scope. |
+
+---
+
+## The command contract
+
+Identical on Windows and Linux. Both installers create a real command and put it
+on PATH; neither asks you to activate an environment or type a path to a script.
+
+```text
+publisher start
+publisher init
+publisher doctor
+publisher update
+publisher build <article-dir> --target pdf
+publisher build <article-dir> --target wechat
+publisher version
 ```
 
-### Launch the UI
-```bash
-cd /path/to/mdtex_pipeline && npm run dev
-# Open http://localhost:3000
+`<article-dir>` accepts a workspace article directory, a plain directory
+containing a `.tex` or `.md` file, a single file, or a workspace article title.
+
+Platform differences are confined to the launcher: `install.sh` writes a shell
+wrapper into `~/.local/bin`, `install.ps1` writes `publisher.cmd` and
+`publisher.ps1` into `%LOCALAPPDATA%\Programs\MDTeX\bin` and adds that directory
+to the user PATH. See [INSTALLATION.md](INSTALLATION.md).
+
+---
+
+## Architecture
+
+MDTeX Studio is a local application, not a web service:
+
+```text
+Browser UI  ──HTTP (127.0.0.1, session token)──▶  Local backend (Node)
+  editor                                            workspace on disk
+  live preview (KaTeX)                              latexmk / PDF templates
+  interaction                                       MathJax + juice publishing
+                                                    AI orchestration + tools
 ```
 
-### Create and Search Articles
-```bash
-publisher ws create "My Article"
-publisher ws create "Paper" --format latex --folder research
-publisher ws list
-publisher ws search "bayesian"
-publisher ws import existing-article.md
-```
+The browser never touches the filesystem, never spawns a process, and never
+runs a publishing build. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-### Compile for WeChat
-```bash
-publisher build article.md --target wechat
-publisher build article.md --target wechat --math png  # PNG fallback
-```
+The backend binds to `127.0.0.1` only and requires a per-session token on every
+`/api` call. It also rejects non-loopback `Host` and `Origin` headers, which
+closes the DNS-rebinding path. There is no unauthenticated network surface.
 
-### Compile for Zhihu
-```bash
-publisher build article.md --target zhihu
-```
+---
 
-### Manage Themes
-```bash
-publisher themes list
-publisher themes copy default my-custom
-# Edit ~/.local/share/publisher/themes/my-custom.css
-```
+## Mathematics
 
-### System Maintenance
-```bash
-publisher doctor        # Full health check
-publisher update        # Safe in-place update
-publisher version       # Version and schema info
-publisher backups list  # List backups
-```
+Dual renderer:
 
-## Math Rendering
+- **Preview**: KaTeX HTML — fast, selectable, entirely in the browser.
+- **Publish**: MathJax `tex2svg` → inline `<svg>` containing only `<path>`
+  elements. This is what survives a WeChat paste.
 
-Dual-renderer architecture:
-- **Preview**: KaTeX HTML (fast, selectable text)
-- **Publish**: MathJax `tex2svg()` → inline SVG with `<path>` elements
+Overflow handling, in order: an equation that fits is left alone; one that is
+slightly too wide is scaled down; one that is too wide to shrink readably gets
+its own horizontal scroll container with a scrollbar styled to match the
+application. The article itself never scrolls sideways, the SVG viewBox is never
+cropped, and inline mathematics never gets a scrollbar.
 
-Publishing output: Formulas are embedded as inline `<svg>` elements directly
-in the HTML (mdnice-style), not as `<img src="data:...">` tags. This survives
-WeChat paste because the SVGs contain only `<path>` elements with no external
-CSS, font, `<defs>`, `<use>`, `id`, or `class` dependencies.
+Formula cache: `~/.cache/publisher/formulas/`, keyed by a content hash of the
+LaTeX plus display mode plus renderer version.
 
-Formula cache: `~/.cache/publisher/formulas/` with SHA-256 content-hash keys.
+---
 
-### Compile PDF
-PDF compilation requires a LaTeX distribution (TeX Live / MiKTeX):
-```bash
-# LaTeX projects: latexmk compiles main.tex
-# Markdown projects: converted to LaTeX intermediate first
-```
+## Performance
 
-### AI Editing
-The AI panel is in the bottom panel (click "AI" button). Backends:
-- **Local**: Uses installed Claude Code CLI (`claude`)
-- **Remote**: Connects to ClaudeClaw worker via HTTP/SSH
-- Configure in `~/.config/publisher/config.json`
+Measured in real Chrome by `scripts/bench-wechat.js` against
+`tests/fixtures/long_technical_article.md`. Full numbers and methodology are in
+[WECHAT_RENDERING.md](WECHAT_RENDERING.md#performance).
 
-### Blog Pipeline
-If `blogpipe` CLI is installed, articles can be handed off for deployment.
-MDTeX delegates to blog-pipeline for GitHub sync, releases, and deployment.
+At 572 formulas (a 4x fixture, ~81 KB of Markdown):
 
-## Workspace UI Features
+| | Old path | Now |
+| --- | ---: | ---: |
+| Cost of pressing Copy | 1908 ms, all of it blocking | 150 ms |
+| Worst single main-thread stall | 1086 ms | 66 ms |
+| Output size | 23.6 MB | 3.2 MB |
+| Cancellable | no | yes |
+| Repeat copy with no edits | full recompile | cache hit |
 
-- **Three-pane layout**: Library (left) + Editor (center) + Preview (right)
-- **Article library**: Create, search, rename, delete articles
-- **Folder organization**: Create folders, organize articles
-- **Drag-and-drop images**: Drop images onto editor to insert
-- **Clipboard paste images**: Paste screenshots directly into editor
-- **Image button**: Insert images via file chooser
-- **Bottom panel with tabs**: CSS Editor, AI Assistant, Build Output
-- **Style editor**: Live CSS editing with Save/SaveAs/Duplicate/Rename/Delete
-- **Target selector**: Switch between WeChat and Zhihu preview
-- **Library toggle**: Collapse sidebar for more editor space
+---
 
-## Incomplete / Planned
+## Test coverage
 
-| Feature | Status |
-|---------|--------|
-| PDF preview in UI | Backend implemented, UI preview pending |
-| Blog pipeline publish button | Interface defined, needs blogpipe CLI |
-| AI Claude Code integration | Backend implemented, needs local claude CLI |
-| WeChat image CDN upload | Upload interface defined, API not implemented |
-| Full-text article search | Title/tag search implemented, body search pending |
+205 unit tests across 11 suites (`npx vitest run`):
 
-## Known WeChat Rendering Limitations
+- Parser, math rendering, CSS inlining, platform adapters
+- Formula asset generation (SVG, PNG, caching) and sizing
+- Cross-platform executable resolution and LaTeX environment detection
+- Markdown → LaTeX conversion and PDF templates
+- Backend API, including authentication, path traversal and secret redaction
+- Installation, config, themes, backup/restore
+- Article workspace: create, search, import, rename, identity preservation
 
-1. Inline SVG formulas are the most compatible approach, but some very old WeChat
-   versions may not render inline SVG. Use `--math png` as fallback.
-2. WeChat content images must be on WeChat CDN (manual upload for now).
+Plus two harnesses that drive real software rather than mocks:
+
+- `node scripts/e2e.js` — drives the built UI in headless Chrome against a real
+  backend: article management, preview, mathematics overflow, WeChat compile and
+  clipboard, PDF compilation and preview, AI quick connect, article properties.
+- `node scripts/bench-wechat.js [--scale N]` — measures both WeChat compilation
+  paths in the same browser.
+
+---
+
+## Persistent data locations
+
+| Category | Linux / macOS | Windows |
+| --- | --- | --- |
+| Config | `~/.config/publisher/` | `%LOCALAPPDATA%\publisher\` |
+| AI connections | `~/.config/publisher/ai.json` | `%LOCALAPPDATA%\publisher\ai.json` |
+| Secrets | `~/.config/publisher/secrets.env` (mode 0600) | `%LOCALAPPDATA%\publisher\secrets.env` |
+| User themes | `~/.local/share/publisher/themes/` | `%LOCALAPPDATA%\publisher\themes\` |
+| PDF templates | `~/.local/share/publisher/pdf-templates/` | `%LOCALAPPDATA%\publisher\pdf-templates\` |
+| Workspace | `~/.local/share/publisher/workspace/` | `%LOCALAPPDATA%\publisher\workspace\` |
+| Trash | `<workspace>/.trash/` | `<workspace>\.trash\` |
+| Checkpoints | `<article>/.checkpoints/` | `<article>\.checkpoints\` |
+| Backups | `~/.local/share/publisher/backups/` | `%LOCALAPPDATA%\publisher\backups\` |
+| Formula cache | `~/.cache/publisher/formulas/` | `%TEMP%\publisher\formulas\` |
+| Target cache | `~/.cache/publisher/targets/` | `%TEMP%\publisher\targets\` |
+
+---
+
+## Known limitations
+
+1. Inline SVG is the most compatible formula representation for WeChat, but very
+   old WeChat clients may not render it. `publisher build … --math png` produces
+   PNG images instead.
+2. WeChat content images must be on the WeChat CDN. MDTeX warns; uploading is
+   manual.
 3. Custom fonts are not available in WeChat articles.
 4. `position: fixed/absolute` is unreliable in WeChat.
-5. Very wide equations scroll horizontally on mobile (by design, not clipped).
-
-## CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `publisher build <file>` | Compile for a target platform |
-| `publisher validate <file>` | Validate without compiling |
-| `publisher preview [file]` | Start preview UI info |
-| `publisher themes list` | List all themes |
-| `publisher themes copy <src> <dst>` | Copy theme for customization |
-| `publisher ws create <title>` | Create a new article |
-| `publisher ws list` | List articles |
-| `publisher ws search <query>` | Search articles |
-| `publisher ws import <file>` | Import a Markdown file |
-| `publisher init` | Initialize user directories |
-| `publisher version` | Version and schema info |
-| `publisher doctor` | Full health check |
-| `publisher update` | Safe in-place update |
-| `publisher backups list/create/restore` | Backup management |
-
-## Persistent Data Locations
-
-| Category | Path |
-|----------|------|
-| Config | `~/.config/publisher/` |
-| User themes | `~/.local/share/publisher/themes/` |
-| Article workspace | `~/.local/share/publisher/workspace/` |
-| Backups | `~/.local/share/publisher/backups/` |
-| Formula cache | `~/.cache/publisher/formulas/` |
-
-## Test Coverage
-
-127 tests across 8 suites:
-- Parser, math rendering, CSS inlining, platform adapters
-- Formula asset generation (SVG, PNG, caching)
-- Formula sizing (dimensions, viewBox, no clipping)
-- Installation, config, themes, backup/restore
-- Article workspace (create, search, import, rename, migrate)
+5. CJK PDF output needs `xeCJK` or `ctex` in the TeX distribution. MDTeX detects
+   this and warns rather than producing an empty page.
+6. pdfLaTeX cannot typeset CJK at all; MDTeX says so instead of failing silently.

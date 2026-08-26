@@ -11,6 +11,17 @@
  *      full expression stays reachable.
  *   4. Inline mathematics is never touched — no scaling, no scroll container —
  *      so text flow and baselines are preserved.
+ *
+ * The DOM shape this produces:
+ *
+ *   .math-block            overflow container, full column width
+ *     .math-sizer          sized to the PAINTED dimensions, centred
+ *       .katex-display     scaled with a transform from its top-left corner
+ *
+ * The sizer exists because `transform: scale()` changes what is painted but
+ * not the layout box. Without it the container would still measure the
+ * equation at full width, and hiding that overflow would crop an equation that
+ * visually fits perfectly well.
  */
 
 /** Do not shrink below this fraction of natural size; smaller is unreadable. */
@@ -35,10 +46,11 @@ export function fitDisplayMath(root) {
     const container = ensureContainer(block);
     if (!container) continue;
 
-    const inner = container.firstElementChild;
+    const sizer = container.querySelector(':scope > .math-sizer');
+    const inner = sizer ? sizer.firstElementChild : container.firstElementChild;
     if (!inner) continue;
 
-    reset(container, inner);
+    reset(container, sizer, inner);
 
     const available = container.clientWidth;
     const natural = inner.scrollWidth;
@@ -52,22 +64,20 @@ export function fitDisplayMath(root) {
       continue;
     }
 
-    const scale = Math.max(available / natural, MIN_SCALE);
-    applyScale(inner, scale, naturalHeight);
+    const wanted = available / natural;
 
-    if (scale > MIN_SCALE || natural * scale <= available + SLOP_PX) {
-      // Shrinking was enough.
+    if (wanted >= MIN_SCALE) {
+      // Shrinking is enough: scale, and size the wrapper to the painted box so
+      // the container measures what it can actually see.
+      applyScale(sizer, inner, wanted, natural, naturalHeight);
       container.dataset.mathFit = 'scaled';
-      container.removeAttribute('title');
       stats.scaled++;
       continue;
     }
 
-    // Still too wide even at the readability floor: scroll it, locally.
-    // A transform does not change the layout width, so the scroll container
-    // would not know how far it can scroll — set the scaled width explicitly.
-    inner.style.transformOrigin = 'left top';
-    inner.style.width = `${Math.ceil(natural * scale)}px`;
+    // Too wide to shrink readably: scroll it, locally, at the readability floor.
+    applyScale(sizer, inner, MIN_SCALE, natural, naturalHeight);
+    if (sizer) sizer.style.margin = '0';   // scroll from the left edge, not centred
     container.classList.add('math-scroll');
     container.dataset.mathFit = 'scroll';
     container.title = 'This equation is wider than the column — scroll it sideways to see the rest.';
@@ -77,43 +87,46 @@ export function fitDisplayMath(root) {
   return stats;
 }
 
-function reset(container, inner) {
+function reset(container, sizer, inner) {
   inner.style.transform = '';
   inner.style.transformOrigin = '';
-  inner.style.marginBottom = '';
   inner.style.width = '';
+  if (sizer) {
+    sizer.style.width = '';
+    sizer.style.height = '';
+    sizer.style.margin = '';
+  }
   container.classList.remove('math-scroll');
   container.removeAttribute('title');
 }
 
-/**
- * Scale an equation down to fit.
- *
- * `transform: scale()` shrinks what is painted but leaves the layout box at its
- * natural size. Setting an explicit height instead would make the element's own
- * children overflow it, which is what produces a stray vertical scrollbar — so
- * the leftover vertical space is reclaimed with a negative bottom margin, which
- * affects layout without touching the element's own content box.
- */
-function applyScale(inner, scale, naturalHeight) {
+function applyScale(sizer, inner, scale, naturalWidth, naturalHeight) {
+  inner.style.transformOrigin = 'left top';
   inner.style.transform = `scale(${scale.toFixed(4)})`;
-  inner.style.transformOrigin = 'center top';
-  const reclaimed = Math.round(naturalHeight * (1 - scale));
-  if (reclaimed > 0) inner.style.marginBottom = `${-reclaimed}px`;
+  // Pin the inner layout width so the transform has a stable box to scale, even
+  // once the sizer around it becomes narrower than the equation.
+  inner.style.width = `${Math.ceil(naturalWidth)}px`;
+
+  if (!sizer) return;
+  sizer.style.width = `${Math.ceil(naturalWidth * scale)}px`;
+  sizer.style.height = `${Math.ceil(naturalHeight * scale)}px`;
 }
 
 /**
- * Wrap a display equation in a scroll container the first time we see it.
- * The container, not the equation, owns the overflow, so the page itself never
- * scrolls sideways.
+ * Wrap a display equation in a scroll container plus sizer the first time we
+ * see it. The container, not the equation, owns the overflow, so the page
+ * itself never scrolls sideways.
  */
 function ensureContainer(block) {
   const parent = block.parentElement;
   if (!parent) return null;
 
+  // Already wrapped.
+  if (parent.classList?.contains('math-sizer')) return parent.parentElement;
   if (parent.classList?.contains('math-block')) return parent;
 
-  // The published form already ships its own <section> wrapper.
+  // Published output ships its own <section> wrapper and an SVG that already
+  // carries max-width:100%; it needs the container class but no restructuring.
   if (block.dataset?.mdtexMath === 'display') {
     block.classList.add('math-block');
     return block;
@@ -121,8 +134,13 @@ function ensureContainer(block) {
 
   const container = document.createElement('div');
   container.className = 'math-block';
+  const sizer = document.createElement('div');
+  sizer.className = 'math-sizer';
+
   parent.insertBefore(container, block);
-  container.append(block);
+  container.append(sizer);
+  sizer.append(block);
+
   return container;
 }
 

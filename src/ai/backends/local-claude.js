@@ -52,6 +52,16 @@ function extraClaudeDirs() {
   return dirs;
 }
 
+/**
+ * Claude Code's own filesystem and network tools are switched off: the agent
+ * reaches the article only through the MDTeX MCP bridge, which enforces
+ * MDTeX's permissions, validation, diffs and checkpoints.
+ *
+ * Comma-separated rather than space-separated, because these options are
+ * variadic and a space-separated list would keep consuming later arguments.
+ */
+const DISALLOWED_TOOLS = 'Bash,Edit,Write,Read,Glob,Grep,NotebookEdit,WebFetch,WebSearch';
+
 export function findClaudeCli() {
   return resolveExecutable('claude', { extraDirs: extraClaudeDirs() });
 }
@@ -97,13 +107,21 @@ export class LocalClaudeCodeBackend extends AiBackend {
 
     // A trivial print-mode round trip proves the CLI is authenticated, which
     // `--version` alone does not.
+    //
+    // The prompt goes over stdin, not as an argument: the CLI's tool-list
+    // options are variadic, so a trailing positional would be swallowed into
+    // the tool list and the CLI would report a missing prompt.
     const probe = await runCommand(cli, [
       '--print',
       '--output-format', 'json',
       '--no-session-persistence',
-      '--disallowed-tools', 'Bash Edit Write Read Glob Grep WebFetch WebSearch',
-      'Reply with the single word: ready',
-    ], { timeout: 90000, signal, cwd: paths.appRoot });
+      '--disallowed-tools', DISALLOWED_TOOLS,
+    ], {
+      timeout: 90000,
+      signal,
+      cwd: paths.appRoot,
+      input: 'Reply with the single word: ready',
+    });
 
     if (probe.code !== 0) {
       const detail = (probe.stderr || probe.stdout || '').trim().split('\n').slice(-3).join(' ');
@@ -162,6 +180,9 @@ export class LocalClaudeCodeBackend extends AiBackend {
       .map(m => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)))
       .join('\n\n');
 
+    // The prompt goes over stdin rather than as a positional argument: the
+    // CLI's --allowedTools / --disallowed-tools options are variadic and would
+    // otherwise absorb it into the tool list.
     const args = [
       '--print',
       '--output-format', 'stream-json',
@@ -172,14 +193,13 @@ export class LocalClaudeCodeBackend extends AiBackend {
       // Only MDTeX tools. Claude Code's own filesystem tools stay off so the
       // agent cannot reach outside the article it was given.
       '--allowedTools', 'mcp__mdtex',
-      '--disallowed-tools', 'Bash Edit Write Read Glob Grep NotebookEdit WebFetch WebSearch',
+      '--disallowed-tools', DISALLOWED_TOOLS,
       '--permission-mode', 'acceptEdits',
       '--append-system-prompt', systemPrompt,
-      prompt,
     ];
 
-    if (this.model) args.splice(args.length - 1, 0, '--model', this.model);
-    if (this.effort) args.splice(args.length - 1, 0, '--effort', this.effort);
+    if (this.model) args.push('--model', this.model);
+    if (this.effort) args.push('--effort', this.effort);
 
     let finalText = '';
     let turns = 0;
@@ -189,6 +209,7 @@ export class LocalClaudeCodeBackend extends AiBackend {
       cwd: paths.appRoot,
       timeout: this.timeout,
       signal,
+      input: prompt,
       onOutput: (chunk, stream) => {
         if (stream !== 'stdout') return;
         buffer += chunk;
@@ -206,7 +227,13 @@ export class LocalClaudeCodeBackend extends AiBackend {
                 finalText = block.text;
                 onText?.(block.text);
               } else if (block.type === 'tool_use') {
-                onToolUse?.(String(block.name).replace(/^mcp__mdtex__/, ''), block.input);
+                // Only MDTeX tools are reported. The CLI has internal tools of
+                // its own (tool discovery, for instance) that mean nothing to a
+                // writer looking at what happened to their article.
+                const name = String(block.name);
+                if (name.startsWith('mcp__mdtex__')) {
+                  onToolUse?.(name.slice('mcp__mdtex__'.length), block.input);
+                }
               }
             }
           } else if (event.type === 'result') {

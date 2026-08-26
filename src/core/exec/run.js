@@ -100,8 +100,12 @@ export function runCommand(file, args = [], options = {}) {
       onOutput?.(chunk, 'stderr');
     });
 
-    if (input !== undefined && child.stdin) {
-      child.stdin.end(input);
+    // stdin must always be closed. A child that reads stdin — `claude --print`
+    // is one — otherwise waits for input that is never coming, and reports a
+    // spurious "no stdin data received" failure.
+    if (child.stdin) {
+      child.stdin.on('error', () => { /* the child may exit before we finish writing */ });
+      child.stdin.end(input === undefined ? undefined : input);
     }
 
     const finish = (code, sig, spawnError = null) => {

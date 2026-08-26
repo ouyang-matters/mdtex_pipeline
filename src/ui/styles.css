@@ -355,6 +355,16 @@ button { font-family: inherit; font-size: inherit; }
 }
 .math-block > * { display: block; }
 
+/* Sized to the painted dimensions of a scaled equation, and centred within the
+   column. Without it the container would still measure the equation at its
+   unscaled width. */
+.math-sizer {
+  margin: 0 auto;
+  overflow: visible;
+  position: relative;
+}
+.math-sizer > * { display: block; }
+
 .math-block.math-scroll {
   overflow-x: auto;
   overflow-y: hidden;
