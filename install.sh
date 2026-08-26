@@ -61,9 +61,20 @@ else
   echo "git: $(git --version | head -1)"
 fi
 
-# ── 3. Pull latest (matches install.ps1 behaviour) ────────────────────────────
+# ── 3. Protect user data, then pull (matches install.ps1 behaviour) ──────────
 
 cd "$SCRIPT_DIR"
+
+# Before git touches this directory. An update replaces application files; if
+# any of the user's articles or themes are still in here, they must be moved out
+# first, and the update must not proceed while any remain at risk.
+echo ""
+bold "Checking user data..."
+if node "$SCRIPT_DIR/src/cli/index.js" preflight 2>&1 | sed 's/^/  /'; then :; else
+  red "User data is stored where this update would destroy it. Nothing was changed."
+  exit 1
+fi
+
 if [ "${MDTEX_SKIP_PULL:-0}" != "1" ] && command -v git &>/dev/null && [ -d "$SCRIPT_DIR/.git" ]; then
   echo ""
   bold "Pulling latest changes..."

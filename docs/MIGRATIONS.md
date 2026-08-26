@@ -2,7 +2,20 @@
 
 ## Overview
 
-Configuration and data schemas are versioned. When the application updates, migrations bring existing user config to the current schema without losing data.
+Configuration and data schemas are versioned. When the application updates,
+migrations bring existing user data to the current schema without losing any of
+it. There are three kinds, and all three are additive:
+
+| Kind | What it migrates | Where |
+| --- | --- | --- |
+| Config schema | `config.json`, `preferences.json`, `platforms.json` | `src/core/config/index.js` |
+| Article metadata | `article.json` fields | `src/workspace/article.js` |
+| Data location | data in a legacy directory | `src/core/migrate/data.js` |
+
+**Default configuration files are templates, not the source of truth.** Shipping
+a new default never replaces a value the user has set. A new required setting is
+added by merge; existing values and unknown custom keys are left exactly as they
+were.
 
 ## Config Schema
 
@@ -72,6 +85,59 @@ Running config migrations...
     Added config key: output_dir
     Added preference: preview_auto_scroll
 ```
+
+## Article Metadata
+
+Two mechanisms keep `article.json` safe across versions.
+
+**Unknown fields are carried through.** `Article` records every key it does not
+recognise and writes it back out on save. Opening an article written by a newer
+MDTeX — or one a user added a field to by hand — and then renaming it does not
+drop the field. Without this, an ordinary edit would lose data, no upgrade
+required.
+
+**Identity is immutable.** `EDITABLE_FIELDS` and `IMMUTABLE_FIELDS` in
+`src/workspace/article.js` are the enforcement point: `applyMetadata` ignores
+identity fields in a patch rather than applying them, and returns what it
+ignored. A metadata upgrade may add fields, but nothing may change or
+regenerate:
+
+- the article ID
+- its path on disk, folder, or position in the folder tree
+- its source content
+- its assets
+- existing metadata values — tags, series, author, dates
+
+Adding a field means giving it a default for articles that predate it, and
+leaving every other byte of `article.json` alone. Anything that cannot be done
+additively is not a migration; it is a new field alongside the old one.
+
+## Data Location
+
+Data found in a legacy location — articles inside the git checkout, or the
+pre-split Windows root — is migrated by `publisher preflight`, which runs from
+`init`, `update` and both installers before git touches the checkout.
+
+```
+detect old data
+  -> copy into the persistent data root
+  -> verify the copy landed
+  -> record the source in migrated-from.json
+  -> leave the original in place
+```
+
+Unlike a config migration, this one never deletes and never overwrites:
+
+- A destination file with identical content is skipped.
+- A destination file with *different* content is kept, and the incoming version
+  is written alongside it as `<name>.migrated-<hash>.<ext>`, then reported as a
+  conflict. Duplicates and conflicts are never silently discarded.
+- The original directory is left untouched, whether the migration succeeded or
+  not. Deleting it is the user's decision, not the installer's.
+
+Re-running does nothing: everything is already at the destination.
+
+See [DATA_LAYOUT.md](DATA_LAYOUT.md) for the locations involved.
 
 ## Failed Migrations
 

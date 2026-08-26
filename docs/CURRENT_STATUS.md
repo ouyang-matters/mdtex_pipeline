@@ -5,7 +5,7 @@ table is the one that matters: it separates what works **from the UI**, what
 works **only from the command line**, and what is genuinely **not built yet**.
 
 Last verified: 2026-08-26, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
-Chrome 146). All of `npx vitest run` (292 tests), `node scripts/e2e.js`
+Chrome 146). All of `npx vitest run` (325 tests), `node scripts/e2e.js`
 (32 checks), `node scripts/workflow-check.js` (22 steps) and
 `publisher doctor` pass; `node scripts/bench-wechat.js` produced the numbers
 below.
@@ -160,7 +160,7 @@ At 572 formulas (a 4x fixture, ~81 KB of Markdown):
 
 ## Test coverage
 
-292 unit tests across 14 suites (`npx vitest run`):
+325 unit tests across 15 suites (`npx vitest run`):
 
 - Parser, math rendering, CSS inlining, platform adapters
 - Formula asset generation (SVG, PNG, caching) and sizing
@@ -173,6 +173,9 @@ At 572 formulas (a 4x fixture, ~81 KB of Markdown):
 - Article workspace: create, search, import, rename, identity preservation
 - Article assets: canonical path resolution, collision handling, cache busting,
   and the same reference resolving in preview, WeChat, Zhihu and PDF
+- Update data safety: the five-category classification, Windows/Linux parity,
+  non-destructive legacy migration, config merge, and forward-compatible
+  article metadata
 
 Plus two harnesses that drive real software rather than mocks:
 
@@ -186,6 +189,10 @@ Plus two harnesses that drive real software rather than mocks:
   copy the finished rich text. 22 steps, all passing on this machine.
 - `node scripts/bench-wechat.js [--scale N]` — measures both WeChat compilation
   paths in the same browser.
+- `npm run check:data-safety` — populates an installation with articles, assets,
+  LaTeX projects, themes, snippets, AI profiles and secrets, then updates the
+  application by deleting the installation directory and reinstalling it, and
+  verifies every category of user data byte for byte. 32 checks.
 
 ---
 

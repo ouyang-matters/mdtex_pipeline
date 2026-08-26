@@ -20,7 +20,8 @@
     "selftest": "node scripts/selftest.js",
     "cli": "node src/cli/index.js",
     "test:workflow": "node scripts/workflow-check.js",
-    "test:windows": "pwsh -NoProfile -File tests/windows/NativeCommand.Tests.ps1 && pwsh -NoProfile -File tests/windows/Install.Simulation.Tests.ps1"
+    "test:windows": "pwsh -NoProfile -File tests/windows/NativeCommand.Tests.ps1 && pwsh -NoProfile -File tests/windows/Install.Simulation.Tests.ps1",
+    "check:data-safety": "node scripts/update-safety-check.js"
   },
   "license": "MIT",
   "private": true,

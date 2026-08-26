@@ -113,6 +113,19 @@ if ($gitExe) {
     Write-Warn "Warning: git not found. 'publisher update' will not work."
 }
 
+# Before git touches this directory. An update replaces application files; if
+# any of the user's articles or themes are still in here, they must be moved out
+# first, and the update must not proceed while any remain at risk.
+Write-Host ""
+Write-Step "Checking user data..."
+$preflight = Invoke-NativeCommand -FilePath $nodeExe `
+    -Arguments @("$ScriptDir\src\cli\index.js", "preflight") -Capture
+Write-Indented $preflight.Output
+if (-not $preflight.Success) {
+    Write-Fail "User data is stored where this update would destroy it. Nothing was changed."
+    exit 1
+}
+
 if ($gitExe -and (Test-Path "$ScriptDir\.git") -and $env:MDTEX_SKIP_PULL -ne "1") {
     Write-Host ""
     Write-Step "Pulling latest changes..."

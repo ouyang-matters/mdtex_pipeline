@@ -9,6 +9,8 @@ import { BlogPipelineIntegration } from '../../workspace/blogpipe.js';
 import { ArticleLibrary } from '../../workspace/library.js';
 import { readRuntimeFile, isRuntimeAlive } from '../../server/runtime.js';
 import { resolveExecutable } from '../../core/exec/which.js';
+import { checkUpdateSafety, dataModel, inventory, Kind } from '../../core/data-model.js';
+import { detectLegacyData } from '../../core/migrate/data.js';
 
 /**
  * `publisher doctor` — verify the installation, including everything the UI
@@ -74,6 +76,29 @@ export async function doctorCommand(options = {}) {
   check('Config directory', existsSync(paths.configDir), paths.configDir);
   check('Data directory', existsSync(paths.dataDir), paths.dataDir);
   check('Cache directory', existsSync(paths.cacheDir), paths.cacheDir);
+
+  // The invariant: nothing the user created may live where an update writes.
+  const safety = checkUpdateSafety();
+  check('User data is outside the application directory', safety.safe,
+    safety.safe ? '' : `${safety.violations.length} location(s) at risk`);
+  for (const violation of safety.violations) {
+    warn(`${violation.reason}`);
+    warn(`  ${violation.entry.label}: ${violation.entry.path}`);
+  }
+
+  const legacy = detectLegacyData();
+  if (legacy.length) {
+    warn(`${legacy.length} legacy data location(s) found. Run \`publisher init\` to migrate them.`);
+    for (const source of legacy) note(`  ${source.from}  ->  ${source.to}`);
+  } else {
+    check('No data left in legacy locations', true);
+  }
+
+  const census = inventory();
+  for (const entry of dataModel().filter(e => e.kind === Kind.PERSISTENT)) {
+    const measured = census.entries[entry.id];
+    if (measured?.files) note(`${entry.label}: ${measured.files} file(s) — ${entry.path}`);
+  }
   try {
     getConfig();
     check('Config readable', true);

@@ -392,3 +392,75 @@ image.
 `node scripts/workflow-check.js` now asserts that the image dragged in at step 8
 is carried into the PDF — `\includegraphics` present and the file copied into
 the build directory. "It compiled" is not evidence that it compiled correctly.
+
+---
+
+## Updates change the application, not the workspace
+
+The requirement was that no update may ever overwrite or delete a user's work.
+Most of the structure was already right — the workspace has always lived under
+`~/.local/share/publisher/`, not in the checkout — so the work was mostly
+turning an intention into something enforced, plus three real defects found by
+looking rather than assuming.
+
+`src/core/data-model.js` is now the single authority: five categories
+(application, built-in, config, persistent, cache), a classification for any
+path, and `checkUpdateSafety()`, which fails if a protected location is ever
+inside one an update replaces. The updater consults it rather than trusting that
+the layout is still what someone intended two years ago.
+
+### Config and data were the same directory on Windows
+
+`%LOCALAPPDATA%\publisher` was both `configDir` and `dataDir` — `config.json`
+sat next to `workspace/`. Linux had the config/data split; Windows did not, so
+"the logical model is identical across platforms" was not true. Windows now uses
+`%LOCALAPPDATA%\MDTeX\{config,data,cache}`, three roots as on Linux, with a
+non-destructive migration from the old flat root.
+
+The cache also moved off `%TEMP%`, which cleanup tools empty while the
+application is running.
+
+Since none of this can be observed by running it here, `resolveRoots()` takes
+`env` and `platform` as parameters and joins with the *target* platform's rules
+(`path.win32.join`), so the Windows layout is asserted from Linux instead of
+being discovered by a Windows user.
+
+### An ordinary edit dropped unknown article fields
+
+`Article.toJSON()` enumerated the fields it knew about. Any other key in
+`article.json` — written by a newer version, or by hand — was silently dropped
+on the next save. That is data loss during a rename, with no update involved.
+Unknown fields are now retained and written back.
+
+### The updater asserted preservation it had not checked
+
+It printed `✓ User workspace preserved` unconditionally. It now takes a census
+of every protected location before and after, prints the counts, and fails the
+update if anything shrank. The line is the same length; the difference is that
+it is now a measurement.
+
+### Migration never deletes
+
+Data in a legacy location — articles in the checkout, or the old Windows root —
+is copied out, verified, and recorded in `migrated-from.json`, and **the original
+is left in place**. Nothing is overwritten: an identical destination file is
+skipped, a differing one is kept and the incoming version written alongside as
+`name.migrated-<hash>.ext`. Conflicts are reported, never resolved by discarding
+one side.
+
+This runs from `publisher preflight`, which both installers call *before*
+`git pull` — once git has started there is no safe way to discover that
+somebody's articles were in the checkout.
+
+### Verification
+
+`npm run check:data-safety` performs the update as the worst plausible
+implementation: it deletes the entire installation directory and reinstalls from
+scratch — the delete-and-reclone pattern that must never be used — then checks
+every category byte for byte. Articles, folders, Unicode filenames, assets,
+`.sty` and `.bib` files, themes, snippets, presets, history, AI profiles,
+ClaudeClaw configuration, publication and Blog Pipeline settings, preferences,
+unknown config keys and secrets all survive. 32 checks.
+
+The unit suite mutation-tests itself: misclassifying the workspace as
+regenerable cache fails four tests rather than none.

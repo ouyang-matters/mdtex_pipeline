@@ -34,6 +34,21 @@ export const EDITABLE_FIELDS = [
 /** Fields that establish identity and are never changed by an edit. */
 export const IMMUTABLE_FIELDS = ['id', 'createdAt', 'dirName'];
 
+/**
+ * Every field this version of MDTeX understands.
+ *
+ * Anything in `article.json` that is *not* here is carried through untouched.
+ * Without that, opening an article written by a newer version — or one a user
+ * added a field to by hand — and saving it would silently drop the field, which
+ * is data loss during an ordinary edit rather than during an upgrade.
+ */
+const KNOWN_META_FIELDS = new Set([
+  'id', 'title', 'subtitle', 'author', 'summary', 'language', 'tags', 'series',
+  'seriesIndex', 'sourceFormat', 'sourceFile', 'targets', 'theme', 'pdfTemplate',
+  'pdfEngine', 'status', 'slug', 'createdAt', 'updatedAt', 'publishState',
+  'deletedAt', 'originalFolder',
+]);
+
 export const ARTICLE_STATUSES = ['draft', 'review', 'published', 'archived'];
 
 export class Article {
@@ -66,6 +81,14 @@ export class Article {
     this.originalFolder = meta.originalFolder || null;
 
     this._dir = meta._dir || null;
+
+    // Forward compatibility: keep fields this version does not know about.
+    this._unknownFields = {};
+    for (const [key, value] of Object.entries(meta)) {
+      if (!KNOWN_META_FIELDS.has(key) && !key.startsWith('_')) {
+        this._unknownFields[key] = value;
+      }
+    }
   }
 
   get dir() { return this._dir; }
@@ -303,6 +326,8 @@ export class Article {
   /** Serialisable metadata. */
   toJSON() {
     return {
+      // Unknown fields first, so a known field can never be shadowed by one.
+      ...this._unknownFields,
       id: this.id,
       title: this.title,
       subtitle: this.subtitle,

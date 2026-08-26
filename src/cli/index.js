@@ -7,6 +7,8 @@ import { execSync } from 'child_process';
 import { Compiler } from '../core/compiler/index.js';
 import { listThemes, listBuiltinThemes, listUserThemes, copyTheme } from '../core/themes/index.js';
 import { paths, ensureUserDirs, getVersionSync, getGitCommitSync } from '../core/paths.js';
+import { checkUpdateSafety, inventory, compareInventories, protectedEntries } from '../core/data-model.js';
+import { migrateLegacyData, formatMigrationReport } from '../core/migrate/data.js';
 import { initConfig, migrateConfig, getConfig, CONFIG_VERSION, DATA_VERSION } from '../core/config/index.js';
 import { createBackup, listBackups, restoreBackup } from '../core/config/backup.js';
 import { ArticleLibrary } from '../workspace/library.js';
@@ -152,7 +154,28 @@ program
   .action(() => {
     console.log('Initializing publisher...\n');
 
+    // Detect an existing installation before creating anything, so `init` on a
+    // populated machine reports what it found rather than looking like a
+    // first-time setup that might have replaced it.
+    const existing = inventory();
+    const populated = protectedEntries().filter(e => (existing.entries[e.id]?.files || 0) > 0);
+    if (populated.length) {
+      console.log('Existing user data detected. It will not be modified.');
+      for (const entry of populated) {
+        console.log(`  ${entry.label}: ${existing.entries[entry.id].files} file(s) — ${entry.path}`);
+      }
+      console.log('');
+    }
+
     ensureUserDirs();
+
+    const migration = migrateLegacyData();
+    if (migration.sources.length) {
+      console.log('Migrating data out of legacy locations...');
+      console.log(formatMigrationReport(migration));
+      console.log('');
+    }
+
     const { created, preserved } = initConfig();
 
     if (preserved.length > 0) {
@@ -168,7 +191,13 @@ program
     console.log(`Workspace:       ${paths.workspace}`);
     console.log(`Config:          ${paths.configDir}`);
     console.log(`Cache:           ${paths.cacheDir}`);
-    console.log('\nNo destructive initialization performed.');
+    // `init` only ever creates what is missing, so running it again on an
+    // existing installation is a no-op with respect to user data.
+    const after = inventory();
+    const comparison = compareInventories(existing, after);
+    console.log(comparison.intact
+      ? '\nNo destructive initialization performed; existing data untouched.'
+      : `\nWarning: user data changed during init: ${comparison.losses.map(l => l.id).join(', ')}`);
     console.log('Done.');
   });
 
@@ -230,6 +259,60 @@ program
     for (const t of listPdfTemplates()) console.log(`  ${t.id} — ${t.description} [${t.source}]`);
   });
 
+// ── preflight ──────────────────────────────────────────────────────────────────
+
+/**
+ * Make the working tree safe to update, before anything touches it.
+ *
+ * The installers run `git pull` in the checkout. If a user's articles are in
+ * that checkout — an old layout, or a workspace someone pointed there — git
+ * decides their fate. So this runs first: it moves legacy data out to the
+ * persistent root, and refuses the update outright if anything is still at
+ * risk. It depends only on Node builtins so it can run before `npm install`.
+ */
+program
+  .command('preflight')
+  .description('Verify and protect user data before an application update')
+  .option('--json', 'Machine-readable output')
+  .action((opts) => {
+    // The safety check runs first and creates nothing: a check that has to
+    // build directories in order to decide whether building them is safe has
+    // already made the mistake it was meant to catch.
+    const safety = checkUpdateSafety();
+
+    if (!safety.safe) {
+      if (opts.json) console.log(JSON.stringify({ safe: false, safety }, null, 2));
+      else {
+        console.error('User data is stored where an application update would destroy it:\n');
+        for (const v of safety.violations) {
+          console.error(`  ${v.reason}`);
+          console.error(`    ${v.entry.label}: ${v.entry.path}`);
+        }
+        console.error('\nMove it out of the application directory, then run this again.');
+      }
+      process.exitCode = 1;
+      return;
+    }
+
+    ensureUserDirs();
+    const migration = migrateLegacyData();
+    const census = inventory();
+
+    if (opts.json) {
+      console.log(JSON.stringify({ safe: true, safety, migration, inventory: census }, null, 2));
+      return;
+    }
+
+    if (migration.sources.length) {
+      console.log('Migrating data out of legacy locations...');
+      console.log(formatMigrationReport(migration));
+      console.log('');
+    }
+
+    const total = protectedEntries().reduce((n, e) => n + (census.entries[e.id]?.files || 0), 0);
+    console.log(`User data is outside the application directory (${total} file(s) protected).`);
+  });
+
 // ── update ─────────────────────────────────────────────────────────────────────
 
 program
@@ -239,6 +322,20 @@ program
   .action(async (opts) => {
     const oldVersion = getVersionSync();
     console.log(`Publisher ${oldVersion}\n`);
+
+    // 0. Refuse to update if any user data sits where an update would replace it.
+    //    This runs before git is touched: once `git pull` has started there is
+    //    no safe way to discover that articles were in the checkout.
+    const safety = checkUpdateSafety();
+    if (!safety.safe) {
+      console.error('Error: user data is stored where an update would destroy it.\n');
+      for (const v of safety.violations) {
+        console.error(`  ${v.reason}`);
+        console.error(`    ${v.entry.label}: ${v.entry.path}`);
+      }
+      console.error('\nRun `publisher doctor` for the migration steps. Nothing was changed.');
+      process.exit(1);
+    }
 
     // 1. Check for git repo
     if (!existsSync(join(paths.appRoot, '.git'))) {
@@ -264,11 +361,22 @@ program
       process.exit(1);
     }
 
-    // 3. Ensure user dirs exist
+    // 3. Ensure user dirs exist. Only ever creates what is missing.
     ensureUserDirs();
 
+    // 3a. Move anything still in a legacy location out of harm's way *before*
+    //     git runs. Copies only — the original is left in place.
+    const migration = migrateLegacyData();
+    if (migration.sources.length) {
+      console.log('\nMigrating data out of legacy locations...');
+      console.log(formatMigrationReport(migration));
+    }
+
+    // 3b. Census of the user's data, to prove afterwards that it survived.
+    const before = inventory();
+
     // 4. Back up user data
-    console.log('Backing up user data...');
+    console.log('\nBacking up user data...');
     const backupDir = createBackup('pre-update');
     console.log(`  Backup: ${backupDir}`);
 
@@ -297,10 +405,10 @@ program
 
     // 8. Run config migrations
     console.log('Running config migrations...');
-    const migration = migrateConfig();
-    if (migration.migrated) {
-      console.log(`  Config migrated: v${migration.fromVersion} -> v${migration.toVersion}`);
-      for (const c of migration.changes) console.log(`    ${c}`);
+    const configMigration = migrateConfig();
+    if (configMigration.migrated) {
+      console.log(`  Config migrated: v${configMigration.fromVersion} -> v${configMigration.toVersion}`);
+      for (const c of configMigration.changes) console.log(`    ${c}`);
     } else {
       console.log('  No migration needed.');
     }
@@ -331,19 +439,40 @@ program
       console.error(`  Self-test error: ${e.message}`);
     }
 
-    // 11. Summary
-    const newVersion = getVersionSync();
-    const userThemesAfter = existsSync(paths.userThemes) ? readdirSync(paths.userThemes).filter(f => f.endsWith('.css')).length : 0;
+    // 11. Prove the user's data survived, rather than asserting it did.
+    const after = inventory();
+    const comparison = compareInventories(before, after);
 
+    const newVersion = getVersionSync();
     console.log(`\nPublisher ${oldVersion} -> ${newVersion}\n`);
-    console.log(`✓ User workspace preserved`);
-    console.log(`✓ ${userThemesAfter} custom theme(s) preserved`);
-    console.log(`✓ Preferences preserved`);
-    console.log(`✓ Secrets preserved`);
-    console.log(`✓ Built-in themes updated`);
-    if (migration.migrated) console.log(`✓ Config migrated`);
-    console.log(`✓ UI rebuilt`);
+
+    for (const entry of protectedEntries()) {
+      const count = after.entries[entry.id];
+      if (!count?.exists) continue;
+      console.log(`  ${entry.label.padEnd(22)} ${String(count.files).padStart(6)} file(s)  ${formatBytes(count.bytes)}`);
+    }
+
+    if (comparison.intact) {
+      console.log('\n✓ User data intact: nothing was removed or replaced.');
+    } else {
+      console.error('\n✗ User data changed during the update:');
+      for (const loss of comparison.losses) {
+        console.error(`    ${loss.id}: ${loss.reason}`);
+      }
+      console.error(`\n  Restore from the pre-update backup: ${backupDir}`);
+      process.exitCode = 1;
+    }
+
+    console.log('✓ Application updated');
+    if (configMigration.migrated) console.log('✓ Configuration migrated, existing values preserved');
+    console.log('✓ UI rebuilt');
   });
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 // ── backups ────────────────────────────────────────────────────────────────────
 

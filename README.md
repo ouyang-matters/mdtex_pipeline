@@ -132,7 +132,7 @@ works in the UI, what is command-line only, and what is not built yet.
 ## Testing
 
 ```bash
-npm test                          # 292 unit tests
+npm test                          # 325 unit tests
 node scripts/e2e.js               # drive the built UI in real Chrome
 node scripts/workflow-check.js    # walk the whole primary workflow in one run
 node scripts/bench-wechat.js      # measure both WeChat compilation paths

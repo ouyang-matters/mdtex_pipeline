@@ -226,7 +226,7 @@ so the dev page talks to a real backend rather than a mock. The UI is at
 `http://localhost:3000`.
 
 ```bash
-npm test                          # 292 unit tests
+npm test                          # 325 unit tests
 node scripts/e2e.js               # drive the built UI in real Chrome
 node scripts/e2e.js --headed      # …with a visible window
 node scripts/workflow-check.js    # walk the whole primary workflow in one run
