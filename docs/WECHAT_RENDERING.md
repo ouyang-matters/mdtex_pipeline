@@ -35,9 +35,36 @@ approach mdnice and doocs/md use.
 MathJax runs with `fontCache: 'none'`, so each SVG carries its own glyph
 outlines. No `<defs>`, no `<use>`, no `id`, no `class`, no font dependency.
 
-Inline formulas get a `<span>` wrapper with an em-based `vertical-align` so they
-sit on the text baseline, and explicitly **no** overflow container — an inline
-formula must never grow a scrollbar.
+### Inline and display are sized by different rules
+
+The mode is explicit — `data-mdtex-math="inline"` or `"display"` — and travels
+with the element through every remaining stage. Nothing downstream has to infer
+it from context.
+
+| | Inline | Display |
+| --- | --- | --- |
+| Width | its intrinsic width, in em | intrinsic, capped at the column |
+| `max-width` | `none` — it must never be shrunk to fit | `100%` |
+| Display | `inline-block`, flowing with the text | its own centred block |
+| Baseline | em-based `vertical-align` | `middle`, inside its container |
+| Overflow | `visible`; an inline formula must never grow a scrollbar | scrolls horizontally rather than cropping |
+
+An inline formula states its size **three times over**: as `width`/`height`
+attributes on the `<svg>`, in that element's inline `style`, and again on the
+`<span>` that wraps it. That is not redundancy for its own sake — see
+*Why inline maths states its size three times* below.
+
+### Sizing is re-asserted after CSS inlining
+
+`juice` folds every matching theme rule into each element's `style`, and a rule
+as ordinary as `#nice svg { width: 100% }` lands on inline maths along with
+everything else. So a normalization pass runs immediately after inlining
+(`src/core/math/normalize-sizing.js`): it drops every geometry property from each
+maths element and restates the ones that belong there, from the intrinsic
+dimensions recorded when the element was built.
+
+Non-geometry declarations — fill, colour, opacity — are left alone. A theme is
+entitled to style those; it is not entitled to decide how big a formula is.
 
 Everything else — theme CSS, code highlighting, tables — is flattened into
 inline `style` attributes by `juice`, and then the WeChat adapter strips classes
@@ -53,6 +80,7 @@ Markdown
   → replace <eq>/<eqn> with MathJax inline SVG         formula cache
   → WeChat adapter transform (div → section)
   → juice: inline the theme CSS in one pass
+  → normalize maths sizing (undo leaked width/display rules)
   → WeChat adapter sanitize (drop classes, ids, …)
   → validate (formula counts, images, dangerous markup)
 ```
@@ -228,6 +256,32 @@ Built-in themes deliberately do **not** set overflow on `.katex-display`. They
 used to, and because CSS promotes a `visible` axis to `auto` when the other axis
 is not `visible`, that painted a stray vertical scrollbar beside every equation
 in the preview.
+
+### Why inline maths states its size three times
+
+An `<svg>` with a `viewBox` and no width or height fills its container. That is
+the specification, not a bug, and it is what turns a one-glyph formula into a
+full-column image: `$K$` has a roughly square viewBox, so 768px of column width
+becomes 590px of height.
+
+A long formula has a wide, short viewBox, so the same treatment leaves it
+looking roughly normal — which is exactly why the symptom looks like "short
+inline formulas are broken" rather than "inline formulas lost their dimensions".
+It also looks intermittent, because whether it happens depends on how much of
+the markup a given paste target rewrites.
+
+So the size is stated at three independent levels, and any one of them surviving
+keeps the formula correct:
+
+| If a consumer strips… | what still sizes it |
+| --- | --- |
+| the `<span>` wrapper | the SVG's attributes and its inline style |
+| the SVG's `width`/`height` attributes | the SVG's inline style |
+| the SVG's `style` too | the wrapper's explicit width and height |
+
+`node scripts/math-sizing-check.js` measures all of this in a real browser: every
+built-in and hostile theme, and each of those strippings applied to real
+published output. It is a measurement, not an assertion that it ought to work.
 
 ---
 

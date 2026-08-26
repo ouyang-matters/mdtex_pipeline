@@ -1,6 +1,9 @@
 import { renderLatexToSvg, renderLatexToDataUri } from './publish-renderer.js';
 import { svgToPngDataUri } from './svg-to-png.js';
 import { FormulaCache } from './formula-cache.js';
+import {
+  EX_TO_EM, geometryAttrs, inlineSvgStyle, inlineWrapperStyle, inlineImageStyle, displaySvgStyle,
+} from './sizing.js';
 
 /**
  * Math output modes for publishing.
@@ -212,54 +215,64 @@ function buildFormulaHtml(asset, latex, displayMode, mathOutput = MathOutput.SVG
 
   let svg = asset.svg;
 
+  const widthEm = `${(asset.widthEx * EX_TO_EM).toFixed(3)}em`;
+  const heightEm = `${(asset.heightEx * EX_TO_EM).toFixed(3)}em`;
+  const valignEm = `${(asset.verticalAlignEx * EX_TO_EM).toFixed(3)}em`;
+
+  svg = svg.replace(/width="[\d.]+ex"/, `width="${widthEm}"`);
+  svg = svg.replace(/height="[\d.]+ex"/, `height="${heightEm}"`);
+
   if (displayMode) {
     // Display equation: centered block that shrinks to the column width when it
-    // can, and scrolls when shrinking further would make it unreadable.
-    // max-width:100% on the SVG does the shrinking; the outer section provides
-    // the scroll container. The viewBox is left untouched, so nothing is cropped.
-    const widthEm = (asset.widthEx * 0.44).toFixed(2);
-    const heightEm = (asset.heightEx * 0.44).toFixed(2);
-
-    svg = svg.replace(/width="[\d.]+ex"/, `width="${widthEm}em"`);
-    svg = svg.replace(/height="[\d.]+ex"/, `height="${heightEm}em"`);
-    svg = svg.replace('<svg', '<svg style="max-width:100%;height:auto;display:inline-block;vertical-align:middle;"');
+    // can, and scrolls when shrinking further would make it unreadable. The
+    // viewBox is left untouched, so nothing is cropped.
+    svg = svg.replace('<svg', `<svg ${geometryAttrs('display', widthEm, heightEm, null)} `
+      + `style="${displaySvgStyle(widthEm)}"`);
 
     return `<section data-latex="${escapedLatex}" data-display="true" data-mdtex-math="display" `
       + `style="text-align:center;margin:1em 0;max-width:100%;overflow-x:auto;overflow-y:visible;">`
-      + `<section style="display:inline-block;max-width:100%;">`
+      + `<section data-mdtex-math="display-box" style="display:inline-block;max-width:100%;margin:0;">`
       + svg
       + `</section></section>`;
   }
 
   // Inline equation: sized in em so it scales with the surrounding text.
-  // No overflow container — an inline formula must never grow a scrollbar.
-  const heightEm = (asset.heightEx * 0.44).toFixed(3);
-  const widthEm = (asset.widthEx * 0.44).toFixed(3);
-  const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
+  //
+  // Every property that could stretch it is stated explicitly rather than left
+  // to default. A theme rule as ordinary as `#nice svg { width: 100% }` is
+  // inlined onto this element by juice, and a CSS width beats the `width="…"`
+  // presentation attribute — which turns a one-glyph formula like $K$ into a
+  // full-column-width image while longer formulas, already near that width,
+  // look almost unchanged. `math/normalize-sizing.js` is the backstop for
+  // rules that outrank these declarations; this is the first line of defence.
+  svg = svg.replace('<svg', `<svg ${geometryAttrs('inline', widthEm, heightEm, valignEm)} `
+    + `style="${inlineSvgStyle(widthEm, heightEm)}"`);
 
-  svg = svg.replace(/width="[\d.]+ex"/, `width="${widthEm}em"`);
-  svg = svg.replace(/height="[\d.]+ex"/, `height="${heightEm}em"`);
-
-  return `<span data-latex="${escapedLatex}" data-display="false" data-mdtex-math="inline" `
-    + `style="display:inline-block;vertical-align:${valignEm}em;margin:0 0.1em;overflow:visible;">`
+  return `<span data-latex="${escapedLatex}" data-display="false" `
+    + `${geometryAttrs('inline', widthEm, heightEm, valignEm)} `
+    + `style="${inlineWrapperStyle(valignEm, widthEm, heightEm)}">`
     + svg
     + `</span>`;
 }
 
 function buildPngFallback(asset, escapedLatex, displayMode) {
   const src = asset.pngDataUri;
+  const widthEm = `${(asset.widthEx * EX_TO_EM).toFixed(3)}em`;
+  const heightEm = `${(asset.heightEx * EX_TO_EM).toFixed(3)}em`;
+
   if (displayMode) {
-    const widthEm = (asset.widthEx * 0.44).toFixed(2);
     return `<section data-latex="${escapedLatex}" data-display="true" data-mdtex-math="display" `
       + `style="text-align:center;margin:1em 0;max-width:100%;overflow-x:auto;overflow-y:visible;">`
       + `<img src="${src}" alt="${escapedLatex}" `
-      + `style="max-width:100%;width:${widthEm}em;height:auto;vertical-align:middle;" />`
+      + `${geometryAttrs('display', widthEm, heightEm, null)} `
+      + `style="${displaySvgStyle(widthEm)}" />`
       + `</section>`;
   }
-  const heightEm = (asset.heightEx * 0.44).toFixed(3);
-  const valignEm = (asset.verticalAlignEx * 0.44).toFixed(3);
-  return `<img src="${src}" alt="${escapedLatex}" data-latex="${escapedLatex}" data-display="false" data-mdtex-math="inline" `
-    + `style="height:${heightEm}em;vertical-align:${valignEm}em;margin:0 0.1em;display:inline;" />`;
+
+  const valignEm = `${(asset.verticalAlignEx * EX_TO_EM).toFixed(3)}em`;
+  return `<img src="${src}" alt="${escapedLatex}" data-latex="${escapedLatex}" data-display="false" `
+    + `${geometryAttrs('inline', widthEm, heightEm, valignEm)} `
+    + `style="${inlineImageStyle(widthEm, heightEm, valignEm)}" />`;
 }
 
 function escapeAttr(str) {

@@ -3,11 +3,14 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { paths, ensureDir } from '../paths.js';
 
-const RENDERER_VERSION = '1';
+const RENDERER_VERSION = '2';
 
 /**
  * Compute a deterministic cache key for a formula.
- * Includes: LaTeX source, display mode, renderer version.
+ *
+ * `displayMode` is part of the key, not an afterthought: the same LaTeX renders
+ * to different geometry inline and in display, and a cache that conflated them
+ * would give one of the two the other's dimensions.
  */
 export function formulaCacheKey(latex, displayMode) {
   const input = JSON.stringify({
@@ -33,14 +36,21 @@ export class FormulaCache {
 
   /**
    * Get a cached formula asset.
-   * Returns { svg, png, dataUri, width, height, verticalAlign } or null.
+   *
+   * Always a fresh copy. Two occurrences of the same formula are two elements
+   * with their own sizing and their own wrapper; handing both the same object
+   * means a mutation made while rendering one — a PNG generated on demand, a
+   * dimension adjusted — silently applies to the other, and to every later
+   * occurrence in every later build that hits the same memory cache.
+   *
+   * Returns { svg, dataUri, widthEx, heightEx, verticalAlignEx, … } or null.
    */
   get(latex, displayMode) {
     const key = formulaCacheKey(latex, displayMode);
 
     // Memory cache first
     if (this.memoryCache.has(key)) {
-      return this.memoryCache.get(key);
+      return { ...this.memoryCache.get(key) };
     }
 
     // Disk cache
@@ -63,7 +73,7 @@ export class FormulaCache {
       }
 
       this.memoryCache.set(key, meta);
-      return meta;
+      return { ...meta };
     } catch {
       return null;
     }

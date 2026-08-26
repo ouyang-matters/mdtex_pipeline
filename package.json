@@ -21,7 +21,8 @@
     "cli": "node src/cli/index.js",
     "test:workflow": "node scripts/workflow-check.js",
     "test:windows": "pwsh -NoProfile -File tests/windows/NativeCommand.Tests.ps1 && pwsh -NoProfile -File tests/windows/Install.Simulation.Tests.ps1",
-    "check:data-safety": "node scripts/update-safety-check.js"
+    "check:data-safety": "node scripts/update-safety-check.js",
+    "check:math-sizing": "node scripts/math-sizing-check.js"
   },
   "license": "MIT",
   "private": true,

@@ -464,3 +464,77 @@ unknown config keys and secrets all survive. 32 checks.
 
 The unit suite mutation-tests itself: misclassifying the workspace as
 regenerable cache fails four tests rather than none.
+
+---
+
+## The enormous $K$
+
+A very short inline formula would occasionally come out enormous after being
+pasted into WeChat, while longer formulas and display equations looked fine, and
+the local preview was always correct.
+
+### It is not about short formulas
+
+An `<svg>` carrying a `viewBox` and no width or height fills its container —
+that is the SVG specification — and scales its height by the viewBox aspect
+ratio. `$K$` has a roughly square viewBox, so 800px of column becomes 590px of
+height. A long formula's viewBox is wide and short, so the identical failure
+leaves it looking about right.
+
+So there was never a short-formula bug. There was an inline-maths-lost-its-
+dimensions bug, which is *visible* on short formulas and nearly invisible on
+long ones. And it looked intermittent because whether the dimensions survive
+depends on how aggressively the paste target rewrites the markup.
+
+### Two false starts, and what actually reproduced it
+
+The first hypothesis was CSS inlining: `juice` folds `#nice svg { width: 100% }`
+into the element's style, and a CSS width beats the `width="0.885em"`
+presentation attribute. That is real, and worth fixing — but measured in a real
+browser it did *not* reproduce the symptom. The wrapper `<span>` is an
+`inline-block`, so it shrink-wraps its content and `width:100%` resolves against
+a shrink-to-fit container, which leaves the formula its intrinsic size.
+
+Being wrong twice was the useful part: it forced the question of what the paste
+target actually does to the markup, rather than what our own pipeline does.
+Applying plausible sanitizations to real published output and measuring each one
+found it immediately:
+
+```
+as published                          13 x  10 px
+wrapper removed                       13 x  10 px
+svg dimensions removed                 0 x   0 px
+wrapper removed + dimensions removed  768 x 590 px   <-- reproduced
+```
+
+Only the combination fails, which is why it is intermittent.
+
+### The fix
+
+Inline and display are now explicitly different objects — `data-mdtex-math`
+travels with every element — and inline maths states its size three times: as
+attributes on the `<svg>`, in that element's inline style, and on the wrapper.
+Any one surviving is enough. `max-width:none` states that inline maths opts out
+of responsive sizing entirely; it is text, not an illustration.
+
+`normalize-sizing.js` then runs after CSS inlining and has the final word: it
+drops every geometry property from each maths element and restates the correct
+ones from the dimensions recorded at build time. That is what catches a theme
+rule our inline styles cannot outrank — `!important`, or a more specific
+selector — because juice appends the winner *after* our declarations, and in a
+style attribute the last one wins. Colour and fill are left alone: a theme may
+style a formula, it may not resize one.
+
+The formula cache already keyed on display mode, but `get()` handed every caller
+the same object, and `renderOne` wrote to it. Two occurrences of one formula are
+two elements; they now get copies.
+
+Cost: 7.7% more output (916 KB vs 851 KB for 240 formulas). Worth it.
+
+### Verification
+
+`npm run check:math-sizing` measures rendered geometry in real Chrome across six
+themes — including ones that deliberately set `width:100%`, `display:block` and
+`!important` on every `svg` — and across seven sanitizations of the published
+output. Run against the code before the fix it reports 4 failures, including the
+768x590 reproduction; after, 22 checks pass.

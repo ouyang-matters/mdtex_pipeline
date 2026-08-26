@@ -3,6 +3,7 @@ import { loadTheme, resolveCssVariables } from '../themes/index.js';
 import { extractImages, resolveImages } from '../images/index.js';
 import { countMathExpressions } from '../math/index.js';
 import { replaceKatexWithImages, MathOutput } from '../math/post-processor.js';
+import { normalizeMathSizing } from '../math/normalize-sizing.js';
 import { FormulaCache } from '../math/formula-cache.js';
 import { inlineCss } from './css-inliner.js';
 import { validate } from './validator.js';
@@ -175,7 +176,17 @@ export class Compiler {
     html = await mark('inline', 'Inlining styles…', () => inlineCss(html, themeCss));
     checkAborted();
 
-    // Step 11: Platform-specific sanitization
+    // Step 12: Restore formula sizing.
+    //
+    // Inlining folds every matching theme rule into each element's style, so a
+    // generic `#nice svg { width:100% }` lands on inline math and stretches a
+    // one-glyph formula to the full column. This runs after inlining and has
+    // the final word on geometry, so a formula's size is decided by MathJax's
+    // intrinsic dimensions rather than by whatever the theme happened to match.
+    const mathSizing = normalizeMathSizing(html);
+    html = mathSizing.html;
+
+    // Step 13: Platform-specific sanitization
     html = adapter ? adapter.sanitize(html) : html;
 
     // Step 12: Validate (includes formula count checks)

@@ -17,7 +17,7 @@ import { paths, ensureDir } from '../paths.js';
  * Bump when the compiler, platform adapters or math post-processor change the
  * bytes they emit, so stale entries are never served after an update.
  */
-export const TARGET_RENDERER_VERSION = '2';
+export const TARGET_RENDERER_VERSION = '3';
 
 export function targetCacheKey({
   source,
