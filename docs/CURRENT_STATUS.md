@@ -5,8 +5,10 @@ table is the one that matters: it separates what works **from the UI**, what
 works **only from the command line**, and what is genuinely **not built yet**.
 
 Last verified: 2026-08-25, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
-Chrome 146) with `npx vitest run`, `node scripts/e2e.js` and
-`node scripts/bench-wechat.js`.
+Chrome 146). All of `npx vitest run` (205 tests), `node scripts/e2e.js`
+(26 checks), `node scripts/workflow-check.js` (21 steps) and
+`publisher doctor` pass; `node scripts/bench-wechat.js` produced the numbers
+below.
 
 ---
 
