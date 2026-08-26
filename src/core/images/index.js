@@ -65,8 +65,11 @@ export function resolveImages(images, baseDir) {
 }
 
 /**
- * Uploader interface for Phase 2.
- * Implementations: WeChatImageUploader, S3Uploader, R2Uploader
+ * Uploader interface.
+ *
+ * No implementation ships yet: WeChat content images still have to be uploaded
+ * by hand, and the validator warns about each local image so it is never a
+ * silent omission. This interface is where a WeChatImageUploader would go.
  */
 export class ImageUploader {
   async upload(imagePath) {

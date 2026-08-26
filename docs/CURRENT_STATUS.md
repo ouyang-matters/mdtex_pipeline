@@ -173,6 +173,11 @@ Plus two harnesses that drive real software rather than mocks:
 - `node scripts/e2e.js` — drives the built UI in headless Chrome against a real
   backend: article management, preview, mathematics overflow, WeChat compile and
   clipboard, PDF compilation and preview, AI quick connect, article properties.
+- `node scripts/workflow-check.js` — walks the whole intended journey in order,
+  in one run: launch, create a folder, create an article, edit its metadata,
+  write Markdown with live preview, drag an image in, compile a PDF and inspect
+  it, open a LaTeX project and compile that, render WeChat without freezing, and
+  copy the finished rich text. 21 steps, all passing on this machine.
 - `node scripts/bench-wechat.js [--scale N]` — measures both WeChat compilation
   paths in the same browser.
 

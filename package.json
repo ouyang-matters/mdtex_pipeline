@@ -1,19 +1,25 @@
 {
   "name": "mdtex-pipeline",
   "version": "0.1.0",
-  "description": "Local publishing pipeline for Markdown+LaTeX articles targeting WeChat and Zhihu",
+  "description": "Local writing and publishing workspace for Markdown + LaTeX articles: WeChat, Zhihu, PDF and blog",
   "type": "module",
   "main": "src/cli/index.js",
   "bin": {
     "publisher": "./src/cli/index.js"
   },
   "scripts": {
+    "start": "node src/cli/index.js start",
     "dev": "vite",
     "build": "vite build",
+    "build:bench": "vite build --config vite.bench.config.js",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cli": "node src/cli/index.js"
+    "test:e2e": "node scripts/e2e.js",
+    "bench": "node scripts/bench-wechat.js",
+    "selftest": "node scripts/selftest.js",
+    "cli": "node src/cli/index.js",
+    "test:workflow": "node scripts/workflow-check.js"
   },
   "license": "MIT",
   "private": true,
@@ -30,7 +36,6 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "jsdom": "^29.1.1",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },

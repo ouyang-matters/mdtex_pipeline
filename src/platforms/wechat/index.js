@@ -9,7 +9,7 @@ import { PlatformAdapter } from '../base.js';
  * - No scripts, iframes, video, audio
  * - No position: fixed/absolute in most cases
  * - Tables must use inline styles
- * - Images must be uploaded to WeChat CDN (Phase 2)
+ * - Content images must be on the WeChat CDN; MDTeX warns about local ones
  * - Links open in WeChat browser
  * - Max content width ~100vw mobile
  * - KaTeX HTML may partially work but SVG/images are safer
