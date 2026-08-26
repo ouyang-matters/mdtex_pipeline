@@ -107,9 +107,126 @@ Compiles successfully for both WeChat and Zhihu with both themes. All content pr
 
 ### Known Limitations
 
-1. KaTeX HTML may have alignment issues on WeChat for complex formulas — both reference projects use MathJax SVG instead
-2. WeChat images must be on its CDN — Phase 1 flags with warnings, Phase 2 adds API upload
+1. KaTeX HTML has alignment issues on WeChat for complex formulas — resolved by rendering publish output with MathJax SVG
+2. WeChat images must be on its CDN — MDTeX flags them with warnings; an API uploader is not built
 3. WeChat may break nested lists (`<ul>` inside `<li>`) — doocs/md restructures these
 4. Code block whitespace may collapse on WeChat in edge cases — mdnice converts to HTML entities
 5. Rich-text clipboard requires secure context (HTTPS/localhost)
-6. Browser-side CSS inlining (DOM-based) is less precise than server-side juice — CLI build uses juice for production output
+6. Browser-side CSS inlining (DOM-based) was less precise than juice and far slower — removed; all publishing now runs in the backend with juice
+
+---
+
+## 2026-08-25 — Local backend, desktop-style UI, and the WeChat performance work
+
+### The problem
+
+Four things were broken or missing at once, and they turned out to share a root
+cause: the browser was being asked to do work it cannot do.
+
+1. **PDF compilation did not exist in the UI.** Pressing the button printed
+   "PDF compilation from the browser UI requires a backend server (planned)".
+2. **Articles lived in `localStorage`**, disconnected from the workspace the CLI
+   managed on disk.
+3. **Article management used `window.prompt()` and `window.confirm()`** — for
+   creating articles, folders, renaming, and every destructive action.
+4. **Copying to WeChat stalled the editor**, and the output it produced was not
+   something WeChat could render anyway.
+
+### What was built
+
+A local backend (`src/server/`) bound to `127.0.0.1`, authenticated with a
+per-session token, that owns every native capability: the workspace on disk,
+`latexmk`, the MathJax/juice publishing pipeline, AI orchestration. The browser
+reaches all of it through one module, `src/ui/api.js`.
+
+Expensive work runs as a job with Server-Sent Events progress and a working
+Cancel button, which is what lets the UI show `Rendering formulas 18/143`
+instead of appearing frozen.
+
+### Profiling the WeChat freeze — and a false start worth recording
+
+The first reproduction ran the old browser path under jsdom and reported the
+CSS-inlining stage taking **over 274 seconds**. That looked like a smoking gun.
+It was wrong: jsdom's `getComputedStyle` is pathologically slow, and no user ever
+experienced that. The lesson is that a DOM emulator is not a browser, and a
+performance claim made in one does not transfer.
+
+Rebuilding the benchmark to drive real Chrome over the DevTools Protocol
+(`scripts/lib/chrome.js`, no new dependency — Node 22 ships a WebSocket client)
+gave the real picture. At 572 formulas:
+
+| | Old | Now |
+| --- | ---: | ---: |
+| Cost per press of Copy | 1908 ms, all blocking | 150 ms |
+| Worst single main-thread stall | 1086 ms | 66 ms |
+| Output | 23.61 MB | 3.22 MB |
+
+The dominant cost was `math-to-image.js` embedding a complete copy of
+`katex.min.css` (24.7 KB) inside **every** formula's `foreignObject` data URI.
+The CSS inliner's `getComputedStyle`-per-element sweep was secondary — 166 ms,
+not the headline.
+
+Worth being precise about what improved: cold wall-clock compilation is
+*slower* now at scale (2191 ms against 1518 ms), because MathJax path-only SVG
+is more work than wrapping KaTeX HTML in a `foreignObject`. It is also the only
+one of the two that WeChat renders. What changed is that the work no longer
+blocks the UI, is cancellable, is cached, and produces 7x smaller output — and
+that a repeat Copy costs nothing at all.
+
+The measurement harness needed fixing too: the first version stopped its
+`requestAnimationFrame` sampler when the measured function resolved, which
+happens in a microtask, before any frame. A fully blocked run therefore reported
+a stall of 0 ms. The sampler now runs one frame past the end.
+
+### Bugs found by testing real software
+
+Every one of these was invisible to unit tests and surfaced only by driving the
+actual browser or the actual CLI:
+
+- **Stray vertical scrollbars beside every equation.** All three built-in themes
+  set `overflow-x: auto` on `.katex-display`. CSS promotes a `visible` axis to
+  `auto` when the other axis is not `visible`, so that produced a vertical
+  scrollbar on content that overflowed by a few pixels.
+- **The word "null" in the article header.** `Node.append()` stringifies `null`,
+  so a `cond ? node : null` argument rendered as text. Fixed with a null-safe
+  `mount()` helper.
+- **Modals rendered in the top-left corner.** The universal reset zeroed the
+  UA's `margin: auto` on `<dialog>`, which is what centres a modal.
+- **Display equations cropped once their container hid overflow.**
+  `transform: scale()` shrinks what is painted but not the layout box, so the
+  container still measured the equation at full width. Fixed with a `.math-sizer`
+  element carrying the painted dimensions.
+- **`latexmk` produced an `.xdv` and no PDF.** This machine has `latexmk` and
+  `xelatex` in `/usr/bin` but `xdvipdfmx` only under
+  `/usr/local/texlive/2024/bin/x86_64-linux`, which is not on PATH. Detection now
+  collects every directory a TeX binary was found in and prepends all of them to
+  the build's PATH.
+- **`claude --print` hung waiting for stdin.** The spawn helper left the child's
+  stdin open.
+- **The prompt vanished into the tool list.** `--allowedTools` and
+  `--disallowed-tools` are variadic, so a trailing positional prompt was absorbed
+  into them. The prompt now goes over stdin.
+- **`listings` could not load `Rust`, `Go` or `JavaScript`.** The package
+  predates them. MDTeX now only emits a `language=` option for languages that are
+  actually defined, and defines the modern ones in the template preamble.
+
+### Decisions
+
+**Backend, not Web Worker.** A worker could render formulas off the main thread,
+but the CLI and the AI tool layer need the same pipeline. One implementation
+serving three callers beat a second copy of it in a worker.
+
+**Compile and Copy are separate operations.** The expensive step caches against
+a content hash of everything that can change the bytes. Copy writes bytes that
+already exist, from memory, so the clipboard write is synchronous with the click
+— which is also what browsers require for a rich-text `clipboard.write()`.
+
+**MDTeX owns the AI tools, not the connection.** The Anthropic and ClaudeClaw
+backends share MDTeX's tool loop. Claude Code brings its own loop, so it gets the
+same tools over a stdio MCP bridge instead, with its own filesystem tools
+switched off. All three end up in the same `ToolExecutor`, so permissions,
+validation, diffs and checkpoints are identical.
+
+**Identity is enforced server-side.** An article's ID, creation time and
+directory name cannot be changed by any request. The properties dialog shows
+them read-only with an explanation, so renaming is obviously safe.

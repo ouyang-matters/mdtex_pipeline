@@ -1,10 +1,16 @@
-# MDTeX Pipeline
+# MDTeX Studio
 
-Local publishing pipeline for long-form technical and mathematical articles, targeting **WeChat Official Account** (primary) and **Zhihu** (secondary).
+A local writing and publishing workspace for long-form technical and
+mathematical articles. Write in Markdown or LaTeX, preview live, compile a PDF,
+and paste finished rich text into WeChat or Zhihu.
 
-Converts Markdown + LaTeX source into platform-ready rich text with customizable CSS themes, live preview, and one-click clipboard copy.
+Everything runs on your machine. Nothing is uploaded anywhere.
+
+---
 
 ## Install
+
+**Linux / macOS**
 
 ```bash
 git clone git@github.com:ouyang-matters/mdtex_pipeline.git
@@ -12,89 +18,124 @@ cd mdtex_pipeline
 ./install.sh
 ```
 
-## Usage
+**Windows** (PowerShell)
+
+```powershell
+git clone git@github.com:ouyang-matters/mdtex_pipeline.git
+cd mdtex_pipeline
+.\install.ps1
+```
+
+Both installers set up the `publisher` command and put it on your PATH. There is
+no environment to activate and no script path to type.
+
+## Run
 
 ```bash
-# Start the local UI
-publisher preview
-# Or: cd /path/to/mdtex_pipeline && npm run dev
-
-# CLI
-publisher build article.md --target wechat
-publisher build article.md --target zhihu --theme academic-orange
-publisher validate article.md --target wechat
-
-# Manage themes
-publisher themes list
-publisher themes copy academic-orange my-custom
-
-# System
-publisher init
-publisher doctor
-publisher version
-publisher update
-
-# Backups
-publisher backups list
-publisher backups create --label before-experiment
-publisher backups restore <backup-name>
+publisher start
 ```
 
-## Features
+Starts the local backend, serves the UI, and opens your browser.
 
-- Markdown + LaTeX rendering (KaTeX)
-- Syntax-highlighted code blocks (highlight.js)
-- Customizable CSS themes (mdnice-compatible `#nice` scoping)
-- Platform-specific adapters (WeChat, Zhihu)
-- CSS inlining via juice (styles survive platform editors)
-- Rich-text clipboard copy (paste directly into WeChat/Zhihu editor)
-- Live preview with theme/platform switching
-- Validation and diagnostics
-- Safe in-place updates with backup
-- User data separated from application code
+---
 
-## Themes
+## Commands
 
-Two built-in themes:
+Identical on Windows and Linux:
 
-- `default` -- Clean, neutral style
-- `academic-orange` -- Warm academic style with orange accents
-
-Custom themes live in `~/.local/share/publisher/themes/`. Built-in themes in `themes/builtin/` are updated with the app but never overwrite user themes.
-
-```bash
-publisher themes copy academic-orange my-theme
-# Edit ~/.local/share/publisher/themes/my-theme.css
+```text
+publisher start                                  launch MDTeX Studio
+publisher init                                   create user directories and defaults
+publisher doctor                                 full health check
+publisher update                                 safe in-place update
+publisher build <article-dir> --target pdf       compile a PDF
+publisher build <article-dir> --target wechat    compile for WeChat
+publisher version                                version and schema information
 ```
 
-## Data Layout
+Also: `publisher validate`, `publisher latex`, `publisher themes`,
+`publisher ws`, `publisher backups`.
 
-```
-Application (git repo):   src/, themes/builtin/, tests/, scripts/
+---
+
+## What it does
+
+**Writing**
+
+- Markdown and LaTeX, with a live preview and KaTeX mathematics
+- An article library with folders, drag-and-drop, search, trash and restore
+- Full article metadata: tags, series, language, publishing targets, themes
+- Images by button, drag-and-drop at the cursor, or paste
+- Snippets, auto-closing delimiters, quick-insert toolbar
+
+**Publishing**
+
+- **WeChat** — inline path-only SVG mathematics that survives the WeChat editor,
+  theme CSS flattened into inline styles, validated formula counts
+- **Zhihu** — a separate adapter for Zhihu's editor
+- **PDF** — `latexmk` locally, from the UI. Markdown goes through a
+  deterministic Markdown → LaTeX conversion into a selectable template; LaTeX
+  projects are compiled as they are, with multi-file `\input`, local `.sty`,
+  bibliographies, figures and reruns
+- Compilation and copying are separate: the expensive work is cached, runs off
+  the UI thread, reports progress and can be cancelled
+
+**AI**
+
+- Quick Connect for Local Claude Code, Remote ClaudeClaw or the Anthropic API,
+  right in the AI panel
+- All three get the same tools: read the source and selection, apply scoped
+  patches, edit themes, compile PDFs, read compiler logs, validate WeChat output
+- Every change arrives as a diff and is checkpointed before it is applied
+
+---
+
+## Requirements
+
+Node 18+ (22 recommended). LaTeX and an AI connection are optional — both show a
+setup state rather than failing.
+
+---
+
+## Data layout
+
+```text
+Application (this repo):  src/, themes/builtin/, tests/, scripts/
 Configuration:            ~/.config/publisher/
-User data & themes:       ~/.local/share/publisher/
+Workspace and themes:     ~/.local/share/publisher/
 Cache:                    ~/.cache/publisher/
 ```
 
-Updates only change the application directory. User data is never touched.
+Updates only touch the application directory. Your articles are never modified.
+
+---
 
 ## Documentation
 
+Start with [Current Status](docs/CURRENT_STATUS.md) — it lists exactly what
+works in the UI, what is command-line only, and what is not built yet.
+
 - [Installation](docs/INSTALLATION.md)
-- [Updating](docs/UPDATING.md)
-- [Data Layout](docs/DATA_LAYOUT.md)
-- [Migrations](docs/MIGRATIONS.md)
+- [Workspace and UI](docs/WORKSPACE.md)
+- [LaTeX and PDF](docs/LATEX_AND_PDF.md)
+- [WeChat Rendering](docs/WECHAT_RENDERING.md)
+- [AI Connections](docs/AI_CONNECTIONS.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Platform Compatibility](docs/PLATFORM_COMPATIBILITY.md)
 - [Theme Guide](docs/THEME_GUIDE.md)
-- [Phase 2 Plan](docs/PHASE2.md)
-- [Reference Analysis](docs/REFERENCE_ANALYSIS.md)
+- [Platform Compatibility](docs/PLATFORM_COMPATIBILITY.md)
+- [Blog Pipeline Integration](docs/BLOG_PIPELINE_INTEGRATION.md)
+- [Updating](docs/UPDATING.md) · [Data Layout](docs/DATA_LAYOUT.md) · [Migrations](docs/MIGRATIONS.md)
+- [Development log](docs/DEVLOG.md)
+
+---
 
 ## Testing
 
 ```bash
-npm test            # Run all tests (77 tests)
-publisher doctor    # Full system health check
+npm test                       # 205 unit tests
+node scripts/e2e.js            # drive the built UI in real Chrome
+node scripts/bench-wechat.js   # measure both WeChat compilation paths
+publisher doctor               # full system health check
 ```
 
 ## License

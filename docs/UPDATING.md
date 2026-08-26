@@ -6,6 +6,11 @@
 publisher update
 ```
 
+The same command on Windows and Linux. Re-running the installer for your
+platform (`./install.sh` or `.\install.ps1`) does the same work and is equally
+safe — it also refreshes the `publisher` command itself, which `publisher
+update` does not.
+
 This command:
 
 1. Detects the current version

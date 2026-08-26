@@ -45,9 +45,10 @@ Documented differences between WeChat Official Account and Zhihu editors.
 - All styles inlined with juice
 - CSS variables resolved before inlining
 - Classes and IDs stripped after inlining
-- Images flagged for manual upload (Phase 1) or API upload (Phase 2)
+- Images flagged for manual upload; a WeChat CDN uploader is not built yet
 - Code blocks: `overflow-x: auto` with `-webkit-overflow-scrolling: touch`
-- Math: KaTeX inline styles (Phase 1), consider SVG fallback (Phase 2)
+- Math: MathJax inline `<svg>` containing only `<path>` elements — see
+  [WECHAT_RENDERING.md](WECHAT_RENDERING.md). `--math png` is the fallback.
 
 ---
 
@@ -183,11 +184,18 @@ LaTeX source
 
 ### Known Limitations
 
-1. **Inline SVG data URIs**: Some WeChat versions may not render SVG data URIs reliably. PNG fallback (`--math png`) is available.
-2. **Very long equations**: May overflow on narrow mobile screens. `overflow-x: auto` on the container helps.
-3. **Text selectability**: Formula text is not selectable in the published article (it's an image). The original LaTeX is preserved in `data-latex` for accessibility.
-4. **File size**: SVG data URIs for math-heavy articles increase HTML size significantly. PNG URIs are even larger.
-5. **Future WeChat CDN upload**: Currently formulas are data URIs. Phase 2 can upload formula images to WeChat CDN for smaller HTML and better caching.
+1. **Inline SVG**: Formulas are inline `<svg>` elements, not data URIs — WeChat
+   strips data URIs. Very old WeChat clients may still not render inline SVG;
+   `--math png` produces images instead.
+2. **Very long equations**: Display equations sit in their own scroll container
+   with `overflow-x: auto`, so they scroll rather than being cropped. Inline
+   formulas never get a scrollbar.
+3. **Text selectability**: Formula text is not selectable in the published
+   article. The original LaTeX is preserved in `data-latex`.
+4. **File size**: Math-heavy articles produce large HTML. A 143-formula article
+   is about 825 KB; the same article under the old data-URI approach was 5.9 MB.
+5. **WeChat CDN upload**: Not built. Content images must be uploaded manually;
+   the validator warns about each one.
 
 ---
 

@@ -11,7 +11,8 @@ A theme is a single CSS file placed in the `themes/` directory:
 ```
 themes/
   default.css
-  academic-orange.css
+  minimal.css
+  modern.css
   your-custom-theme.css
 ```
 
@@ -64,7 +65,7 @@ The compiler discovers themes automatically. Select them by name (without `.css`
 #nice .code-lang { /* language label */ }
 #nice img { /* ... */ }
 #nice .katex { /* KaTeX math */ }
-#nice .katex-display { /* display math */ }
+#nice .katex-display { /* display math — do NOT set overflow here, see below */ }
 #nice .footnotes { /* footnotes section */ }
 ```
 
@@ -156,6 +157,12 @@ Most mdnice themes will work with minimal changes since we use the same `#nice` 
 - Avoid `position: absolute/fixed`
 - Use `max-width: 100%` on images and tables
 - Code blocks need `overflow-x: auto` for mobile scrolling
+- **Never set `overflow` on `#nice .katex-display`.** MDTeX owns display-maths
+  overflow: the preview wraps each equation in a `.math-block` that scales it to
+  fit and only scrolls when it must, and published output ships its own scroll
+  container. A theme that adds its own overflow promotes `overflow-y` to `auto`
+  (CSS does that whenever the other axis is not `visible`) and paints a stray
+  vertical scrollbar beside every equation.
 - Avoid CSS animations and transitions
 - `box-shadow` works but may render differently
 
@@ -178,7 +185,7 @@ The dev server (Vite) also supports hot module replacement for theme files durin
 
 ```bash
 # Use built-in theme
-publisher build article.md --theme academic-orange
+publisher build article.md --theme modern
 
 # Use custom theme file
 publisher build article.md --theme /path/to/my-theme.css
