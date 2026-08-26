@@ -11,6 +11,7 @@ import {
   loadPdfTemplate, renderPdfTemplate, buildFontSetup, DEFAULT_TEMPLATE,
 } from '../latex/templates.js';
 import { parseLatexLog, parseLatexmkProgress } from './log-parser.js';
+import { AssetResolver, AssetKind, LATEX_IMAGE_EXTENSIONS } from '../assets/resolver.js';
 
 /**
  * Local PDF compilation.
@@ -79,6 +80,7 @@ export function materialiseMarkdownProject({
   source,
   buildDir,
   baseDir = null,
+  articleId = null,
   title = null,
   author = '',
   date = '',
@@ -91,70 +93,110 @@ export function materialiseMarkdownProject({
 }) {
   ensureDir(buildDir);
   const warnings = [];
+  const assetErrors = [];
   const assets = [];
   let assetCounter = 0;
   const seen = new Map();
 
+  // The same resolver the preview and the WeChat renderer use, rooted at the
+  // article. The generated .tex lives in a build directory, so `assets/x.png`
+  // would not resolve from there — the file is copied in and the *generated*
+  // reference is rewritten. The canonical Markdown source is never touched.
+  const resolver = new AssetResolver({ articleRoot: baseDir, articleId });
+
   const resolveImage = (src) => {
     if (seen.has(src)) return seen.get(src);
 
+    const record = resolver.resolve(src);
     let outName = null;
 
-    const dataMatch = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(src);
-    if (dataMatch) {
-      const mime = dataMatch[1];
-      const isBase64 = Boolean(dataMatch[2]);
-      const ext = mimeToExtension(mime);
+    if (record.kind === AssetKind.DATA) {
+      const dataMatch = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(src);
+      if (!dataMatch) {
+        assetErrors.push({
+          message: `Embedded image could not be parsed`,
+          diagnostic: `Image not found\n\nSource:\n  ${truncate(src, 60)}\n\nReason:\n  Malformed data URI.`,
+          source: src,
+        });
+        seen.set(src, null);
+        return null;
+      }
+      const ext = mimeToExtension(dataMatch[1]);
       if (!ext) {
-        warnings.push(`Embedded image with unsupported type "${mime}" was dropped from the PDF.`);
+        assetErrors.push({
+          message: `Embedded image has an unsupported type for LaTeX: ${dataMatch[1]}`,
+          diagnostic: `Image not found\n\nSource:\n  data:${dataMatch[1]},…\n\nReason:\n  `
+            + `LaTeX can only use ${LATEX_IMAGE_EXTENSIONS.join(', ')}.`,
+          source: src,
+        });
         seen.set(src, null);
         return null;
       }
       outName = `embedded-${++assetCounter}${ext}`;
-      const target = join(buildDir, outName);
       try {
-        const buffer = isBase64
+        const buffer = dataMatch[2]
           ? Buffer.from(dataMatch[3], 'base64')
           : Buffer.from(decodeURIComponent(dataMatch[3]), 'utf-8');
-        writeFileSync(target, buffer);
+        writeFileSync(join(buildDir, outName), buffer);
         assets.push(outName);
       } catch (e) {
-        warnings.push(`Embedded image could not be decoded: ${e.message}`);
+        assetErrors.push({
+          message: `Embedded image could not be decoded: ${e.message}`,
+          diagnostic: `Image not found\n\nSource:\n  data:…\n\nReason:\n  ${e.message}`,
+          source: src,
+        });
         seen.set(src, null);
         return null;
       }
-    } else if (/^https?:\/\//i.test(src)) {
-      warnings.push(`Remote image is not downloaded for PDF builds: ${src}`);
+    } else if (record.kind === AssetKind.REMOTE) {
+      warnings.push(`Remote image is not downloaded for PDF builds: ${truncate(src, 70)}`);
       seen.set(src, null);
       return null;
     } else {
-      if (!baseDir) {
-        warnings.push(`Local image "${src}" cannot be resolved: the article has no directory on disk.`);
+      // Article-relative (the canonical case) or absolute.
+      if (!record.exists) {
+        assetErrors.push({
+          message: `Image not found: ${src}`,
+          diagnostic: resolver.describeFailure(src),
+          source: src,
+          articleRoot: resolver.articleRoot,
+          expected: record.expected,
+        });
         seen.set(src, null);
         return null;
       }
-      const abs = isAbsolute(src) ? src : resolve(baseDir, decodeURIComponent(src));
-      if (!existsSync(abs)) {
-        warnings.push(`Local image not found: ${src}`);
+
+      const ext = extname(record.absolutePath).toLowerCase();
+      if (!LATEX_IMAGE_EXTENSIONS.includes(ext)) {
+        assetErrors.push({
+          message: `LaTeX cannot use "${ext}" images: ${src}`,
+          diagnostic: `Image not usable\n\nSource:\n  ${src}\n\nArticle root:\n  `
+            + `${resolver.articleRoot}\n\nFound:\n  ${record.absolutePath}\n\nReason:\n  `
+            + `LaTeX supports ${LATEX_IMAGE_EXTENSIONS.join(', ')}. Convert the image first.`,
+          source: src,
+          articleRoot: resolver.articleRoot,
+          expected: record.absolutePath,
+        });
         seen.set(src, null);
         return null;
       }
-      const ext = extname(abs).toLowerCase();
-      if (!IMAGE_EXTENSIONS.includes(ext)) {
-        warnings.push(`Image type "${ext}" is not supported by LaTeX: ${src}`);
-        seen.set(src, null);
-        return null;
+
+      if (record.kind === AssetKind.ABSOLUTE) {
+        warnings.push(
+          `Image "${truncate(src, 60)}" uses an absolute path. Move it into the article's `
+          + 'assets directory so the article stays portable.',
+        );
       }
+
+      // Copied in with a flat, generated name so \includegraphics never has to
+      // deal with spaces, Unicode or nested directories in the build directory.
       outName = `image-${++assetCounter}${ext}`;
-      copyFileSync(abs, join(buildDir, outName));
+      copyFileSync(record.absolutePath, join(buildDir, outName));
       assets.push(outName);
     }
 
-    // \includegraphics resolves the extension itself; passing the bare stem
-    // avoids trouble with names that contain dots.
-    const reference = outName;
-    seen.set(src, reference);
-    return reference;
+    seen.set(src, outName);
+    return outName;
   };
 
   const { body, title: derivedTitle, warnings: convWarnings, stats } =
@@ -181,7 +223,15 @@ export function materialiseMarkdownProject({
   const mainFile = join(buildDir, `${mainName}.tex`);
   writeFileSync(mainFile, tex, 'utf-8');
 
-  return { mainFile, tex, assets, warnings, stats, template, title: effectiveTitle };
+  return {
+    mainFile, tex, assets, warnings, assetErrors, stats, template,
+    title: effectiveTitle, articleRoot: resolver.articleRoot,
+  };
+}
+
+function truncate(value, max) {
+  const text = String(value);
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 function mimeToExtension(mime) {
@@ -389,6 +439,21 @@ export async function runLatexmk({
 // ── High level entry points ──────────────────────────────────────────────────
 
 /**
+ * The source text of a compile subject.
+ *
+ * A subject is normally a plain descriptor carrying `source`, so an unsaved
+ * editor buffer can be compiled. A workspace Article keeps its text on disk
+ * and exposes `readSource()` instead — and reading `.source` off one yields
+ * `undefined`, which would quietly compile an empty document. Accept both.
+ */
+export function subjectSource(subject) {
+  if (!subject) return '';
+  if (typeof subject.source === 'string') return subject.source;
+  if (typeof subject.readSource === 'function') return subject.readSource();
+  return '';
+}
+
+/**
  * Compile an article to PDF.
  *
  * `article` is a plain object so both the workspace Article model and an
@@ -458,6 +523,16 @@ async function compileLatexArticle(article, { outputDir, signal, onProgress, tim
     onProgress({ phase: 'prepare', message: `Bibliography: ${bibFiles.join(', ')}` });
   }
 
+  // latexmk runs with the project as its working directory, so normal LaTeX
+  // relative-path semantics apply and \includegraphics{assets/figure-01.png}
+  // resolves exactly as it would in a terminal. Check the referenced files up
+  // front so a missing figure is reported with the article root, instead of
+  // only appearing as "File `assets/figure-01.png' not found" in the log.
+  const graphicsIssues = preflightLatexGraphics(article, projectDir);
+  for (const issue of graphicsIssues) {
+    onProgress({ phase: 'prepare', message: issue.diagnostic, level: 'error' });
+  }
+
   const result = await runLatexmk({
     mainFile,
     projectDir,
@@ -469,7 +544,26 @@ async function compileLatexArticle(article, { outputDir, signal, onProgress, tim
     timeout,
   });
 
-  return { ...result, mode: 'latex', mainFile, projectDir };
+  return {
+    ...result,
+    mode: 'latex',
+    mainFile,
+    projectDir,
+    articleRoot: projectDir,
+    assetErrors: graphicsIssues,
+    errors: [
+      ...graphicsIssues.map(issue => ({
+        severity: 'error',
+        message: issue.message,
+        diagnostic: issue.diagnostic,
+        source: issue.source,
+        articleRoot: issue.articleRoot,
+        expected: issue.expected,
+      })),
+      ...(result.errors || []),
+    ],
+    success: result.success && graphicsIssues.length === 0,
+  };
 }
 
 async function compileMarkdownArticle(article, { outputDir, signal, onProgress, timeout, environment, engine }) {
@@ -483,9 +577,10 @@ async function compileMarkdownArticle(article, { outputDir, signal, onProgress, 
   const cjk = await detectCjkSupport(environment, { signal });
 
   const project = materialiseMarkdownProject({
-    source: article.source ?? '',
+    source: subjectSource(article),
     buildDir,
     baseDir: article.dir || null,
+    articleId: article.id || null,
     title: article.title || null,
     author: article.author || '',
     date: article.date || '',
@@ -498,6 +593,34 @@ async function compileMarkdownArticle(article, { outputDir, signal, onProgress, 
 
   for (const w of project.warnings) {
     onProgress({ phase: 'prepare', message: w, level: 'warning' });
+  }
+
+  // An image that cannot be resolved is a build failure, not a warning: the
+  // PDF would silently be missing a figure. The diagnostic names the source,
+  // the article root and the exact path that was expected.
+  if (project.assetErrors.length) {
+    for (const failure of project.assetErrors) {
+      onProgress({ phase: 'prepare', message: failure.diagnostic, level: 'error' });
+    }
+    return {
+      success: false,
+      mode: 'markdown',
+      engine: null,
+      pdfPath: null,
+      log: project.assetErrors.map(e => e.diagnostic).join('\n\n'),
+      errors: project.assetErrors.map(e => ({
+        severity: 'error',
+        message: e.message,
+        diagnostic: e.diagnostic,
+        source: e.source,
+        articleRoot: e.articleRoot,
+        expected: e.expected,
+      })),
+      warnings: project.warnings.map(message => ({ severity: 'warning', source: 'mdtex', message })),
+      assetErrors: project.assetErrors,
+      articleRoot: project.articleRoot,
+      projectDir: buildDir,
+    };
   }
   onProgress({
     phase: 'prepare',
@@ -550,6 +673,70 @@ async function compileMarkdownArticle(article, { outputDir, signal, onProgress, 
 }
 
 /**
+ * Check every \includegraphics target in a LaTeX project.
+ *
+ * LaTeX resolves these relative to the compilation working directory, which is
+ * the project root — the same root the preview and the WeChat renderer use, so
+ * one canonical reference works everywhere. LaTeX also allows the extension to
+ * be omitted, which is honoured here.
+ */
+export function preflightLatexGraphics(article, projectDir) {
+  const resolver = new AssetResolver({ articleRoot: projectDir, articleId: article.id || null });
+  const issues = [];
+  const seen = new Set();
+
+  const texFiles = collectTexFiles(projectDir);
+
+  for (const texFile of texFiles) {
+    let content;
+    try { content = readFileSync(texFile, 'utf-8'); } catch { continue; }
+
+    for (const match of content.matchAll(/\\includegraphics\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}/g)) {
+      const src = match[1].trim();
+      if (!src || src.includes('\\') || seen.has(src)) continue; // skip macro arguments
+      seen.add(src);
+
+      const record = resolver.resolve(src);
+      if (record.exists) continue;
+
+      // LaTeX lets you omit the extension.
+      const withExtension = LATEX_IMAGE_EXTENSIONS
+        .map(ext => resolver.resolve(`${src}${ext}`))
+        .find(r => r.exists);
+      if (withExtension) continue;
+
+      issues.push({
+        message: `Image not found: ${src}`,
+        diagnostic: resolver.describeFailure(src)
+          + `\n\nReferenced from:\n  ${basename(texFile)}`,
+        source: src,
+        articleRoot: projectDir,
+        expected: record.expected,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/** Every .tex file in a project, one level of subdirectories deep. */
+function collectTexFiles(projectDir, depth = 2) {
+  const found = [];
+  const walk = (dir, remaining) => {
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === 'dist') continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory() && remaining > 0) walk(full, remaining - 1);
+      else if (entry.isFile() && entry.name.endsWith('.tex')) found.push(full);
+    }
+  };
+  walk(projectDir, depth);
+  return found;
+}
+
+/**
  * Find the main .tex file of a LaTeX project.
  * Prefers the article's declared source file, then main.tex, then the only .tex
  * present, then the first file containing \documentclass.
@@ -578,7 +765,7 @@ export function resolveMainTexFile(article, projectDir) {
 /** Stable identity for a compile request, used for build caching. */
 export function pdfCacheKey(article, engine, template) {
   return createHash('sha256').update(JSON.stringify({
-    source: article.source ?? '',
+    source: subjectSource(article),
     format: article.sourceFormat,
     title: article.title,
     language: article.language,

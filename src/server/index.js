@@ -12,6 +12,7 @@ import { workspaceRoutes } from './routes/workspace.js';
 import { buildRoutes } from './routes/build.js';
 import { themeRoutes } from './routes/themes.js';
 import { aiRoutes } from './routes/ai.js';
+import { assetRoutes } from './routes/assets.js';
 
 /**
  * The MDTeX local backend.
@@ -86,6 +87,7 @@ export async function startServer({
     ...workspaceRoutes(ctx),
     ...buildRoutes(ctx),
     ...themeRoutes(ctx),
+    ...assetRoutes(ctx),
     ...aiRoutes(ctx),
     ...jobRoutes(ctx),
   };

@@ -318,3 +318,77 @@ unwraps `@('npm')` on return; and the executable path was only quoted when it
 happened to contain a space.
 
 `install.sh` is byte-identical, and a test asserts it stays that way.
+
+---
+
+## Article assets: one reference, every target
+
+An imported image was invisible in the live preview, and a PDF built from the
+same article reported `image not found`. Both symptoms had the same root cause,
+and it was not a path bug in either renderer: there was no single answer to the
+question *"what does `assets/figure-01.png` mean?"* Each target had improvised
+one.
+
+The fix is a canonical rule rather than per-target repairs. Article source
+always carries an **article-relative POSIX path** under `assets/`, and every
+target resolves it through one shared `AssetResolver` (`src/core/assets/`).
+`docs/WORKSPACE.md` has the per-target table.
+
+### Reproducing it first
+
+The preview was straightforward once observed rather than assumed: `<img
+src="assets/figure-01.png">` resolves against the *page* origin, so the browser
+requested `http://127.0.0.1:PORT/assets/figure-01.png`, got the SPA's index
+document back, and rendered nothing. The article directory was never involved.
+
+The PDF was more interesting, because for saved articles it *worked* — across
+plain, nested, spaces-in-folder, Chinese-title and native-LaTeX configurations.
+The failure was the unsaved-buffer case, where the image was dropped and the
+build still reported success. That is the worse of the two bugs: a PDF that
+compiles without its figures looks fine until someone reads it.
+
+So unresolvable assets are now a hard build failure with a diagnostic that names
+the reference, the article root and the exact path that was expected — any
+remaining trigger becomes immediately diagnosable instead of silent.
+
+### Two bugs found by looking rather than reasoning
+
+**The preview raced itself.** The DOM rewrite pointed each `<img>` at the
+backend *after* `innerHTML` had already assigned the raw `assets/…` path. The
+browser starts loading the moment the attribute is parsed, so every render fired
+one request guaranteed to fail, and that doomed request's `error` event could
+arrive after the rewrite and mark a perfectly good image as missing. The rewrite
+now happens on the rendered HTML string, inside an inert `<template>`, before it
+reaches the document — the losing request is never started. It still applies to
+the rendered HTML only; the preview URL never enters the article source.
+
+**`compileArticleToPdf` silently compiled nothing.** Its subject is a plain
+descriptor carrying `source`, so an unsaved editor buffer can be compiled — but
+the parameter is named `article`, and a workspace `Article` keeps its text on
+disk and exposes `readSource()`. Passing a real `Article` made `article.source`
+`undefined`, `?? ''` turned that into an empty document, and the build reported
+success. Every shipped caller (UI route, CLI, AI tools) passes a descriptor, so
+this never reached a user, but it is exactly the trap that produces a
+figure-less PDF. `subjectSource()` now accepts either.
+
+Both were found by driving the real thing — a real browser, a real latexmk —
+and inspecting the output, not by reading the code and reasoning about it.
+
+### A note on fixtures
+
+The preview investigation cost an extra cycle to a self-inflicted wound: the PNG
+used to reproduce it was hand-fabricated base64 with a broken CRC and an IDAT
+that would not inflate. MDTeX was right and the fixture was wrong — the file was
+stored, served with a 200, and failed to decode in the browser. Test images are
+now generated programmatically.
+
+It did surface a genuine defect, though: an image that exists but cannot be
+decoded reported "Image not found", sending the reader to look for a file that
+was already there. That case now says the file is on disk and is not a readable
+image.
+
+### Verification
+
+`node scripts/workflow-check.js` now asserts that the image dragged in at step 8
+is carried into the PDF — `\includegraphics` present and the file copied into
+the build directory. "It compiled" is not evidence that it compiled correctly.

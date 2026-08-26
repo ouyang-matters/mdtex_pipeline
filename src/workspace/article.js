@@ -2,6 +2,10 @@ import { randomUUID } from 'crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, renameSync, statSync, rmSync } from 'fs';
 import { join, basename, extname, dirname, relative } from 'path';
 import { paths, ensureDir } from '../core/paths.js';
+import {
+  AssetResolver, ASSET_DIR, canonicalAssetPath, chooseAssetName, hashBytes,
+  safeAssetName as canonicalSafeAssetName,
+} from '../core/assets/resolver.js';
 
 /**
  * Article represents a single writing project in the workspace.
@@ -179,57 +183,117 @@ export class Article {
    * Returns { name, relativePath, reference } where `reference` is the snippet
    * to insert into the source.
    */
-  importAsset(srcPath, originalName = null) {
+  importAsset(srcPath, originalName = null, options = {}) {
     const buffer = readFileSync(srcPath);
-    return this.writeAsset(originalName || basename(srcPath), buffer);
+    return this.writeAsset(originalName || basename(srcPath), buffer, options);
   }
 
-  /** Write asset bytes into the article's assets directory. */
-  writeAsset(name, buffer) {
+  /**
+   * Write asset bytes into the article's managed asset directory.
+   *
+   * Transactional: the file is written and then *verified* before any source
+   * reference is produced. A caller must never insert a reference to an asset
+   * that failed to land on disk, which is how a broken image ends up in the
+   * source in the first place.
+   *
+   * @param {string} name       requested filename
+   * @param {Buffer} buffer     file contents
+   * @param {object} options
+   * @param {boolean} options.replace  overwrite an existing file of that name
+   * @returns {{ name, canonical, relativePath, reference, path, bytes, hash, reused }}
+   */
+  writeAsset(name, buffer, { replace = false } = {}) {
     if (!this.assetsDir) throw new Error('Article has no directory on disk.');
+    if (!buffer || buffer.length === 0) throw new Error('Refusing to store an empty file.');
+
     ensureDir(this.assetsDir);
 
-    const safeName = safeAssetName(name);
-    let finalPath = join(this.assetsDir, safeName);
-    let counter = 1;
-    while (existsSync(finalPath)) {
-      const ext = extname(safeName);
-      const base = basename(safeName, ext);
-      finalPath = join(this.assetsDir, `${base}_${counter}${ext}`);
-      counter++;
+    const { name: finalName, reused } = chooseAssetName(this.assetsDir, name, buffer, { replace });
+    const finalPath = join(this.assetsDir, finalName);
+
+    if (!reused) {
+      writeFileSync(finalPath, buffer);
     }
 
-    writeFileSync(finalPath, buffer);
-    const finalName = basename(finalPath);
-    const relativePath = `assets/${finalName}`;
-    const label = basename(finalName, extname(finalName));
+    // Verify before telling anyone the asset exists.
+    let written;
+    try {
+      written = statSync(finalPath);
+    } catch (e) {
+      throw new Error(`Asset was not written to ${finalPath}: ${e.message}`);
+    }
+    if (!written.isFile() || written.size !== buffer.length) {
+      throw new Error(
+        `Asset verification failed for ${finalPath}: expected ${buffer.length} bytes, found ${written.size}.`,
+      );
+    }
 
-    const reference = this.sourceFormat === 'latex'
-      ? `\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{${relativePath}}\n  \\caption{${label}}\n  \\label{fig:${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}}\n\\end{figure}`
-      : `![${label}](${relativePath})`;
+    const canonical = canonicalAssetPath(finalName);
+    const reference = this.assetReference(canonical, finalName);
 
     this.updatedAt = new Date().toISOString();
     this.saveMeta();
 
-    return { name: finalName, relativePath, reference, path: finalPath, bytes: buffer.length };
+    return {
+      name: finalName,
+      canonical,
+      // Kept for compatibility; identical to `canonical`.
+      relativePath: canonical,
+      reference,
+      path: finalPath,
+      bytes: written.size,
+      hash: hashBytes(buffer),
+      reused,
+    };
   }
 
-  /** List all assets in the article's assets directory. */
+  /**
+   * The source snippet that references an asset.
+   *
+   * Always the canonical article-relative path, in both source formats, so the
+   * same article renders identically in the preview, on WeChat, and in a PDF.
+   */
+  assetReference(canonical, displayName = null) {
+    const label = (displayName || basename(canonical)).replace(/\.[^.]+$/, '');
+
+    if (this.sourceFormat === 'latex') {
+      const anchor = label.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'figure';
+      return `\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{${canonical}}\n`
+        + `  \\caption{${label}}\n  \\label{fig:${anchor}}\n\\end{figure}`;
+    }
+
+    // Markdown link targets cannot contain spaces or parentheses unquoted;
+    // safeAssetName has already removed them, but encode defensively.
+    const target = canonical.split('/').map(part => part.replace(/[()\s]/g, encodeURIComponent)).join('/');
+    return `![${label}](${target})`;
+  }
+
+  /** A resolver bound to this article. */
+  assetResolver({ apiBase = '/api' } = {}) {
+    return new AssetResolver({ articleRoot: this.dir, articleId: this.id, apiBase });
+  }
+
+  /**
+   * List managed assets, with the content hash the preview uses for cache
+   * busting, so a replaced image is never served stale.
+   */
   listAssets() {
     if (!this.assetsDir || !existsSync(this.assetsDir)) return [];
-    return readdirSync(this.assetsDir)
-      .filter(f => !f.startsWith('.'))
-      .map(f => {
-        const full = join(this.assetsDir, f);
-        let bytes = 0;
-        try { bytes = statSync(full).size; } catch {}
-        return { name: f, path: full, relativePath: `assets/${f}`, bytes };
-      });
+    const resolver = this.assetResolver();
+    return resolver.list().map(asset => ({
+      name: asset.name,
+      path: asset.path,
+      canonical: asset.canonical,
+      // Compatibility alias.
+      relativePath: asset.canonical,
+      bytes: asset.bytes,
+      hash: asset.hash,
+    }));
   }
 
   deleteAsset(name) {
     if (!this.assetsDir) return false;
-    const safe = safeAssetName(name);
+    const safe = canonicalSafeAssetName(name);
     const target = join(this.assetsDir, safe);
     if (!existsSync(target)) return false;
     rmSync(target, { force: true });
@@ -328,14 +392,9 @@ export class Article {
   }
 }
 
-export function safeAssetName(name) {
-  const cleaned = String(name || 'file')
-    .replace(/[\\/]/g, '_')
-    .replace(/\.\.+/g, '.')
-    .replace(/[^\p{L}\p{N}._-]/gu, '_')
-    .replace(/^\.+/, '');
-  return cleaned || 'file';
-}
+// The canonical implementation lives with the asset model; re-exported so
+// existing importers keep working.
+export { canonicalSafeAssetName as safeAssetName, ASSET_DIR };
 
 export function normaliseTags(value) {
   const list = Array.isArray(value)

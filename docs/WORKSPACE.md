@@ -152,10 +152,56 @@ in the application — one dialog system, one context menu, one toast.
 - Auto-save about a second after you stop typing; header shows `unsaved` or
   `saved 2m ago`
 
-Dropping an image stores it in the article's `assets/` directory and inserts a
-relative reference — `![name](assets/name.png)` or a full `figure` environment
-for LaTeX. Nothing is embedded as a data URI, so articles stay small and the
-PDF build can find the file.
+### Images
+
+There is exactly one way an image is referenced, and every target understands
+it: an **article-relative POSIX path** under `assets/`.
+
+```
+Markdown   ![A convergence profile](assets/figure-01.png)
+LaTeX      \includegraphics{assets/figure-01.png}
+```
+
+The toolbar `Image` button, drag-and-drop at the cursor and clipboard paste all
+call the same import, so there is no third path behaviour hiding in one of them.
+The import is transactional: the backend copies the file, verifies the bytes
+landed, and only then is a reference inserted. A reference is never written for
+an asset that failed to copy.
+
+Absolute paths (`C:\Users\…`), temporary upload paths, blob URLs and
+repository-relative paths are never written into article source. An article
+directory is portable: move it, rename it, sync it, and its images still
+resolve.
+
+Each target resolves that one reference its own way, through the shared
+`AssetResolver`:
+
+| Target | How `assets/figure-01.png` is resolved |
+| --- | --- |
+| Live preview | Served by the backend at `/api/assets/<article-id>/assets/figure-01.png?v=<hash>`. The rewrite happens on the rendered HTML, so the preview URL never enters the source. |
+| WeChat, Zhihu | Inlined as a `data:` URI, because the clipboard payload has to stand alone. |
+| Markdown → PDF | Copied into the build directory as `image-1.png` and the *generated* LaTeX rewritten. The canonical Markdown is never modified to suit the build directory. |
+| Native LaTeX | Left alone. latexmk runs in the project root, so relative paths mean what they mean in a terminal. |
+| Blog handoff | Passed through with `--article-root` and `--assets` so the blog pipeline can find them. |
+
+The `?v=` is the asset's content hash, so replacing an image under the same
+name shows the new one immediately rather than a cached stale copy.
+
+Importing a file whose name is already taken never silently overwrites: identical
+bytes reuse the existing file, and different bytes get a deterministic
+alternative (`figure-2.png`, `figure-3.png`, …).
+
+When an image cannot be resolved, nothing is silently dropped — the preview
+shows a diagnostic in place of the image and a PDF build fails with the same
+information rather than producing a document with a figure missing:
+
+```
+Image not found
+  assets/figure-01.png
+Article root:  ~/…/workspace/uniform-integrability
+Expected:      ~/…/workspace/uniform-integrability/assets/figure-01.png
+Reason:        File not found.
+```
 
 ### Preview
 

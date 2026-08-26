@@ -180,6 +180,97 @@ async function main() {
     await page.eval(`document.getElementById('preview-pane').style.maxWidth = ''`);
     await delay(300);
 
+    // ── Imported image: visible immediately in the preview ──────────────────
+    console.log('\nImported image');
+
+    const imageResult = await page.eval(`(async () => {
+      const editor = document.getElementById('editor');
+      editor.focus();
+      editor.value = '# Image test\\n\\n';
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+      editor.selectionStart = editor.selectionEnd = editor.value.length;
+
+      const bytes = Uint8Array.from(atob(
+        'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAJUlEQVR42u3OMQEAAAgDoC252H' +
+        'XiRWFB6mYAAAAAAAAAAAAAAHwZWLQAAWq0mfoAAAAASUVORK5CYII='), c => c.charCodeAt(0));
+      const file = new File([bytes], 'figure-01.png', { type: 'image/png' });
+
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      document.getElementById('editor-pane').dispatchEvent(
+        new DragEvent('drop', { dataTransfer: dt, bubbles: true, clientX: 400, clientY: 300 }));
+
+      // Wait for the transactional import: source inserted only after the copy.
+      const deadline = Date.now() + 20000;
+      while (Date.now() < deadline) {
+        if (/!\\[[^\\]]*\\]\\(assets\\//.test(document.getElementById('editor').value)) break;
+        await new Promise(r => setTimeout(r, 60));
+      }
+      await new Promise(r => setTimeout(r, 800));
+
+      const source = document.getElementById('editor').value;
+      const img = document.querySelector('#preview-content img');
+
+      // The decisive check: did the browser actually load the pixels?
+      let loaded = false, naturalWidth = 0;
+      if (img) {
+        if (!img.complete) {
+          await new Promise(r => {
+            img.addEventListener('load', r, { once: true });
+            img.addEventListener('error', r, { once: true });
+            setTimeout(r, 5000);
+          });
+        }
+        loaded = img.complete && img.naturalWidth > 0;
+        naturalWidth = img.naturalWidth;
+      }
+
+      return {
+        source: source.match(/!\\[[^\\]]*\\]\\([^)]*\\)/)?.[0] || null,
+        hasImg: Boolean(img),
+        src: img ? img.getAttribute('src') : null,
+        canonicalKept: img ? img.getAttribute('data-mdtex-src') : null,
+        loaded,
+        naturalWidth,
+        missingPlaceholders: document.querySelectorAll('#preview-content .asset-missing').length,
+      };
+    })()`, { timeout: 60000 });
+
+    check('Dropping an image inserts an article-relative path',
+      imageResult.source === '![figure-01](assets/figure-01.png)', imageResult.source);
+    check('The image is visible in the live preview immediately',
+      imageResult.loaded && imageResult.naturalWidth > 0,
+      `loaded=${imageResult.loaded}, naturalWidth=${imageResult.naturalWidth}px`);
+    check('The preview loads it through the backend, with a cache-busting version',
+      (imageResult.src || '').includes('/api/assets/') && (imageResult.src || '').includes('v='),
+      imageResult.src ? imageResult.src.replace(/token=[^&]*/, 'token=…') : '(none)');
+    check('The canonical reference is preserved on the element',
+      imageResult.canonicalKept === 'assets/figure-01.png', imageResult.canonicalKept);
+    check('No "image not found" placeholder is shown',
+      imageResult.missingPlaceholders === 0, `${imageResult.missingPlaceholders} placeholder(s)`);
+
+    // A broken reference must be diagnosable, not a silent broken-image icon.
+    const brokenResult = await page.eval(`(async () => {
+      const editor = document.getElementById('editor');
+      editor.value = '# Broken\\n\\n![missing](assets/does-not-exist.png)\\n';
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 2500));
+      const placeholder = document.querySelector('#preview-content .asset-missing');
+      return { shown: Boolean(placeholder), text: placeholder ? placeholder.textContent : '' };
+    })()`, { timeout: 30000 });
+
+    check('A missing image shows a diagnostic instead of a broken icon',
+      brokenResult.shown && /does-not-exist\.png/.test(brokenResult.text),
+      brokenResult.text.replace(/\s+/g, ' ').slice(0, 90));
+
+    // Restore the fixture for the compilation checks below.
+    await page.eval(`(() => {
+      const e = document.getElementById('editor');
+      e.value = ${JSON.stringify('__FIXTURE__')};
+      e.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`.replace('"__FIXTURE__"', JSON.stringify(fixture)));
+    await delay(1500);
+
     // ── WeChat compilation ──────────────────────────────────────────────────
     console.log('\nWeChat compilation and copy');
 
@@ -364,7 +455,11 @@ async function main() {
 
     // ── Errors ──────────────────────────────────────────────────────────────
     console.log('\nConsole health');
-    const realErrors = page.pageErrors.filter(e => !/favicon|ERR_FILE_NOT_FOUND/.test(e));
+    const realErrors = page.pageErrors.filter(e =>
+      !/favicon|ERR_FILE_NOT_FOUND/.test(e)
+      // The missing-image check above deliberately requests an asset that does
+      // not exist; its 404 is the behaviour under test, not a defect.
+      && !/does-not-exist\.png/.test(e));
     check('No uncaught page errors during the run', realErrors.length === 0,
       realErrors.slice(0, 2).join(' | '));
 

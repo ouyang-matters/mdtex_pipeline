@@ -7,6 +7,8 @@ import { FormulaCache } from '../math/formula-cache.js';
 import { inlineCss } from './css-inliner.js';
 import { validate } from './validator.js';
 import { htmlToPlainText } from './plain-text.js';
+import { AssetResolver } from '../assets/resolver.js';
+import { applyAssetsToHtml } from '../assets/embed.js';
 import { WeChatAdapter } from '../../platforms/wechat/index.js';
 import { ZhihuAdapter } from '../../platforms/zhihu/index.js';
 
@@ -77,6 +79,10 @@ export class Compiler {
     signal = null,
     onProgress = null,
     includePlainText = false,
+    // Where article-relative assets resolve from, and what to do with them.
+    articleRoot = null,
+    articleId = null,
+    assetMode = 'inline',
   } = {}) {
     const timings = {};
     const mark = async (phase, message, fn) => {
@@ -112,9 +118,15 @@ export class Compiler {
       resolvedThemeCss = resolveCssVariables(themeData.css);
     }
 
-    // Step 3: Extract and analyze images
+    // Step 3: Extract and analyse images
     const images = extractImages(rawHtml);
     resolveImages(images, baseDir);
+
+    // One resolver, shared with every other target, rooted at the article.
+    const assetResolver = new AssetResolver({
+      articleRoot: articleRoot || (baseDir !== '.' ? baseDir : null),
+      articleId,
+    });
 
     // Step 4: Count math expressions from source
     const mathStats = countMathExpressions(source);
@@ -149,10 +161,17 @@ export class Compiler {
       themeCss += '\n' + adapter.getCssOverrides();
     }
 
-    // Step 9: Apply platform transformation
+    // Step 9: Resolve article assets before the platform transform.
+    // A pasted article must be self-contained: `assets/figure-01.png` means
+    // nothing inside the WeChat editor.
+    const assetResult = await mark('assets', 'Resolving images…', () =>
+      applyAssetsToHtml(html, assetResolver, { mode: assetMode }));
+    html = assetResult.html;
+
+    // Step 10: Apply platform transformation
     html = adapter ? adapter.transform(html) : html;
 
-    // Step 10: Inline CSS — one pass over the whole document, never per element
+    // Step 11: Inline CSS — one pass over the whole document, never per element
     html = await mark('inline', 'Inlining styles…', () => inlineCss(html, themeCss));
     checkAborted();
 
@@ -164,6 +183,7 @@ export class Compiler {
       platform,
       images,
       mathResult: mathResult.stats,
+      assetOutcomes: assetResult.outcomes,
     }));
 
     // Add math rendering errors
@@ -171,6 +191,16 @@ export class Compiler {
       validation.errors.push(e);
       validation.valid = false;
     }
+
+    // An unresolvable image is an error, not a warning: the published article
+    // would be missing a figure. The diagnostic names the article root and the
+    // exact path that was expected.
+    for (const e of assetResult.errors) {
+      validation.errors.push(e.message);
+      validation.valid = false;
+    }
+    validation.assetDiagnostics = assetResult.errors;
+    for (const w of assetResult.warnings) validation.warnings.push(w);
 
     // Merge platform-specific validation
     if (adapter) {
@@ -190,6 +220,12 @@ export class Compiler {
       images,
       mathStats,
       mathResult: mathResult.stats,
+      assets: {
+        embedded: assetResult.embedded,
+        skipped: assetResult.skipped,
+        errors: assetResult.errors,
+        articleRoot: assetResolver.articleRoot,
+      },
       validation,
       platform,
       mathOutput: effectiveMathOutput,

@@ -31,7 +31,13 @@ export function workspaceRoutes(ctx) {
     folder,
     path,
     dirName: article.dirName,
-    assets: article.listAssets().map(a => ({ name: a.name, relativePath: a.relativePath, bytes: a.bytes })),
+    assets: article.listAssets().map(a => ({
+      name: a.name,
+      canonical: a.canonical,
+      relativePath: a.canonical,
+      bytes: a.bytes,
+      hash: a.hash,
+    })),
   });
 
   return {
@@ -254,11 +260,31 @@ export function workspaceRoutes(ctx) {
       const { article } = findArticle(params.id);
       const buffer = Buffer.from(body.dataBase64, 'base64');
       if (!buffer.length) throw badRequest('The uploaded file is empty.');
-      const asset = article.writeAsset(body.name, buffer);
+
+      // writeAsset verifies the file landed before returning; a reference is
+      // never handed back for an asset that failed to copy.
+      let asset;
+      try {
+        asset = article.writeAsset(body.name, buffer, { replace: Boolean(body.replace) });
+      } catch (e) {
+        throw badRequest(e.message);
+      }
+
+      const resolver = article.assetResolver();
       sendJson(res, 201, {
-        asset: { name: asset.name, relativePath: asset.relativePath, bytes: asset.bytes },
+        asset: {
+          name: asset.name,
+          canonical: asset.canonical,
+          relativePath: asset.canonical,
+          bytes: asset.bytes,
+          hash: asset.hash,
+          reused: asset.reused,
+        },
+        // The canonical article-relative form — this is what goes in the source.
         reference: asset.reference,
-        url: `/api/workspace/article/${encodeURIComponent(params.id)}/asset/${encodeURIComponent(asset.name)}`,
+        canonical: asset.canonical,
+        // A rendering detail for the preview; never written into the source.
+        url: resolver.previewUrl(asset.canonical),
       });
     },
 

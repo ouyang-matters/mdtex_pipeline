@@ -22,6 +22,8 @@ export const app = {
   series: [],
   currentArticleId: null,
   currentArticle: null,
+  // Absolute article root, shown in asset diagnostics.
+  assetRoot: null,
 
   // Editor
   source: '',

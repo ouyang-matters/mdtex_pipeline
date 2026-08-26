@@ -266,6 +266,22 @@ async function main() {
         existsSync(pdfPath) ? `${(readFileSync(pdfPath).length / 1024).toFixed(0)} KB` : 'no PDF on disk');
       check(readFileSync(pdfPath).subarray(0, 5).toString() === '%PDF-',
         'The PDF is a real PDF');
+
+      // The image dragged in at step 8 must actually be in the document. A PDF
+      // that compiles without its figures is a silent failure, and "it built"
+      // is not evidence that it built correctly.
+      const texDir = join(workspace, 'research', onDisk, 'dist', 'pdf', 'tex');
+      const mainTex = existsSync(join(texDir, 'article.tex'))
+        ? readFileSync(join(texDir, 'article.tex'), 'utf-8')
+        : '';
+      const copied = existsSync(texDir)
+        ? readdirSync(texDir).filter(f => /^image-\d+\.(png|jpe?g|pdf)$/i.test(f))
+        : [];
+      check(
+        /\\includegraphics\[[^\]]*\]\{image-\d+\.[a-z]+\}/.test(mainTex) && copied.length > 0,
+        'The dragged image is carried into the PDF, not silently dropped',
+        `${copied.length} image(s) copied into the build directory`,
+      );
     }
 
     // 11 — open a LaTeX project and compile it

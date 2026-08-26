@@ -165,7 +165,11 @@ function makePage(send, on, sessionId, targetId) {
       });
       on('Log.entryAdded', (params, sid) => {
         if (sid !== sessionId) return;
-        if (params.entry.level === 'error') pageErrors.push(params.entry.text);
+        if (params.entry.level !== 'error') return;
+        // Include the URL: "Failed to load resource" on its own names nothing,
+        // and a caller cannot tell an expected 404 from a real one.
+        const { text, url } = params.entry;
+        pageErrors.push(url ? `${text} [${url}]` : text);
       });
     },
 

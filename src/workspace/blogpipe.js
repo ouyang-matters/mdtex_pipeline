@@ -58,7 +58,18 @@ export class BlogPipelineIntegration {
       `--source "${article.sourcePath}"`,
       `--title "${article.title}"`,
       `--id "${article.id}"`,
+      // The article root is what `assets/figure-01.png` in the source resolves
+      // against. Without it the blog pipeline would have to guess, which is
+      // how a published post ends up with broken images.
+      `--article-root "${article.dir}"`,
+      `--assets-dir "${article.assetsDir}"`,
     ];
+
+    // Hand over the resolved asset list so nothing has to be re-derived.
+    const assets = article.listAssets();
+    if (assets.length) {
+      args.push(`--assets "${assets.map(a => a.canonical).join(',')}"`);
+    }
 
     if (options.htmlPath) args.push(`--html "${options.htmlPath}"`);
     if (options.pdfPath) args.push(`--pdf "${options.pdfPath}"`);

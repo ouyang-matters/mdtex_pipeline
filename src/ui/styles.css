@@ -399,6 +399,39 @@ button { font-family: inherit; font-size: inherit; }
 }
 #preview-content .katex-display > .katex { white-space: nowrap; }
 
+/* ── Missing asset placeholder ────────────────────────────────────────────── */
+
+/*
+ * A browser's broken-image icon says nothing. This says which reference failed,
+ * which article root it was resolved against, and the path that was expected.
+ */
+.asset-missing {
+  display: block;
+  margin: 1em auto;
+  max-width: 100%;
+  padding: 12px 14px;
+  border: 1px dashed #d0a0a0;
+  border-radius: 6px;
+  background: #fdf6f6;
+  color: #7a3b3b;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+.asset-missing strong { display: block; margin-bottom: 4px; }
+.asset-missing code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+.asset-missing-detail { display: block; margin-top: 6px; font-size: 11.5px; }
+.asset-missing-line { display: block; margin-top: 2px; }
+.asset-missing-line em { font-style: normal; opacity: 0.75; }
+
 /* ── Bottom panel ─────────────────────────────────────────────────────────── */
 
 .bottom-panel {
@@ -569,6 +602,11 @@ button { font-family: inherit; font-size: inherit; }
 .issue-warning .issue-badge { background: rgba(224, 164, 88, 0.16); color: var(--warn); }
 .issue-text { flex: 1; font-family: var(--font-mono); font-size: 11px; word-break: break-word; }
 .issue-muted { color: var(--text-faint); }
+.issue-diagnostic {
+  flex: 1; margin: 0;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.5;
+  color: var(--text-muted); white-space: pre-wrap; word-break: break-word;
+}
 
 .build-log {
   flex: 1; overflow: auto; margin: 0; padding: 10px 14px;

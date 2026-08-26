@@ -80,9 +80,14 @@ export class WeChatAdapter extends PlatformAdapter {
       warnings.push('WeChat: target="_blank" may be ignored');
     }
 
-    const imgCount = (html.match(/<img[^>]+src="(?!https:\/\/mmbiz)/gi) || []).length;
-    if (imgCount > 0) {
-      warnings.push(`WeChat: ${imgCount} image(s) not on WeChat CDN - will need manual upload`);
+    // An inlined data URI travels with the paste, so it is not an image that
+    // still needs uploading. Only genuine external links are counted.
+    const external = (html.match(/<img[^>]+src="(?!https:\/\/mmbiz)(?!data:)[^"]*"/gi) || []).length;
+    if (external > 0) {
+      warnings.push(
+        `WeChat: ${external} image(s) reference an external URL. WeChat re-hosts pasted images, `
+        + 'but a link that WeChat cannot fetch will appear broken.',
+      );
     }
 
     return { valid: errors.length === 0, warnings, errors };

@@ -95,10 +95,17 @@ function renderIssues(errors = [], warnings = []) {
   if (!errors.length && !warnings.length) return;
 
   for (const error of errors) {
+    // An asset failure carries a multi-line diagnostic naming the source, the
+    // article root and the expected path. Show it as-is rather than flattening
+    // it into one line.
+    const text = error.diagnostic
+      ? el('pre', { class: 'issue-diagnostic' }, error.diagnostic)
+      : el('span', { class: 'issue-text' },
+          (error.file ? `${basename(error.file)}${error.line ? `:${error.line}` : ''} — ` : '') + error.message);
+
     mount(nodes.issues, el('div', { class: 'issue issue-error' },
       el('span', { class: 'issue-badge' }, 'error'),
-      el('span', { class: 'issue-text' },
-        (error.file ? `${basename(error.file)}${error.line ? `:${error.line}` : ''} — ` : '') + error.message),
+      text,
       error.line ? el('button', {
         class: 'link-btn',
         onClick: () => emit('editor:goto-line', error.line),
@@ -208,8 +215,15 @@ export async function prepareTarget({ force = false, silent = false } = {}) {
     await loadPreparedBytes(result.key);
 
     renderStatus();
+    // Asset failures come with a full diagnostic; other validation errors are
+    // plain strings.
+    const assetFailures = result.assets?.errors || [];
+    const plainErrors = (result.validation?.errors || [])
+      .filter(m => !assetFailures.some(a => a.message === m))
+      .map(m => ({ message: m }));
+
     renderIssues(
-      (result.validation?.errors || []).map(m => ({ message: m })),
+      [...assetFailures, ...plainErrors],
       (result.validation?.warnings || []).map(m => ({ message: m })),
     );
     emit('target:changed', { reason: 'compiled' });

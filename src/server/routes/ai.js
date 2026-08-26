@@ -73,6 +73,8 @@ export function aiRoutes(ctx) {
           themeName,
           platform: 'wechat',
           baseDir: article?.dir || process.cwd(),
+          articleRoot: article?.dir || null,
+          articleId: article?.id || null,
         }),
       blogpipe: async ({ articleId }) => {
         const integration = new BlogPipelineIntegration();

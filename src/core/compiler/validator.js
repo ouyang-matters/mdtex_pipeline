@@ -2,7 +2,9 @@
  * Validation pass for compiled HTML.
  * Checks for common issues before copy/export.
  */
-export function validate(html, source, { platform = 'wechat', images = [], mathResult } = {}) {
+export function validate(html, source, {
+  platform = 'wechat', images = [], mathResult, assetOutcomes = null,
+} = {}) {
   const warnings = [];
   const errors = [];
   const stats = {};
@@ -71,11 +73,25 @@ export function validate(html, source, { platform = 'wechat', images = [], mathR
     errors.push('Empty image src detected in formula');
   }
 
-  // Check images
+  // Check images against what the asset step actually did, rather than
+  // assuming every local reference is still a local reference. An image that
+  // was inlined needs no upload and must not be reported as if it did.
   for (const img of images) {
     if (!img.src || img.src.trim() === '') {
       errors.push('Empty image src detected');
-    } else if (img.isLocal && !img.exists) {
+      continue;
+    }
+
+    const outcome = assetOutcomes?.get(img.src) ?? null;
+
+    if (outcome === 'embedded' || outcome === 'url' || outcome === 'data') continue;
+    if (outcome === 'remote') continue;
+
+    if (outcome === 'missing') continue;  // already reported with a full diagnostic
+    if (outcome === 'too-large' || outcome === 'unreadable') continue;  // warned in detail
+
+    // No asset step ran (preview/legacy callers): fall back to the file check.
+    if (img.isLocal && !img.exists) {
       errors.push(`Local image not found: ${img.src}`);
     } else if (img.isLocal && img.needsUpload) {
       warnings.push(`Image "${img.src}" uses a local path and will require upload`);

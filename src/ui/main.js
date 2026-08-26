@@ -4,6 +4,7 @@ import { el, clear, mount, toast, contextMenu, confirmDialog, promptDialog, moda
 import { api, backend, connect } from './api.js';
 import { app, on, emit, invalidateTarget, currentLanguage } from './state.js';
 import { fitDisplayMath, observeMathFit } from './math-fit.js';
+import { importImage, resolvePreviewAssets, rewriteAssetHtml, refreshAssetManifest, noteAsset } from './assets.js';
 import { initLibrary, refreshLibrary, createArticle, createFolder, openProperties, render as renderLibrary } from './library-panel.js';
 import { initAiPanel, refreshAi, openQuickConnect } from './ai-panel.js';
 import {
@@ -160,6 +161,8 @@ async function openArticle(id) {
     dom.editor.disabled = false;
 
     await loadTheme(data.article.theme || 'default');
+    // Asset hashes for this article, so the preview can cache-bust correctly.
+    await refreshAssetManifest(id);
 
     invalidateTarget('article-changed');
     updateHeader();
@@ -358,29 +361,35 @@ function toggleSnippetPalette() {
 
 // ── Images ────────────────────────────────────────────────────────────────────
 
-async function insertImageFile(file) {
+/**
+ * The single image-import path.
+ *
+ * The toolbar button, drag-and-drop and clipboard paste all land here, so there
+ * is exactly one asset-path behaviour rather than three. The reference is
+ * inserted only after the backend has copied the file and verified it exists.
+ */
+async function insertImageFile(file, { caretOffset = null } = {}) {
   if (!app.currentArticleId) {
     toast('Open an article before inserting images.', { type: 'error' });
     return;
   }
 
-  const dataBase64 = await fileToBase64(file);
-  try {
-    const result = await backend.workspace.uploadAsset(app.currentArticleId, file.name || 'image.png', dataBase64);
-    insertAtCursor(result.reference);
-    toast(`Inserted ${result.asset.name}.`);
-  } catch (e) {
-    toast(`Could not store the image: ${e.message}`, { type: 'error', timeout: 6000 });
+  if (caretOffset !== null) {
+    dom.editor.selectionStart = dom.editor.selectionEnd = caretOffset;
   }
-}
 
-function fileToBase64(file) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const reader = new FileReader();
-    reader.onload = () => resolvePromise(String(reader.result).split(',')[1] || '');
-    reader.onerror = () => rejectPromise(reader.error);
-    reader.readAsDataURL(file);
-  });
+  try {
+    const asset = await importImage(file);
+    insertAtCursor(asset.reference);
+    // The manifest already knows the new hash, so the preview resolves it on
+    // this render — no restart, no reopening the article.
+    updatePreview();
+    toast(asset.reused
+      ? `Reused the identical image already stored as ${asset.name}.`
+      : `Inserted ${asset.name}.`);
+  } catch (e) {
+    toast(`Could not store the image: ${e.message}`, { type: 'error', timeout: 7000 });
+  }
 }
 
 function handleDrop(e) {
@@ -391,10 +400,9 @@ function handleDrop(e) {
   if (!file) return;
 
   const caret = caretFromPoint(e.clientX, e.clientY);
-  if (caret !== null) dom.editor.selectionStart = dom.editor.selectionEnd = caret;
 
   if (file.type.startsWith('image/')) {
-    insertImageFile(file);
+    insertImageFile(file, { caretOffset: caret });
     return;
   }
   if (/\.(md|markdown|txt|tex|ltx)$/i.test(file.name)) {
@@ -553,7 +561,14 @@ function updatePreview() {
 
   // The preview keeps KaTeX HTML: it is fast, selectable, and never leaves the
   // browser. Publishing output is a different renderer and runs on the backend.
-  dom.previewContent.innerHTML = `<style>${css}</style>\n${rawHtml}`;
+  // Article-relative assets cannot be loaded by the browser directly, so point
+  // them at the backend *before* the HTML enters the document — otherwise the
+  // browser fires off a request for `assets/…` that is guaranteed to fail. The
+  // rewrite applies to the rendered HTML only; the source is untouched.
+  dom.previewContent.innerHTML = `<style>${css}</style>\n${rewriteAssetHtml(rawHtml)}`;
+
+  resolvePreviewAssets(dom.previewContent);
+
   fitDisplayMath(dom.previewContent);
 
   const result = validate(rawHtml, source, app.platform);

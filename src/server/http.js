@@ -114,6 +114,10 @@ export function matchPath(pattern, pathname) {
   for (; i < patternParts.length; i++) {
     const p = patternParts[i];
     if (p === '*') {
+      // A wildcard matches one or more segments. Without this, a pattern like
+      // `/api/assets/:id/*` would also match `/api/assets/:id` with an empty
+      // remainder and shadow the route that handles it.
+      if (i >= pathParts.length) return null;
       params['*'] = pathParts.slice(i).map(decodeURIComponent).join('/');
       return params;
     }

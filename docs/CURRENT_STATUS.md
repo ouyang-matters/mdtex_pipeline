@@ -4,9 +4,9 @@ This document is the honest inventory of what MDTeX Studio does. The first
 table is the one that matters: it separates what works **from the UI**, what
 works **only from the command line**, and what is genuinely **not built yet**.
 
-Last verified: 2026-08-25, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
-Chrome 146). All of `npx vitest run` (231 tests), `node scripts/e2e.js`
-(26 checks), `node scripts/workflow-check.js` (21 steps) and
+Last verified: 2026-08-26, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
+Chrome 146). All of `npx vitest run` (292 tests), `node scripts/e2e.js`
+(32 checks), `node scripts/workflow-check.js` (22 steps) and
 `publisher doctor` pass; `node scripts/bench-wechat.js` produced the numbers
 below.
 
@@ -160,7 +160,7 @@ At 572 formulas (a 4x fixture, ~81 KB of Markdown):
 
 ## Test coverage
 
-231 unit tests across 12 suites (`npx vitest run`):
+292 unit tests across 14 suites (`npx vitest run`):
 
 - Parser, math rendering, CSS inlining, platform adapters
 - Formula asset generation (SVG, PNG, caching) and sizing
@@ -171,6 +171,8 @@ At 572 formulas (a 4x fixture, ~81 KB of Markdown):
   cmd.exe shim quoting
 - Installation, config, themes, backup/restore
 - Article workspace: create, search, import, rename, identity preservation
+- Article assets: canonical path resolution, collision handling, cache busting,
+  and the same reference resolving in preview, WeChat, Zhihu and PDF
 
 Plus two harnesses that drive real software rather than mocks:
 
@@ -181,7 +183,7 @@ Plus two harnesses that drive real software rather than mocks:
   in one run: launch, create a folder, create an article, edit its metadata,
   write Markdown with live preview, drag an image in, compile a PDF and inspect
   it, open a LaTeX project and compile that, render WeChat without freezing, and
-  copy the finished rich text. 21 steps, all passing on this machine.
+  copy the finished rich text. 22 steps, all passing on this machine.
 - `node scripts/bench-wechat.js [--scale N]` — measures both WeChat compilation
   paths in the same browser.
 

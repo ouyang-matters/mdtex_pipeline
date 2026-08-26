@@ -161,12 +161,30 @@ Everything outside mathematics and verbatim spans is escaped: `\ { } $ & # ^ _ ~
 
 ### Images
 
-All referenced images are copied into the build directory and referenced by a
-bare filename. Data URIs — from a pasted screenshot — are decoded to files
-first. This avoids absolute paths in `\includegraphics`, which is what breaks
-LaTeX builds under directories containing spaces (`C:\Users\Zhang Wei\…`).
+Article source references images by an article-relative path
+(`assets/figure-01.png`) — see
+[WORKSPACE.md](WORKSPACE.md#images) for the canonical rule.
+
+The generated `.tex` lives in a build directory, so that path would not resolve
+from there. Each referenced image is copied into the build directory and the
+**generated** LaTeX is rewritten to a bare, flat filename (`image-1.png`). The
+canonical Markdown source is never modified to suit the build directory. Data
+URIs — from a pasted screenshot — are decoded to files first.
+
+Bare filenames also keep absolute paths out of `\includegraphics`, which is what
+breaks LaTeX builds under directories containing spaces (`C:\Users\Zhang Wei\…`),
+and keeps Unicode and nested directories out of the file names TeX has to read.
+
+An image that cannot be resolved **fails the build**. It is not a warning: a PDF
+that compiles with a figure missing looks fine until somebody reads it. The
+error names the reference, the article root and the path that was expected.
 
 Remote `https://` images are not downloaded for PDF builds; the build warns.
+
+Native LaTeX projects are left alone — latexmk runs in the project root, so
+relative paths, `\graphicspath`, `\input` and `.bib` all resolve exactly as they
+do in a terminal. Before compiling, `\includegraphics` targets are preflighted so
+a missing figure is reported as such instead of buried in the TeX log.
 
 ### Code languages
 

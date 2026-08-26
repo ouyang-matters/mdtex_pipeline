@@ -175,8 +175,8 @@ export const backend = {
     renameFolder: (path, name) => put('/workspace/folder', { path, name }),
     deleteFolder: (path) => del(`/workspace/folder?path=${encodeURIComponent(path)}`),
 
-    uploadAsset: (id, name, dataBase64) =>
-      post(`/workspace/article/${encodeURIComponent(id)}/asset`, { name, dataBase64 }),
+    uploadAsset: (id, name, dataBase64, { replace = false } = {}) =>
+      post(`/workspace/article/${encodeURIComponent(id)}/asset`, { name, dataBase64, replace }),
     deleteAsset: (id, name) =>
       del(`/workspace/article/${encodeURIComponent(id)}/asset/${encodeURIComponent(name)}`),
     assetUrl: (id, name) =>
@@ -187,6 +187,11 @@ export const backend = {
     createCheckpoint: (id, data) => post(`/workspace/article/${encodeURIComponent(id)}/checkpoints`, data),
     restoreCheckpoint: (id, cid) =>
       post(`/workspace/article/${encodeURIComponent(id)}/checkpoints/${encodeURIComponent(cid)}/restore`),
+  },
+
+  assets: {
+    manifest: (id) => get(`/assets/${encodeURIComponent(id)}`),
+    resolve: (id, sources) => post(`/assets/${encodeURIComponent(id)}/resolve`, { sources }),
   },
 
   themes: {

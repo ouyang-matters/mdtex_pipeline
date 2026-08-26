@@ -95,10 +95,17 @@ export function buildRoutes(ctx) {
           platform,
           mathOutput,
           baseDir: article?.dir || process.cwd(),
+          // Article assets resolve through the one canonical root.
+          articleRoot: article?.dir || null,
+          articleId: article?.id || null,
           signal,
           includePlainText: true,
           onProgress: (event) => progress(event),
         });
+
+        for (const failure of result.assets?.errors || []) {
+          progress({ phase: 'assets', level: 'error', message: failure.diagnostic });
+        }
 
         const durationMs = Date.now() - started;
         targetCache.set(key, {
@@ -125,6 +132,7 @@ export function buildRoutes(ctx) {
           durationMs,
           validation: result.validation,
           formulas: result.mathResult,
+          assets: result.assets,
           timings: result.timings,
         };
       }, { label: `Compile for ${platform}`, meta: { platform, articleId: article?.id || null, key } });
@@ -237,10 +245,16 @@ export function buildRoutes(ctx) {
           at: Date.now(),
         });
 
+        for (const failure of result.assetErrors || []) {
+          log(failure.diagnostic);
+        }
+
         return {
           success: result.success,
           mode: result.mode,
           engine: result.engine,
+          assetErrors: result.assetErrors || [],
+          articleRoot: result.articleRoot || article?.dir || null,
           template: result.template || null,
           pdfPath: result.pdfPath,
           pdfBytes: result.pdfBytes || 0,
