@@ -230,3 +230,91 @@ validation, diffs and checkpoints are identical.
 **Identity is enforced server-side.** An article's ID, creation time and
 directory name cannot be changed by any request. The properties dialog shows
 them read-only with an explanation, so renaming is obviously safe.
+
+---
+
+## 2026-08-26 — Windows installer: stderr is not failure
+
+### The report
+
+`.\install.ps1` aborted during "Installing dependencies..." with:
+
+```text
+node.exe : npm warn deprecated whatwg-encoding@3.1.1 ...
+At C:\Program Files\nodejs\npm.ps1:29 char:3
+... FullyQualifiedErrorId : NativeCommandError
+```
+
+npm had exited 0. Nothing had actually failed.
+
+### Two traps, both stepped in at once
+
+1. **PowerShell prefers the `.ps1`.** npm ships `npm.cmd` *and* `npm.ps1` side
+   by side, and PowerShell's command discovery ranks an ExternalScript above an
+   Application. So `& npm install` runs npm.ps1, which invokes `node.exe` from
+   inside a PowerShell scope that inherits the caller's
+   `$ErrorActionPreference`. Confirmed directly — `Get-Command npm` returns the
+   `.ps1` even on Linux, which is why the fix is testable off Windows.
+
+2. **Windows PowerShell 5.1 turns native stderr into ErrorRecords.** Under
+   `'Stop'` the first one is terminating. The installer's `2>&1` on several
+   calls made this certain rather than merely likely.
+
+A third, newer trap was found while testing: PowerShell 7.3+ can turn a non-zero
+*exit code* into a terminating error via
+`$PSNativeCommandUseErrorActionPreference`, which would rob the installer of the
+chance to print its own message.
+
+### An honest note on reproduction
+
+PowerShell 7 does **not** reproduce trap 2 — stderr no longer becomes
+ErrorRecords there. This bug only fires in Windows PowerShell 5.1, which is what
+`powershell.exe` and "Run with PowerShell" give you. Anyone testing the
+installer with `pwsh` would never see it. The regression tests therefore assert
+the properties that hold on both engines, and the simulated-installer test
+records which engine it observed rather than pretending 5.1 semantics exist
+everywhere.
+
+### The fix
+
+`scripts/windows/NativeCommand.ps1`, dot-sourced by the installer:
+
+- `Resolve-NativeCommand` walks PATHEXT order with `.ps1` removed and uses
+  `Get-Command -CommandType Application`, so a script cannot be selected even
+  by accident.
+- `Invoke-NativeCommand` relaxes both preference traps in **function scope**,
+  runs the command, reads `$LASTEXITCODE`, restores the preferences, and returns
+  a result object. It never throws because of output.
+- The installer keeps `$ErrorActionPreference = 'Stop'` globally, prints npm's
+  deprecation warnings, and fails only on a non-zero exit code.
+
+The generated `publisher.ps1` shim got the same treatment: `publisher doctor`
+writes diagnostics to stderr, which would have hit trap 2 in a user's strict
+session.
+
+### A related defect in the Node spawner
+
+Reviewing the same class of problem for `latexmk` and `xelatex` — which the
+installer does not run, but our Node code does — turned up a real Windows bug:
+`runCommand` used `spawn(..., { shell: false })`, and `CreateProcess` cannot
+execute a `.bat` or `.cmd` file. npm installs its global binaries as `.cmd`
+shims, so `claude.cmd` would never have started on Windows, and a
+Strawberry-Perl `latexmk.bat` likewise. Those are now launched through
+`cmd.exe /d /s /c` with explicit quoting, with the program always quoted so the
+command-line shape does not depend on whether a particular install path happens
+to contain a space.
+
+`publisher update` needed no change: it uses `execSync`, which already goes
+through `cmd.exe` and only throws on a non-zero exit.
+
+### Testing
+
+Two dependency-free PowerShell suites (no Pester) plus static and unit checks in
+`tests/windows-installer.test.js`, which run everywhere and execute the
+PowerShell suites when a PowerShell is available. The tests found two real
+defects of their own while being written: `Get-NativeCommandCandidateName`
+returned a bare string instead of a one-element array, because PowerShell
+unwraps `@('npm')` on return; and the executable path was only quoted when it
+happened to contain a space.
+
+`install.sh` is byte-identical, and a test asserts it stays that way.

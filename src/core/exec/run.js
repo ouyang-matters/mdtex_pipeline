@@ -1,12 +1,53 @@
 import { spawn } from 'child_process';
 
+const IS_WINDOWS = process.platform === 'win32';
+
+/**
+ * Quote one token for a cmd.exe command line.
+ *
+ * Only used when launching a .cmd/.bat shim, which cmd.exe has to interpret.
+ * Everything risky is placed inside double quotes, where cmd's metacharacters
+ * (& | < > ^) lose their meaning, so no caret escaping is needed.
+ */
+export function quoteForCmd(token) {
+  const text = String(token);
+  if (text.length > 0 && !/[\s"^&|<>()%!]/.test(text)) return text;
+  // cmd.exe takes "" as an escaped quote inside a quoted string.
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Build the argument list for running a .cmd/.bat shim through cmd.exe.
+ *
+ * `/d` skips AutoRun commands from the registry, `/s` combined with a fully
+ * quoted remainder makes cmd strip exactly the outer quotes and nothing else,
+ * and `/c` runs the command and exits.
+ *
+ * Returned with windowsVerbatimArguments in mind: Node must not re-quote this.
+ */
+export function buildCmdShimArgs(file, args) {
+  // The program is always quoted, even when it needs no quoting, so the shape
+  // of the command line does not depend on whether this particular install
+  // path happens to contain a space. Arguments are quoted only when required,
+  // which keeps the line readable in a log.
+  const program = `"${String(file).replace(/"/g, '""')}"`;
+  const commandLine = [program, ...args.map(quoteForCmd)].join(' ');
+  return ['/d', '/s', '/c', `"${commandLine}"`];
+}
+
 /**
  * Run an executable and collect its output.
  *
- * Uses spawn (never a shell) so arguments containing spaces, quotes or
+ * Uses spawn without a shell so arguments containing spaces, quotes or
  * backslashes are passed through verbatim on both Windows and POSIX. This
  * matters for LaTeX projects living under paths like
  * `C:\Users\Zhang Wei\Documents\My Papers\`.
+ *
+ * The one exception is a Windows .cmd/.bat shim. Those are not executables —
+ * CreateProcess cannot run them — so they are launched through cmd.exe with
+ * explicit quoting. This is not cosmetic: npm installs its global binaries as
+ * .cmd shims, so `claude.cmd` and a Strawberry-Perl `latexmk.bat` would
+ * otherwise fail to start at all on Windows.
  *
  * @param {string} file          absolute path to the executable
  * @param {string[]} args
@@ -29,15 +70,22 @@ export function runCommand(file, args = [], options = {}) {
     maxBuffer = 32 * 1024 * 1024,
   } = options;
 
+  const isCmdShim = IS_WINDOWS && /\.(cmd|bat)$/i.test(file);
+  const spawnFile = isCmdShim ? (process.env.ComSpec || 'cmd.exe') : file;
+  const spawnArgs = isCmdShim ? buildCmdShimArgs(file, args) : args;
+
   return new Promise((resolvePromise) => {
     let child;
     try {
-      child = spawn(file, args, {
+      child = spawn(spawnFile, spawnArgs, {
         cwd,
         env,
         windowsHide: true,
-        // Never `shell: true` — see the doc comment above.
+        // Never `shell: true`: the quoting above is explicit and auditable,
+        // and a shell would re-interpret arguments we already quoted.
         shell: false,
+        // The cmd.exe command line is already quoted; stop Node redoing it.
+        windowsVerbatimArguments: isCmdShim,
       });
     } catch (e) {
       resolvePromise({

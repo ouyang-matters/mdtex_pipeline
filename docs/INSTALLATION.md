@@ -79,6 +79,37 @@ PowerShell and forwards the child exit code so scripting works.
 
 Override the install location by setting `MDTEX_BIN_DIR` before running.
 
+### Why the installer resolves `npm.cmd` explicitly
+
+PowerShell's command discovery prefers a `.ps1` script over an application, so a
+plain `npm install` in a script runs **`npm.ps1`**, not `npm.cmd`. `npm.ps1`
+invokes `node.exe` from inside a PowerShell scope, and Windows PowerShell 5.1
+converts a native command's stderr writes into error records. Under the
+installer's `$ErrorActionPreference = 'Stop'`, a routine deprecation warning
+therefore became a terminating error:
+
+```text
+node.exe : npm warn deprecated whatwg-encoding@3.1.1 ...
+At C:\Program Files\nodejs\npm.ps1:29 char:3
+... FullyQualifiedErrorId : NativeCommandError
+```
+
+npm had exited 0. Nothing had failed.
+
+Every native command in the installer now goes through
+`scripts/windows/NativeCommand.ps1`, which:
+
+- resolves to a `.exe`, `.cmd` or `.bat` and **never** to a `.ps1` wrapper
+- relaxes the two PowerShell traps (5.1's stderr-to-error conversion, and
+  PowerShell 7.3+'s `$PSNativeCommandUseErrorActionPreference`) inside the
+  helper's own function scope, leaving the installer's strict error handling
+  fully in force
+- decides success from the process exit code and nothing else
+- keeps warnings visible instead of hiding them
+
+Warnings are printed and ignored; the installer fails only when a command
+actually exits non-zero.
+
 ---
 
 ## The command contract
@@ -195,13 +226,18 @@ so the dev page talks to a real backend rather than a mock. The UI is at
 `http://localhost:3000`.
 
 ```bash
-npm test                          # 205 unit tests
+npm test                          # 231 unit tests
 node scripts/e2e.js               # drive the built UI in real Chrome
 node scripts/e2e.js --headed      # …with a visible window
 node scripts/workflow-check.js    # walk the whole primary workflow in one run
 node scripts/bench-wechat.js      # measure both WeChat compilation paths
+npm run test:windows              # PowerShell installer suites (needs pwsh)
 npm run build                     # production build into dist/ui
 ```
+
+The PowerShell suites are dependency-free — no Pester — and run on any platform
+that has `pwsh`. `npm test` runs their static counterparts everywhere and
+executes the PowerShell suites too when a PowerShell is on PATH.
 
 The end-to-end and benchmark harnesses drive Chrome directly over the DevTools
 Protocol (`scripts/lib/chrome.js`) and need no extra dependency: Node 22 ships a
@@ -244,3 +280,10 @@ or re-run the installer.
 --verbose` lists every directory that was searched.
 
 **Port already in use** — `publisher start --port 4174`.
+
+**Windows: `NativeCommandError` during "Installing dependencies..."** — fixed.
+If you are running an older checkout, update it. The installer used to let
+PowerShell resolve `npm` to `npm.ps1`, whose stderr writes became terminating
+errors under strict error handling; it now resolves `npm.cmd` and judges
+success by exit code. See
+[why the installer resolves npm.cmd explicitly](#why-the-installer-resolves-npmcmd-explicitly).

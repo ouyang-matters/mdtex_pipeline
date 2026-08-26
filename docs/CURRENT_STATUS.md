@@ -5,7 +5,7 @@ table is the one that matters: it separates what works **from the UI**, what
 works **only from the command line**, and what is genuinely **not built yet**.
 
 Last verified: 2026-08-25, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
-Chrome 146). All of `npx vitest run` (205 tests), `node scripts/e2e.js`
+Chrome 146). All of `npx vitest run` (231 tests), `node scripts/e2e.js`
 (26 checks), `node scripts/workflow-check.js` (21 steps) and
 `publisher doctor` pass; `node scripts/bench-wechat.js` produced the numbers
 below.
@@ -160,13 +160,15 @@ At 572 formulas (a 4x fixture, ~81 KB of Markdown):
 
 ## Test coverage
 
-205 unit tests across 11 suites (`npx vitest run`):
+231 unit tests across 12 suites (`npx vitest run`):
 
 - Parser, math rendering, CSS inlining, platform adapters
 - Formula asset generation (SVG, PNG, caching) and sizing
 - Cross-platform executable resolution and LaTeX environment detection
 - Markdown → LaTeX conversion and PDF templates
 - Backend API, including authentication, path traversal and secret redaction
+- Windows installer: native-command resolution, stderr-is-not-failure, and
+  cmd.exe shim quoting
 - Installation, config, themes, backup/restore
 - Article workspace: create, search, import, rename, identity preservation
 
