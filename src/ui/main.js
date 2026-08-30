@@ -11,6 +11,7 @@ import {
   initBuildPanel, prepareTarget, copyTarget, exportTarget, compilePdf, showLatexSetup, appendBuildLog,
 } from './build-panel.js';
 import { openSettings } from './settings-dialog.js';
+import { initLatexView, syncLatexTabs, isLatexView } from './latex-view.js';
 import 'katex/dist/katex.min.css';
 
 /**
@@ -108,6 +109,8 @@ function cacheDom() {
   dom.platformSelect = $('select-platform');
   dom.formatLabel = $('editor-format-label');
   dom.editorToolbar = $('editor-toolbar');
+  dom.insertImage = $('btn-insert-image');
+  dom.insertSnippet = $('btn-snippets');
   dom.snippetPalette = $('snippet-palette');
   dom.bottomPanel = $('bottom-panel');
   dom.aiPanel = $('ai-panel-root');
@@ -207,6 +210,7 @@ function updateHeader() {
   }
 
   dom.formatLabel.textContent = article?.sourceFormat === 'latex' ? 'TeX' : 'MD';
+  syncLatexTabs();
   updateSaveState();
 }
 
@@ -398,6 +402,13 @@ function handleDrop(e) {
 
   const file = e.dataTransfer?.files?.[0];
   if (!file) return;
+
+  // The LaTeX view is generated and read-only. Inserting into the editor
+  // underneath it would change the article with nothing on screen to show it.
+  if (isLatexView() && file.type.startsWith('image/')) {
+    toast('Switch to the Markdown tab to insert an image.', { type: 'error' });
+    return;
+  }
 
   const caret = caretFromPoint(e.clientX, e.clientY);
 
@@ -634,6 +645,16 @@ function applyPreferences() {
 // ── Wiring ────────────────────────────────────────────────────────────────────
 
 function wireEvents() {
+  initLatexView({
+    editor: dom.editor,
+    editorTools: [dom.insertImage, dom.insertSnippet],
+    onBeforeLeaveEditor: flushPendingSave,
+    // Adoption rewrites the article on disk: reopening is what makes the editor
+    // show the LaTeX that is now the source, rather than the Markdown that is
+    // no longer there.
+    onSourceAdopted: () => openArticle(app.currentArticleId),
+  });
+
   dom.editor.addEventListener('input', onEditorInput);
   dom.editor.addEventListener('keydown', handleEditorKeydown);
   dom.editor.addEventListener('keydown', handleSnippetShortcuts);
@@ -649,6 +670,7 @@ function wireEvents() {
 
   dom.editorPane.addEventListener('dragover', (e) => {
     if (!e.dataTransfer.types.includes('Files')) return;
+    if (isLatexView()) return;
     e.preventDefault();
     dom.editorPane.classList.add('dragover');
   });

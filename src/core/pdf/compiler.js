@@ -6,10 +6,8 @@ import { runCommand } from '../exec/run.js';
 import {
   detectLatexEnvironment, chooseEngine, ENGINES, DEFAULT_ENGINE, isSupportedEngine,
 } from '../latex/environment.js';
-import { markdownToLatexBody, escapeLatexText } from '../latex/markdown-to-latex.js';
-import {
-  loadPdfTemplate, renderPdfTemplate, buildFontSetup, DEFAULT_TEMPLATE,
-} from '../latex/templates.js';
+import { DEFAULT_TEMPLATE } from '../latex/templates.js';
+import { buildLatexDocument } from '../latex/document.js';
 import { parseLatexLog, parseLatexmkProgress } from './log-parser.js';
 import { AssetResolver, AssetKind, LATEX_IMAGE_EXTENSIONS } from '../assets/resolver.js';
 
@@ -199,33 +197,29 @@ export function materialiseMarkdownProject({
     return outName;
   };
 
-  const { body, title: derivedTitle, warnings: convWarnings, stats } =
-    markdownToLatexBody(source, { resolveImage });
-  warnings.push(...convWarnings);
-
-  const effectiveTitle = title || derivedTitle || null;
-
-  const template = loadPdfTemplate(templateId);
-  const font = buildFontSetup({ engine, language, cjkAvailable, cjkFont });
-  warnings.push(...font.warnings);
-
-  const titleBlock = effectiveTitle ? '\\maketitle\n' : '';
-
-  const tex = renderPdfTemplate(template, {
-    fontSetup: font.setup,
-    title: effectiveTitle ? escapeLatexText(effectiveTitle) : '',
-    author: author ? escapeLatexText(author) : '',
-    date: date ? escapeLatexText(date) : '',
-    titleBlock,
-    body,
+  // The document itself is assembled by the shared builder, so the .tex this
+  // build compiles and the .tex the editor's LaTeX view shows are produced by
+  // the same code. Only the image strategy above differs.
+  const document = buildLatexDocument({
+    source, title, author, date, language,
+    template: templateId, engine, cjkAvailable, cjkFont,
+    resolveImage,
   });
+  warnings.push(...document.warnings);
 
   const mainFile = join(buildDir, `${mainName}.tex`);
-  writeFileSync(mainFile, tex, 'utf-8');
+  writeFileSync(mainFile, document.tex, 'utf-8');
 
   return {
-    mainFile, tex, assets, warnings, assetErrors, stats, template,
-    title: effectiveTitle, articleRoot: resolver.articleRoot,
+    mainFile,
+    tex: document.tex,
+    assets,
+    warnings,
+    assetErrors,
+    stats: document.stats,
+    template: document.template,
+    title: document.title,
+    articleRoot: resolver.articleRoot,
   };
 }
 

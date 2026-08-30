@@ -6,9 +6,9 @@
  * backend, in the order a writer would actually do it:
  *
  *   launch → create a folder → create an article → edit its metadata →
- *   write Markdown with live preview → drag an image in → open a LaTeX project →
- *   compile a PDF and inspect it → render WeChat without freezing →
- *   copy the finished rich text
+ *   write Markdown with live preview → drag an image in → render WeChat without
+ *   freezing → copy the finished rich text → compile a PDF and inspect it →
+ *   read the article as LaTeX and adopt it → open a real LaTeX project
  *
  *   node scripts/workflow-check.js [--headed]
  */
@@ -284,7 +284,116 @@ async function main() {
       );
     }
 
-    // 11 — open a LaTeX project and compile it
+    // 11 — read the article as LaTeX, then make LaTeX its source
+    const articleDir = join(workspace, 'research', onDisk);
+
+    const latexTab = await page.eval(`(async () => {
+      const tabs = document.getElementById('source-tabs');
+      if (tabs.classList.contains('hidden')) return { tabs: false };
+      document.getElementById('tab-latex').click();
+
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        const text = document.getElementById('latex-source').value;
+        const origin = document.getElementById('latex-view-origin').textContent;
+        if (text && !/Generating/.test(origin)) {
+          return {
+            tabs: true,
+            tex: text,
+            readOnly: document.getElementById('latex-source').readOnly,
+            editorHidden: document.getElementById('editor').classList.contains('hidden'),
+            adoptEnabled: !document.getElementById('btn-adopt-latex').disabled,
+            errors: [...document.querySelectorAll('.latex-view-note.error')].map(n => n.textContent),
+          };
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+      return { tabs: true, timedOut: true };
+    })()`, { timeout: 40000 });
+
+    check(latexTab.tabs && latexTab.tex && latexTab.readOnly && latexTab.editorHidden,
+      'Read the Markdown article as LaTeX, in the same editor',
+      latexTab.tex ? `${latexTab.tex.length} chars, read-only` : 'nothing shown');
+
+    // The generated document lives at the article root, so it must reference
+    // the image the way the article does — not the flattened build-directory
+    // name the PDF path uses. Getting this wrong produces a document that looks
+    // right and cannot compile once adopted.
+    check(
+      /\\includegraphics\[[^\]]*\]\{assets\/diagram\.png\}/.test(latexTab.tex || ''),
+      'The generated LaTeX references the image canonically',
+      'assets/diagram.png',
+    );
+
+    const derivedOnDisk = join(articleDir, 'dist', 'latex', 'main.tex');
+    check(
+      existsSync(derivedOnDisk) && readFileSync(derivedOnDisk, 'utf-8') === latexTab.tex,
+      'The LaTeX version is also kept on disk',
+      'dist/latex/main.tex, identical to what is shown',
+    );
+
+    check(latexTab.adoptEnabled && (latexTab.errors || []).length === 0,
+      'Adoption is offered because nothing is unresolved');
+
+    const adopted = await page.eval(`(async () => {
+      document.getElementById('btn-adopt-latex').click();
+      await new Promise(r => setTimeout(r, 200));
+      const dialog = document.querySelector('.mdtex-dialog');
+      if (!dialog) return { confirmed: false };
+      [...dialog.querySelectorAll('button')].find(b => /Use as source/.test(b.textContent))?.click();
+
+      // Wait on the DOM, not on the state object: the article is reopened
+      // asynchronously and the state flips before the editor is redrawn.
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        const label = document.getElementById('editor-format-label').textContent;
+        const text = document.getElementById('editor').value;
+        if (label === 'TeX' && text.includes('\\documentclass')) {
+          return {
+            confirmed: true,
+            format: label,
+            tabsHidden: document.getElementById('source-tabs').classList.contains('hidden'),
+            editorText: text,
+          };
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+      return {
+        confirmed: true,
+        timedOut: true,
+        format: document.getElementById('editor-format-label').textContent,
+      };
+    })()`, { timeout: 40000 });
+
+    check(adopted.format === 'TeX' && adopted.tabsHidden,
+      'Adopting makes LaTeX the source and retires the tabs',
+      'the article now has one source, not two');
+
+    check(
+      existsSync(join(articleDir, 'main.tex'))
+      && readFileSync(join(articleDir, 'main.tex'), 'utf-8') === latexTab.tex
+      && !existsSync(join(articleDir, 'source.md')),
+      'What was adopted is exactly what was shown, and the Markdown is gone from the root',
+      'main.tex written, source.md removed',
+    );
+
+    const checkpointDir = join(articleDir, '.checkpoints');
+    const adoptCheckpoint = existsSync(checkpointDir)
+      ? readdirSync(checkpointDir)
+        .map(f => JSON.parse(readFileSync(join(checkpointDir, f), 'utf-8')))
+        .find(c => c.origin === 'adopt-latex')
+      : null;
+    check(
+      Boolean(adoptCheckpoint) && adoptCheckpoint.sourceFile === 'source.md'
+      && adoptCheckpoint.source.includes('diagram.png'),
+      'The Markdown is recoverable from a checkpoint',
+      adoptCheckpoint ? `"${adoptCheckpoint.label}"` : 'no checkpoint taken',
+    );
+
+    check(adopted.editorText === latexTab.tex,
+      'The editor now edits the LaTeX, not the Markdown that is no longer there');
+
+    // 12 — open a LaTeX project and compile it
     const latexDir = join(workspace, 'research', 'latex-paper');
     writeLatexProject(latexDir);
     // Navigate rather than calling location.reload(): reload() returns before

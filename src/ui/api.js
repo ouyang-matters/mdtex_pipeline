@@ -183,6 +183,11 @@ export const backend = {
       `${api.base}/workspace/article/${encodeURIComponent(id)}/asset/${encodeURIComponent(name)}`
       + (api.token ? `?token=${encodeURIComponent(api.token)}` : ''),
 
+    // The LaTeX document an article is, or would become. Read-only for a
+    // Markdown article until `adoptLatex` makes it the source.
+    latex: (id) => get(`/workspace/article/${encodeURIComponent(id)}/latex`),
+    adoptLatex: (id) => post(`/workspace/article/${encodeURIComponent(id)}/latex/adopt`),
+
     checkpoints: (id) => get(`/workspace/article/${encodeURIComponent(id)}/checkpoints`),
     createCheckpoint: (id, data) => post(`/workspace/article/${encodeURIComponent(id)}/checkpoints`, data),
     restoreCheckpoint: (id, cid) =>

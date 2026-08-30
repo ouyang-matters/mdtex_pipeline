@@ -68,6 +68,12 @@
         <div class="pane-header">
           <span class="pane-title">Source</span>
           <span id="editor-format-label" class="format-chip">MD</span>
+          <div class="source-tabs hidden" id="source-tabs" role="tablist">
+            <button id="tab-source" class="source-tab active" role="tab"
+                    title="The article's source">Markdown</button>
+            <button id="tab-latex" class="source-tab" role="tab"
+                    title="The LaTeX this Markdown becomes">LaTeX</button>
+          </div>
           <div class="editor-toolbar" id="editor-toolbar"></div>
           <button id="btn-insert-image" class="btn btn-xs" title="Insert an image">Image</button>
           <button id="btn-snippets" class="btn btn-xs" title="Insert a snippet">Insert</button>
@@ -75,6 +81,16 @@
         </div>
         <textarea id="editor" spellcheck="false"
                   placeholder="Write Markdown or LaTeX here. Drag images onto the editor to insert them."></textarea>
+        <div id="latex-view" class="latex-view hidden">
+          <div id="latex-view-notes" class="latex-view-notes"></div>
+          <textarea id="latex-source" spellcheck="false" readonly
+                    aria-label="Generated LaTeX source"></textarea>
+          <div class="latex-view-footer">
+            <span id="latex-view-origin" class="latex-view-origin"></span>
+            <button id="btn-adopt-latex" class="btn btn-xs"
+                    title="Make this LaTeX the article's source. One-way.">Use as source…</button>
+          </div>
+        </div>
         <div id="snippet-palette" class="snippet-palette hidden"></div>
       </section>
 

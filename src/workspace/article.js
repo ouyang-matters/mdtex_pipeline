@@ -202,6 +202,28 @@ export class Article {
   }
 
   /**
+   * Point the article at a different source container without touching the
+   * files.
+   *
+   * `changeSourceFormat` is the user-facing operation and moves the content
+   * with the article. This is the low-level one, for callers that have already
+   * written the file they are pointing at — adopting a derived LaTeX source,
+   * and restoring a checkpoint that was taken in the other format. Keeping it
+   * separate is what stops "the metadata says main.tex" and "the content lives
+   * in source.md" from ever drifting apart silently.
+   */
+  setSourceContainer(format) {
+    if (format !== 'markdown' && format !== 'latex') {
+      throw new Error(`Unsupported source format: ${format}`);
+    }
+    this.sourceFormat = format;
+    this.sourceFile = format === 'latex' ? 'main.tex' : 'source.md';
+    this.updatedAt = new Date().toISOString();
+    this.saveMeta();
+    return { sourceFormat: this.sourceFormat, sourceFile: this.sourceFile };
+  }
+
+  /**
    * Import a file into the article's assets directory.
    * Returns { name, relativePath, reference } where `reference` is the snippet
    * to insert into the source.

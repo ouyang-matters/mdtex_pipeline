@@ -96,7 +96,25 @@ export function restoreCheckpoint(article, id) {
 
   createCheckpoint(article, { label: `Before restoring ${record.label || record.id}`, origin: 'pre-restore' });
 
+  // A checkpoint records which file the content came from, and the source
+  // format can change between taking one and restoring it — adopting LaTeX
+  // does exactly that. Restoring the content without restoring the container
+  // would write Markdown into main.tex and leave the article claiming to be a
+  // LaTeX project, so the container is restored first and the file the article
+  // no longer uses is removed. The pre-restore checkpoint above already holds
+  // its contents, so nothing is lost.
+  const previousSourcePath = article.sourcePath;
+  const recordedFormat = record.metadata?.sourceFormat
+    || (record.sourceFile === 'main.tex' ? 'latex' : 'markdown');
+  if (recordedFormat !== article.sourceFormat) {
+    article.setSourceContainer(recordedFormat);
+  }
+
   article.writeSource(record.source);
+
+  if (previousSourcePath && previousSourcePath !== article.sourcePath && existsSync(previousSourcePath)) {
+    rmSync(previousSourcePath, { force: true });
+  }
   if (record.metadata) {
     article.applyMetadata({
       title: record.metadata.title,
@@ -117,6 +135,8 @@ export function restoreCheckpoint(article, id) {
   return {
     restored: record.id,
     source: record.source,
+    sourceFormat: article.sourceFormat,
+    sourceFile: article.sourceFile,
     themeName: record.themeName,
     themeCss: record.themeCss,
   };
