@@ -43,7 +43,7 @@ function derivedPath(article) {
  *
  * @returns {{ derived, tex, sourceFile, warnings, errors, embedded, stats, template }}
  */
-export function latexSourceOf(article, { cjkAvailable = false, persist = false } = {}) {
+export function latexSourceOf(article, { cjk = null, persist = false } = {}) {
   if (article.sourceFormat === 'latex') {
     return {
       derived: false,
@@ -66,8 +66,7 @@ export function latexSourceOf(article, { cjkAvailable = false, persist = false }
     language: article.language || 'en',
     template: article.pdfTemplate || undefined,
     engine: article.pdfEngine || undefined,
-    cjkAvailable,
-    cjkFont: article.cjkFont || null,
+    cjk,
     resolveImage: images.resolveImage,
   });
 
@@ -112,7 +111,7 @@ export function latexSourceOf(article, { cjkAvailable = false, persist = false }
  *
  * @returns {{ adopted: true, tex, sourceFile, checkpoint, assets, warnings }}
  */
-export function adoptLatexSource(article, { cjkAvailable = false } = {}) {
+export function adoptLatexSource(article, { cjk = null } = {}) {
   if (article.sourceFormat === 'latex') {
     throw new Error('This article already uses LaTeX as its source.');
   }
@@ -136,8 +135,7 @@ export function adoptLatexSource(article, { cjkAvailable = false } = {}) {
     language: article.language || 'en',
     template: article.pdfTemplate || undefined,
     engine: article.pdfEngine || undefined,
-    cjkAvailable,
-    cjkFont: article.cjkFont || null,
+    cjk,
     resolveImage: images.resolveImage,
   });
 

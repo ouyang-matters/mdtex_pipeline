@@ -5,8 +5,8 @@ import { ArticleLibrary } from '../../workspace/library.js';
 import { ARTICLE_STATUSES, safeAssetName } from '../../workspace/article.js';
 import { listCheckpoints, createCheckpoint, restoreCheckpoint, deleteCheckpoint } from '../../workspace/checkpoints.js';
 import { latexSourceOf, adoptLatexSource } from '../../workspace/latex-source.js';
-import { detectCjkSupport } from '../../core/pdf/compiler.js';
 import { detectLatexEnvironment } from '../../core/latex/environment.js';
+import { resolveCjkPlan, detectCjkFonts } from '../../core/latex/cjk.js';
 import { listThemes } from '../../core/themes/index.js';
 import { listPdfTemplates } from '../../core/latex/templates.js';
 import { listPlatforms } from '../../core/compiler/index.js';
@@ -20,29 +20,42 @@ import { ENGINES } from '../../core/latex/environment.js';
  * change an article's ID no matter what the client sends.
  */
 /**
- * Whether this TeX installation can typeset CJK, cached briefly.
+ * How this machine would typeset the CJK in an article, if any.
  *
- * The answer only changes when someone installs a package, but it costs two
- * `kpsewhich` subprocesses to find out — too much to pay every time the LaTeX
- * tab is opened, and not something to answer once and never revisit. A short
- * window is the honest middle: a fresh install is picked up within a minute
- * without a restart.
+ * The LaTeX view has to show the same preamble the PDF build would write, so it
+ * asks the same planner. Detection shells out to fontconfig and kpsewhich, which
+ * is too much to repeat on every keystroke-triggered request and too little to
+ * answer once and never revisit — so the environment probe is cached briefly and
+ * a fresh font install is picked up within a minute, without a restart.
  */
-const CJK_TTL_MS = 60_000;
-let cjkCache = { at: 0, available: false };
-
-async function cjkAvailability() {
-  const now = Date.now();
-  if (now - cjkCache.at < CJK_TTL_MS) return cjkCache.available;
-  let available = false;
+async function cjkPlanFor(article) {
+  let environment = null;
   try {
-    const env = await detectLatexEnvironment();
-    if (env.available) available = (await detectCjkSupport(env)).available;
-  } catch {
-    available = false;
-  }
-  cjkCache = { at: now, available };
-  return available;
+    environment = await detectLatexEnvironment();
+  } catch { /* planning still works: it just cannot check for xeCJK */ }
+
+  return resolveCjkPlan({
+    environment,
+    engine: article.pdfEngine || 'xelatex',
+    language: article.language || 'en',
+    text: [article.readSource(), article.title, article.author].filter(Boolean).join('\n'),
+    preferredFont: article.cjkFont || null,
+  });
+}
+
+/** The part of a plan the UI needs: what will happen, and why. */
+function cjkSummary(plan) {
+  if (!plan?.needed) return { needed: false };
+  return {
+    needed: true,
+    script: plan.script,
+    usable: plan.usable,
+    font: plan.mainFont,
+    monoFont: plan.monoFont,
+    package: plan.package,
+    quality: plan.quality,
+    blocker: plan.blocker,
+  };
 }
 
 export function workspaceRoutes(ctx) {
@@ -103,6 +116,9 @@ export function workspaceRoutes(ctx) {
         themes: listThemes().map(t => ({ value: t.name, label: t.name, source: t.source })),
         pdfTemplates: listPdfTemplates().map(t => ({ value: t.id, label: t.label, description: t.description })),
         pdfEngines: Object.entries(ENGINES).map(([value, e]) => ({ value, label: e.label })),
+        // Fonts on *this* machine that can render CJK. Offering a font that is
+        // not installed would just move the blank-page failure one step later.
+        cjkFonts: (await detectCjkFonts()).available,
         languages: [
           { value: 'zh-CN', label: '简体中文 (zh-CN)' },
           { value: 'zh-TW', label: '繁體中文 (zh-TW)' },
@@ -187,18 +203,28 @@ export function workspaceRoutes(ctx) {
 
     'GET /api/workspace/article/:id/latex': async (req, res, { params }) => {
       const { article } = findArticle(params.id);
-      const latex = latexSourceOf(article, {
-        cjkAvailable: await cjkAvailability(),
-        persist: true,
+      const cjk = await cjkPlanFor(article);
+      const latex = latexSourceOf(article, { cjk, persist: true });
+      sendJson(res, 200, {
+        ...latex,
+        sourceFormat: article.sourceFormat,
+        // What the PDF build would do with this article's script, reported
+        // rather than left for the user to discover at compile time.
+        cjk: cjkSummary(cjk),
+        // A script with no font on this machine blocks adoption too: the
+        // document would compile to a page with nothing on it.
+        errors: cjk.blocker
+          ? [...latex.errors, { source: 'cjk', message: cjk.blocker }]
+          : latex.errors,
+        warnings: [...latex.warnings, ...cjk.warnings],
       });
-      sendJson(res, 200, { ...latex, sourceFormat: article.sourceFormat });
     },
 
     'POST /api/workspace/article/:id/latex/adopt': async (req, res, { params }) => {
       const { article, folder, path } = findArticle(params.id);
       let result;
       try {
-        result = adoptLatexSource(article, { cjkAvailable: await cjkAvailability() });
+        result = adoptLatexSource(article, { cjk: await cjkPlanFor(article) });
       } catch (e) {
         throw conflict(e.message);
       }

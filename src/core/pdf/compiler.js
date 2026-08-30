@@ -8,6 +8,7 @@ import {
 } from '../latex/environment.js';
 import { DEFAULT_TEMPLATE } from '../latex/templates.js';
 import { buildLatexDocument } from '../latex/document.js';
+import { resolveCjkPlan } from '../latex/cjk.js';
 import { parseLatexLog, parseLatexmkProgress } from './log-parser.js';
 import { AssetResolver, AssetKind, LATEX_IMAGE_EXTENSIONS } from '../assets/resolver.js';
 
@@ -85,8 +86,7 @@ export function materialiseMarkdownProject({
   language = 'en',
   template: templateId = DEFAULT_TEMPLATE,
   engine = DEFAULT_ENGINE,
-  cjkAvailable = false,
-  cjkFont = null,
+  cjk = null,
   mainName = 'article',
 }) {
   ensureDir(buildDir);
@@ -202,7 +202,7 @@ export function materialiseMarkdownProject({
   // the same code. Only the image strategy above differs.
   const document = buildLatexDocument({
     source, title, author, date, language,
-    template: templateId, engine, cjkAvailable, cjkFont,
+    template: templateId, engine, cjk,
     resolveImage,
   });
   warnings.push(...document.warnings);
@@ -404,6 +404,23 @@ export async function runLatexmk({
     });
   }
 
+  // A PDF that is missing characters is not a PDF of this document. TeX drops
+  // them one by one and exits zero, so without this a Chinese article compiles
+  // to a blank page and every layer above reports success. This is the only
+  // check that sees what actually reached the page, so it also covers LaTeX
+  // projects, whose preamble MDTeX does not write.
+  for (const dropped of parsed.missingCharacters) {
+    errors.push({
+      severity: 'error',
+      source: 'mdtex',
+      message: `${dropped.count} character(s) could not be typeset — the font `
+        + `${dropped.font} does not contain them: ${dropped.samples.join(' ')}. `
+        + 'They would be missing from the PDF. Choose a font that covers this script '
+        + '(for CJK, set the article language so MDTeX selects one).',
+      droppedCharacters: dropped,
+    });
+  }
+
   const success = pdfExists && errors.length === 0;
 
   if (clean && success) {
@@ -423,6 +440,7 @@ export async function runLatexmk({
     errors,
     warnings: [...engineWarnings, ...parsed.warnings],
     layoutNotes: parsed.layoutNotes,
+    missingCharacters: parsed.missingCharacters,
     passes: currentPass,
     engine: picked.engine,
     environment: env,
@@ -568,10 +586,37 @@ async function compileMarkdownArticle(article, { outputDir, signal, onProgress, 
   try { rmSync(buildDir, { recursive: true, force: true }); } catch {}
   ensureDir(buildDir);
 
-  const cjk = await detectCjkSupport(environment, { signal });
+  const source = subjectSource(article);
+
+  // Decided from the text and this machine's fonts, before anything is written.
+  const cjk = await resolveCjkPlan({
+    environment,
+    engine,
+    language: article.language || 'en',
+    text: [source, article.title, article.author].filter(Boolean).join('\n'),
+    preferredFont: article.cjkFont || null,
+    signal,
+  });
+
+  // A document whose script has no font would compile to a page with every
+  // character missing, and exit zero doing it. Refuse instead.
+  if (cjk.needed && !cjk.usable) {
+    onProgress({ phase: 'prepare', message: cjk.blocker, level: 'error' });
+    return {
+      success: false,
+      mode: 'markdown',
+      engine: null,
+      pdfPath: null,
+      log: cjk.blocker,
+      errors: [{ severity: 'error', source: 'mdtex', message: cjk.blocker }],
+      warnings: cjk.warnings.map(message => ({ severity: 'warning', source: 'mdtex', message })),
+      cjk,
+      projectDir: buildDir,
+    };
+  }
 
   const project = materialiseMarkdownProject({
-    source: subjectSource(article),
+    source,
     buildDir,
     baseDir: article.dir || null,
     articleId: article.id || null,
@@ -581,8 +626,7 @@ async function compileMarkdownArticle(article, { outputDir, signal, onProgress, 
     language: article.language || 'en',
     template: article.pdfTemplate || DEFAULT_TEMPLATE,
     engine,
-    cjkAvailable: cjk.available,
-    cjkFont: article.cjkFont || null,
+    cjk,
   });
 
   for (const w of project.warnings) {

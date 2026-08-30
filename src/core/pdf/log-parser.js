@@ -14,6 +14,10 @@ export function parseLatexLog(log) {
   const warnings = [];
   const missingPackages = new Set();
   const missingFiles = new Set();
+  // Characters the chosen font could not draw. TeX reports each one and carries
+  // on, so a document in a script the font does not cover compiles "successfully"
+  // to a page with nothing on it. Collected here so the caller can refuse it.
+  const missingCharacters = new Map();
   const lines = String(log || '').split(/\r?\n/);
 
   const pushError = (entry) => {
@@ -58,6 +62,19 @@ export function parseLatexLog(log) {
         line: Number(fl.groups.line),
         message: fl.groups.message.trim(),
       });
+      continue;
+    }
+
+    // `Missing character: There is no 中 (U+4E2D) in font [lmroman10-regular]...`
+    const missingChar = line.match(/^Missing character: There is no (.+?) \(U\+([0-9A-Fa-f]+)\) in font ([^!]*?)!?$/);
+    if (missingChar) {
+      const font = missingChar[3].trim().replace(/:.*$/, '');
+      const entry = missingCharacters.get(font) || { font, count: 0, samples: [] };
+      entry.count++;
+      if (entry.samples.length < 8 && !entry.samples.includes(missingChar[1])) {
+        entry.samples.push(missingChar[1]);
+      }
+      missingCharacters.set(font, entry);
       continue;
     }
 
@@ -117,6 +134,7 @@ export function parseLatexLog(log) {
     layoutNotes: warnings.filter(w => w.severity === 'info'),
     missingPackages: [...missingPackages],
     missingFiles: [...missingFiles],
+    missingCharacters: [...missingCharacters.values()],
   };
 }
 

@@ -431,7 +431,82 @@ async function main() {
         existsSync(projectPdf) ? `${(readFileSync(projectPdf).length / 1024).toFixed(0)} KB` : latexPdf.status);
     }
 
-    // 12 — AI quick connect is present and detected
+    // 13 — a Chinese article compiles with its characters in the PDF
+    if (!pdf.setup) {
+      await dialogAction(page, 'btn-new-article', `
+        const input = dialog.querySelector('.field-input');
+        input.value = '中文排版測試';
+        input.dispatchEvent(new Event('input', {bubbles:true}));
+        [...dialog.querySelectorAll('.dialog-footer .btn')].find(b => b.textContent.includes('Create')).click();
+      `);
+      await delay(600);
+
+      const cjkSource = '# 中文排版測試\n\n'
+        + '這是一段繁體中文，用來檢查斷行與標點是否正確。简体中文也要能排版。\n\n'
+        + '数学也要能混排：$E = mc^2$，以及 $\\alpha + \\beta$。\n\n'
+        + '- 項目一\n- 項目二\n\n'
+        + '日本語のテストです。한국어 테스트입니다。\n';
+
+      await page.eval(`(() => {
+        const e = document.getElementById('editor');
+        e.value = ${JSON.stringify(cjkSource)};
+        e.dispatchEvent(new Event('input', {bubbles:true}));
+      })()`);
+      await page.waitFor('window.__mdtex.state.dirty === false', { timeout: 15000, label: 'cjk auto-save' });
+
+      const cjkPdf = await page.eval(`(async () => {
+        const article = window.__mdtex.state.article || {};
+        // The frame still holds the previous article's PDF, so "it has a src"
+        // is satisfied before this build even starts. Wait for it to change.
+        const previous = document.getElementById('pdf-frame')?.src || '';
+        document.getElementById('btn-compile-pdf').click();
+        const deadline = Date.now() + 240000;
+        while (Date.now() < deadline) {
+          const frame = document.getElementById('pdf-frame');
+          if (frame && frame.src && frame.src !== 'about:blank' && frame.src !== previous) {
+            return { ok: true, folder: article.folder, dirName: article.dirName };
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
+        return {
+          ok: false,
+          folder: article.folder,
+          dirName: article.dirName,
+          status: document.querySelector('.build-status-text')?.textContent
+            || [...document.querySelectorAll('#diag-issues *')].map(n => n.textContent).join(' | ').slice(0, 300),
+        };
+      })()`, { timeout: 260000 });
+
+      // Ask the application where the article is rather than guessing from the
+      // workspace listing: the New Article dialog remembers the last folder.
+      const cjkDir = cjkPdf.dirName
+        ? join(workspace, cjkPdf.folder || '', cjkPdf.dirName)
+        : null;
+      const cjkPdfPath = cjkDir ? join(cjkDir, 'dist', 'pdf', 'article.pdf') : null;
+      check(cjkPdf.ok && cjkPdfPath && existsSync(cjkPdfPath),
+        'Compile a Chinese article to PDF from the UI',
+        cjkPdfPath && existsSync(cjkPdfPath)
+          ? `${(readFileSync(cjkPdfPath).length / 1024).toFixed(0)} KB`
+          : cjkPdf.status);
+
+      // "It compiled" is not the claim. TeX drops characters it has no glyph
+      // for and still exits zero, so the log is the only place that says
+      // whether the text reached the page.
+      const cjkLog = cjkDir ? join(cjkDir, 'dist', 'pdf', 'article.log') : null;
+      const logText = cjkLog && existsSync(cjkLog) ? readFileSync(cjkLog, 'utf-8') : '';
+      check(logText && !/Missing character/.test(logText),
+        'Every Chinese, Japanese and Korean character reached the PDF',
+        logText ? 'no "Missing character" in the TeX log' : 'no log to check');
+
+      // The preamble must name a font that exists, not just load a package.
+      const cjkTex = cjkDir ? join(cjkDir, 'dist', 'pdf', 'tex', 'article.tex') : null;
+      const texText = cjkTex && existsSync(cjkTex) ? readFileSync(cjkTex, 'utf-8') : '';
+      check(/\\setCJKmainfont\{[^}]+\}|\\setmainfont\{[^}]+\}|\\setmainjfont\{[^}]+\}/.test(texText),
+        'The generated preamble names a CJK font that is installed',
+        (texText.match(/\\set(?:CJK)?main(?:j)?font\{([^}]+)\}/) || [])[1] || 'none');
+    }
+
+    // 14 — AI quick connect is present and detected
     await page.eval('document.getElementById("btn-toggle-ai").click()');
     await delay(500);
     const ai = await page.eval(`(() => ({

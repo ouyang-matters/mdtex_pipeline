@@ -28,7 +28,8 @@ import {
 /** Metadata fields a user may edit. Anything outside this set is identity. */
 export const EDITABLE_FIELDS = [
   'title', 'subtitle', 'author', 'summary', 'language', 'tags', 'series',
-  'seriesIndex', 'targets', 'theme', 'pdfTemplate', 'pdfEngine', 'status', 'slug',
+  'seriesIndex', 'targets', 'theme', 'pdfTemplate', 'pdfEngine', 'cjkFont',
+  'status', 'slug',
 ];
 
 /** Fields that establish identity and are never changed by an edit. */
@@ -45,8 +46,8 @@ export const IMMUTABLE_FIELDS = ['id', 'createdAt', 'dirName'];
 const KNOWN_META_FIELDS = new Set([
   'id', 'title', 'subtitle', 'author', 'summary', 'language', 'tags', 'series',
   'seriesIndex', 'sourceFormat', 'sourceFile', 'targets', 'theme', 'pdfTemplate',
-  'pdfEngine', 'status', 'slug', 'createdAt', 'updatedAt', 'publishState',
-  'deletedAt', 'originalFolder',
+  'pdfEngine', 'cjkFont', 'status', 'slug', 'createdAt', 'updatedAt',
+  'publishState', 'deletedAt', 'originalFolder',
 ]);
 
 export const ARTICLE_STATUSES = ['draft', 'review', 'published', 'archived'];
@@ -72,6 +73,8 @@ export class Article {
     this.theme = meta.theme || 'default';
     this.pdfTemplate = meta.pdfTemplate || 'default';
     this.pdfEngine = meta.pdfEngine || 'xelatex';
+    // Empty means "let MDTeX pick one that is installed"; see core/latex/cjk.js.
+    this.cjkFont = meta.cjkFont || '';
     this.status = ARTICLE_STATUSES.includes(meta.status) ? meta.status : 'draft';
     this.slug = meta.slug || '';
 
@@ -365,6 +368,7 @@ export class Article {
       theme: this.theme,
       pdfTemplate: this.pdfTemplate,
       pdfEngine: this.pdfEngine,
+      cjkFont: this.cjkFont,
       status: this.status,
       slug: this.slug,
       createdAt: this.createdAt,

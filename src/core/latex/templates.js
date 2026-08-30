@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import { paths, ensureDir } from '../paths.js';
+import { cjkPreamble } from './cjk.js';
 
 /**
  * PDF templates.
@@ -272,8 +273,7 @@ export function ejectPdfTemplate(id, targetName = null) {
  * typeset CJK at all. `cjkAvailable` comes from a kpsewhich probe so a machine
  * without ctex degrades to a warning instead of a failed build.
  */
-export function buildFontSetup({ engine, language = 'en', cjkAvailable = false, cjkFont = null }) {
-  const isCjk = /^(zh|ja|ko)/i.test(language || '');
+export function buildFontSetup({ engine, language = 'en', cjk = null }) {
   const lines = [];
   const warnings = [];
 
@@ -281,9 +281,7 @@ export function buildFontSetup({ engine, language = 'en', cjkAvailable = false, 
     lines.push('\\usepackage[T1]{fontenc}');
     lines.push('\\usepackage[utf8]{inputenc}');
     lines.push('\\usepackage{lmodern}');
-    if (isCjk) {
-      warnings.push('pdfLaTeX cannot typeset CJK text. Switch the PDF engine to XeLaTeX or LuaLaTeX.');
-    }
+    if (cjk?.needed) warnings.push(cjk.blocker || 'pdfLaTeX cannot typeset CJK text.');
     return { setup: lines.join('\n'), warnings };
   }
 
@@ -291,18 +289,14 @@ export function buildFontSetup({ engine, language = 'en', cjkAvailable = false, 
   lines.push('\\usepackage{fontspec}');
   lines.push('\\defaultfontfeatures{Ligatures=TeX}');
 
-  if (isCjk) {
-    if (cjkAvailable) {
-      lines.push('\\usepackage{xeCJK}');
-      lines.push('\\xeCJKsetup{CJKmath=true}');
-      if (cjkFont) lines.push(`\\setCJKmainfont{${cjkFont}}`);
-    } else {
-      warnings.push(
-        'CJK support (xeCJK/ctex) is not installed in this TeX distribution, so Chinese, '
-        + 'Japanese and Korean text may not render. Install texlive-lang-chinese (or the '
-        + 'ctex package) to enable it.',
-      );
-    }
+  // The CJK decision was made before the build, against the fonts and packages
+  // this machine actually has. See core/latex/cjk.js — the font is the part
+  // that matters, and it is checked rather than assumed.
+  if (cjk?.needed) {
+    const preamble = cjkPreamble(cjk);
+    if (preamble) lines.push(preamble);
+    warnings.push(...cjk.warnings);
+    if (cjk.blocker) warnings.push(cjk.blocker);
   }
 
   return { setup: lines.join('\n'), warnings };

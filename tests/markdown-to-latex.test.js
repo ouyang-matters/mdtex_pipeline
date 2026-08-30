@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { markdownToLatexBody, escapeLatexText } from '../src/core/latex/markdown-to-latex.js';
 import { loadPdfTemplate, renderPdfTemplate, buildFontSetup, listPdfTemplates } from '../src/core/latex/templates.js';
+import { planCjk, containsCjk, scriptForLanguage } from '../src/core/latex/cjk.js';
 
 /**
  * Markdown -> LaTeX conversion.
@@ -174,6 +175,14 @@ describe('PDF templates', () => {
 });
 
 describe('buildFontSetup', () => {
+  const planFor = (engine, overrides = {}) => planCjk({
+    language: 'zh-CN',
+    engine,
+    fonts: { byScript: { sc: ['Noto Serif CJK SC', 'Noto Sans Mono CJK SC'] } },
+    packages: { checked: true, xecjk: true, luatexja: true },
+    ...overrides,
+  });
+
   it('uses fontspec for XeLaTeX', () => {
     const { setup } = buildFontSetup({ engine: 'xelatex', language: 'en' });
     expect(setup).toContain('\\usepackage{fontspec}');
@@ -185,20 +194,108 @@ describe('buildFontSetup', () => {
     expect(setup).not.toContain('fontspec');
   });
 
-  it('warns instead of failing when CJK is requested but unavailable', () => {
-    const { setup, warnings } = buildFontSetup({ engine: 'xelatex', language: 'zh-CN', cjkAvailable: false });
-    expect(setup).not.toContain('xeCJK');
-    expect(warnings.join(' ')).toMatch(/CJK/);
-  });
-
-  it('enables xeCJK when it is installed', () => {
-    const { setup, warnings } = buildFontSetup({ engine: 'xelatex', language: 'zh-CN', cjkAvailable: true });
-    expect(setup).toContain('\\usepackage{xeCJK}');
+  it('leaves a non-CJK document exactly as it was', () => {
+    const { setup, warnings } = buildFontSetup({ engine: 'xelatex', language: 'en', cjk: planCjk({ language: 'en', engine: 'xelatex' }) });
+    expect(setup).toBe('\\usepackage{fontspec}\n\\defaultfontfeatures{Ligatures=TeX}');
     expect(warnings).toHaveLength(0);
   });
 
-  it('warns that pdfLaTeX cannot typeset CJK at all', () => {
-    const { warnings } = buildFontSetup({ engine: 'pdflatex', language: 'zh-CN', cjkAvailable: true });
-    expect(warnings.join(' ')).toMatch(/pdfLaTeX cannot typeset CJK/);
+  it('sets a CJK font, not just the package', () => {
+    const { setup, warnings } = buildFontSetup({ engine: 'xelatex', language: 'zh-CN', cjk: planFor('xelatex') });
+    expect(setup).toContain('\\usepackage{xeCJK}');
+    expect(setup).toContain('\\setCJKmainfont{Noto Serif CJK SC}');
+    expect(setup).toContain('\\setCJKmonofont{Noto Sans Mono CJK SC}');
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('never emits xeCJK under LuaLaTeX, which cannot load it', () => {
+    const { setup } = buildFontSetup({ engine: 'lualatex', language: 'zh-CN', cjk: planFor('lualatex') });
+    expect(setup).not.toContain('xeCJK');
+    expect(setup).toContain('\\usepackage{luatexja-fontspec}');
+    expect(setup).toContain('\\setmainjfont{Noto Serif CJK SC}');
+  });
+
+  it('never emits XeTeX primitives under LuaLaTeX', () => {
+    const { setup } = buildFontSetup({
+      engine: 'lualatex',
+      language: 'zh-CN',
+      cjk: planFor('lualatex', { packages: { checked: true, xecjk: false, luatexja: false } }),
+    });
+    expect(setup).not.toContain('XeTeXlinebreaklocale');
+    expect(setup).toContain('\\setmainfont{Noto Serif CJK SC}');
+  });
+
+  it('still typesets CJK when xeCJK is absent, using the font alone', () => {
+    const cjk = planFor('xelatex', { packages: { checked: true, xecjk: false, luatexja: false } });
+    const { setup, warnings } = buildFontSetup({ engine: 'xelatex', language: 'zh-CN', cjk });
+
+    expect(cjk.usable).toBe(true);
+    expect(cjk.quality).toBe('glyphs-only');
+    expect(setup).toContain('\\setmainfont{Noto Serif CJK SC}');
+    expect(setup).toContain('XeTeXlinebreaklocale');
+    expect(warnings.join(' ')).toMatch(/line breaking/);
+  });
+
+  it('reports pdfLaTeX as unable rather than merely unadvisable', () => {
+    const cjk = planFor('pdflatex');
+    expect(cjk.usable).toBe(false);
+    const { warnings } = buildFontSetup({ engine: 'pdflatex', language: 'zh-CN', cjk });
+    expect(warnings.join(' ')).toMatch(/pdfLaTeX cannot typeset/);
+  });
+});
+
+describe('planCjk', () => {
+  const FONTS = { byScript: { sc: ['Noto Serif CJK SC'], tc: ['Noto Serif CJK TC'], jp: [], kr: [] } };
+  const PACKAGES = { checked: true, xecjk: true, luatexja: false };
+
+  it('refuses when no font on the machine can draw the script', () => {
+    const plan = planCjk({ language: 'ja', engine: 'xelatex', fonts: FONTS, packages: PACKAGES });
+    expect(plan.needed).toBe(true);
+    expect(plan.usable).toBe(false);
+    expect(plan.blocker).toMatch(/No font on this machine/);
+  });
+
+  it('picks the script the language asks for', () => {
+    expect(planCjk({ language: 'zh-TW', engine: 'xelatex', fonts: FONTS, packages: PACKAGES }).mainFont)
+      .toBe('Noto Serif CJK TC');
+    expect(planCjk({ language: 'zh-CN', engine: 'xelatex', fonts: FONTS, packages: PACKAGES }).mainFont)
+      .toBe('Noto Serif CJK SC');
+  });
+
+  it('honours a requested font, and says so when it cannot', () => {
+    const ok = planCjk({
+      language: 'zh-CN', engine: 'xelatex', packages: PACKAGES,
+      fonts: { byScript: { sc: ['Noto Serif CJK SC', 'Songti SC'] } },
+      preferredFont: 'Songti SC',
+    });
+    expect(ok.mainFont).toBe('Songti SC');
+    expect(ok.warnings).toHaveLength(0);
+
+    const missing = planCjk({
+      language: 'zh-CN', engine: 'xelatex', fonts: FONTS, packages: PACKAGES,
+      preferredFont: 'Not Installed CJK',
+    });
+    expect(missing.mainFont).toBe('Noto Serif CJK SC');
+    expect(missing.warnings.join(' ')).toMatch(/not installed/);
+  });
+
+  it('needs nothing for a document with no CJK in it', () => {
+    const plan = planCjk({ language: 'en', engine: 'xelatex', fonts: FONTS, packages: PACKAGES });
+    expect(plan.needed).toBe(false);
+    expect(plan.usable).toBe(true);
+  });
+});
+
+describe('containsCjk', () => {
+  it('sees CJK wherever it appears', () => {
+    expect(containsCjk('中文')).toBe(true);
+    expect(containsCjk('ひらがな')).toBe(true);
+    expect(containsCjk('한글')).toBe(true);
+    expect(containsCjk('A title with 一 character')).toBe(true);
+  });
+
+  it('does not mistake accented Latin for CJK', () => {
+    expect(containsCjk('Übergrößenträger, naïve café')).toBe(false);
+    expect(containsCjk('plain ascii')).toBe(false);
   });
 });

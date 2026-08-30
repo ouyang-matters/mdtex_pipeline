@@ -23,6 +23,8 @@ import { AssetResolver, AssetKind, LATEX_IMAGE_EXTENSIONS, ASSET_DIR, hashBytes 
  *
  * @param {object} options
  * @param {string} options.source        Markdown source
+ * @param {object|null} options.cjk      a plan from core/latex/cjk.js, when the
+ *        document needs a CJK script
  * @param {(src: string) => string|null} options.resolveImage
  *        maps an image reference to a path usable from the document's
  *        directory; returning null drops the image
@@ -36,8 +38,7 @@ export function buildLatexDocument({
   language = 'en',
   template: templateId = DEFAULT_TEMPLATE,
   engine = DEFAULT_ENGINE,
-  cjkAvailable = false,
-  cjkFont = null,
+  cjk = null,
   resolveImage = (src) => src,
 }) {
   const { body, title: derivedTitle, warnings: convWarnings, stats } =
@@ -45,7 +46,7 @@ export function buildLatexDocument({
 
   const effectiveTitle = title || derivedTitle || null;
   const template = loadPdfTemplate(templateId);
-  const font = buildFontSetup({ engine, language, cjkAvailable, cjkFont });
+  const font = buildFontSetup({ engine, language, cjk });
 
   const tex = renderPdfTemplate(template, {
     fontSetup: font.setup,

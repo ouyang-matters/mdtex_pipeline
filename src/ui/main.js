@@ -911,6 +911,17 @@ function exposeDebugHandle() {
         return {
           connected: app.connected,
           articleId: app.currentArticleId,
+          // Where the open article lives and what it is. The verification
+          // scripts need this to find its files on disk without guessing at
+          // the workspace layout.
+          article: app.currentArticle ? {
+            id: app.currentArticle.id,
+            folder: app.currentArticle.folder ?? '',
+            dirName: app.currentArticle.dirName,
+            sourceFormat: app.currentArticle.sourceFormat,
+            sourceFile: app.currentArticle.sourceFile,
+            language: app.currentArticle.language,
+          } : null,
           platform: app.platform,
           theme: app.themeName,
           dirty: app.dirty,

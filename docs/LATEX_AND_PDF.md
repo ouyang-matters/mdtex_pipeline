@@ -53,7 +53,8 @@ standard installation directories for the platform.
 | `pdflatex` | Fallback; cannot typeset CJK |
 | `xdvipdfmx` / `dvipdfmx` | XeLaTeX emits an `.xdv`; this turns it into a PDF |
 | `biber`, `bibtex` | Bibliographies |
-| `kpsewhich` | Package preflight and CJK support probing |
+| `kpsewhich` | Package preflight and CJK package probing |
+| `fc-list` | CJK font discovery (fontconfig; Windows reads the font directory) |
 
 ### Where it looks
 
@@ -228,20 +229,52 @@ the build fail with a file-not-found deep in the log.
 
 ## Fonts and CJK
 
-| Engine | Fonts | CJK |
+MDTeX typesets Chinese, Japanese and Korean, and treats a PDF that dropped
+characters as a failed build. That second half matters more than the first: TeX
+reports each glyph it cannot draw, carries on, exits zero, and hands back a page
+with nothing on it. Reporting that as success is worse than failing.
+
+### What support is made of
+
+| Piece | Required? | Notes |
 | --- | --- | --- |
-| XeLaTeX | `fontspec`, system fonts | via `xeCJK`, when installed |
-| LuaLaTeX | `fontspec`, system fonts | via `xeCJK`, when installed |
-| pdfLaTeX | `lmodern`, `inputenc` | not possible |
+| **Font** covering the script | **Yes** | This is the part that decides whether characters reach the page. |
+| **Engine** — XeLaTeX or LuaLaTeX | **Yes** | pdfLaTeX cannot typeset CJK at all. |
+| **Package** — `xeCJK` or `luatexja` | No | Improves line breaking and punctuation spacing. Its absence costs quality, not correctness. |
 
-For an article whose language starts with `zh`, `ja` or `ko`, MDTeX probes for
-`xeCJK.sty` or `ctex.sty` with `kpsewhich`:
+The font is the mandatory piece and the package the optional one. `fontspec`
+plus an installed CJK font already produces correct glyphs; `xeCJK` decides how
+they are spaced and where lines may break.
 
-- found → loads `xeCJK`
-- not found → compiles anyway and warns that CJK text may not render, with the
-  package to install (`texlive-lang-chinese` on Debian/Ubuntu)
-- engine is pdfLaTeX → warns that pdfLaTeX cannot typeset CJK at all and that
-  the engine should be changed
+### How the decision is made
+
+Before the build, MDTeX asks this machine what it has — `fc-list` for fonts,
+`kpsewhich` for packages — and plans from the answer:
+
+| Situation | Result |
+| --- | --- |
+| Font found, package found | `xeCJK` (XeLaTeX) or `luatexja-fontspec` (LuaLaTeX), with `\setCJKmainfont`, sans and mono all set |
+| Font found, no package | `\setmainfont` with the CJK font, plus `\XeTeXlinebreaklocale` under XeLaTeX. Warns that spacing is basic |
+| No font | **Build refused**, naming the package to install. It would otherwise produce a blank page |
+| Engine is pdfLaTeX | **Build refused**, telling you to switch engine |
+
+The trigger is the *text*, not the language tag. An article marked `en` that
+quotes a Chinese title still gets a font that can draw it — metadata is the last
+thing anyone updates, and reading the content is the only check that cannot be
+wrong about what the document contains.
+
+Fonts are chosen per script — Simplified, Traditional, Japanese, Korean — from a
+preference list intersected with what is installed, so `zh-TW` gets a Traditional
+face rather than a Simplified one. A specific font can be pinned per article in
+**Properties → CJK font**; that list only offers fonts this machine actually has.
+
+### The check after the build
+
+Whatever the preamble said, the TeX log is read for `Missing character` and any
+occurrence fails the build, naming the font and the characters it could not
+draw. This covers LaTeX projects too, whose preamble MDTeX does not write — so
+a hand-written `main.tex` with Chinese in it and no CJK font is caught the same
+way a generated one is.
 
 ---
 

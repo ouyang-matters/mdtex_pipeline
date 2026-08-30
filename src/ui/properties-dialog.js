@@ -115,6 +115,20 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
           : 'No LaTeX installation detected.',
       });
 
+      // Only offered when the machine has fonts to offer. An empty select that
+      // says "default" would imply a choice exists where none does.
+      const cjkFonts = schema.cjkFonts || [];
+      fields.cjkFont = field({
+        label: 'CJK font', type: 'select', value: article.cjkFont || '',
+        options: [
+          { value: '', label: cjkFonts.length ? 'Choose automatically' : 'No CJK font installed' },
+          ...cjkFonts.map(f => ({ value: f, label: f })),
+        ],
+        hint: cjkFonts.length
+          ? 'Used for Chinese, Japanese and Korean text in PDFs.'
+          : 'Install a CJK font (fonts-noto-cjk) to typeset CJK in PDFs.',
+      });
+
       const updated = el('p', { class: 'dialog-detail' },
         `Last modified ${relativeTime(article.updatedAt)}`
         + (data.source ? ` · ${data.source.split('\n').length} lines` : ''));
@@ -139,6 +153,7 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
         section('Publishing', null, [
           fields.targets.node,
           fields.theme.node, fields.pdfTemplate.node, fields.pdfEngine.node,
+          fields.cjkFont.node,
           fields.sourceFormat.node,
         ]),
 
@@ -187,6 +202,7 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
             theme: fields.theme.get(),
             pdfTemplate: fields.pdfTemplate.get(),
             pdfEngine: fields.pdfEngine.get(),
+            cjkFont: fields.cjkFont.get(),
             sourceFormat: nextFormat,
           };
 
