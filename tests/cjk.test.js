@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   scriptForLanguage, containsCjk, planCjk, cjkPreamble, resolveCjkPlan,
   classifyFamily, parseRegistryFonts, windowsRegistryFamilies, windowsFontFiles,
+  packageInstallHint,
 } from '../src/core/latex/cjk.js';
 import { parseLatexLog } from '../src/core/pdf/log-parser.js';
 
@@ -263,5 +264,40 @@ describe('an unanswerable probe is not a verdict', () => {
     expect(plan.warnings.join(' ')).toMatch(/could not read this machine's installed fonts/);
     // The guess is still checked: the build stops rather than dropping text.
     expect(plan.warnings.join(' ')).toMatch(/build will stop/);
+  });
+});
+
+describe('install instructions match the distribution, not the OS', () => {
+  it('names the MiKTeX Console for MiKTeX', () => {
+    const hint = packageInstallHint('xeCJK', 'MiKTeX');
+    expect(hint).toMatch(/MiKTeX Console/);
+    expect(hint).not.toMatch(/apt|texlive-lang|tlmgr/);
+  });
+
+  it('names tlmgr for TeX Live, on any platform', () => {
+    expect(packageInstallHint('xeCJK', 'TeX Live')).toMatch(/tlmgr install xecjk/);
+    expect(packageInstallHint('luatexja', 'TeX Live')).toMatch(/tlmgr install luatexja/);
+  });
+
+  it('never tells a Windows user to apt-get', () => {
+    const seen = [];
+    for (const distribution of ['MiKTeX', 'TeX Live', 'unknown', null]) {
+      seen.push(packageInstallHint('xeCJK', distribution));
+    }
+    // The Debian name is only ever offered alongside a distribution-neutral
+    // alternative, and never for a distribution we positively identified.
+    expect(seen[0]).not.toMatch(/texlive-lang-chinese/);
+    expect(seen[1]).not.toMatch(/texlive-lang-chinese/);
+  });
+
+  it('carries the hint into the plan warning', () => {
+    const plan = planCjk({
+      language: 'zh-CN', engine: 'xelatex',
+      fonts: { byScript: { sc: ['SimSun'] }, certain: true },
+      packages: { checked: true, xecjk: false, luatexja: false, distribution: 'MiKTeX' },
+    });
+    expect(plan.usable).toBe(true);
+    expect(plan.warnings.join(' ')).toMatch(/MiKTeX Console/);
+    expect(plan.warnings.join(' ')).not.toMatch(/texlive-lang-chinese/);
   });
 });

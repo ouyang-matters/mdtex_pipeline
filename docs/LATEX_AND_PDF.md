@@ -264,7 +264,7 @@ The outcome:
 | Situation | Result |
 | --- | --- |
 | Font found, package found | `xeCJK` (XeLaTeX) or `luatexja-fontspec` (LuaLaTeX), with `\setCJKmainfont`, sans and mono all set |
-| Font found, no package | `\setmainfont` with the CJK font, plus `\XeTeXlinebreaklocale` under XeLaTeX. Warns that spacing is basic |
+| Font found, no package | `\setmainfont` with the CJK font, plus `\XeTeXlinebreaklocale` under XeLaTeX. Warns that spacing is basic, and says how to install the package *on this distribution* — `tlmgr install xecjk` for TeX Live, the MiKTeX Console for MiKTeX, the apt name only on Debian |
 | No font, and a probe answered | **Build refused**, naming what to install and which probes were consulted. It would otherwise produce a blank page |
 | No font, and no probe could answer | Proceeds with the font that platform has always shipped (SimSun on Windows, Songti SC on macOS, Noto on Linux) and says so. A wrong guess stops the build with "font not found"; it never produces a PDF with the text missing |
 | Engine is pdfLaTeX | **Build refused**, telling you to switch engine |

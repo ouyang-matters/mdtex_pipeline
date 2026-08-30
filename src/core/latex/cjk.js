@@ -363,8 +363,11 @@ export function windowsFontFiles(env = process.env, { readDir = readdirSync, exi
  * `checked` is false when we could not ask, which is not the same as "no".
  */
 export async function detectCjkPackages(environment, { signal } = {}) {
+  const distribution = environment?.distribution || null;
   const kpsewhich = environment?.tools?.kpsewhich?.path;
-  if (!kpsewhich) return { checked: false, xecjk: false, ctex: false, luatexja: false };
+  if (!kpsewhich) {
+    return { checked: false, distribution, xecjk: false, ctex: false, luatexja: false };
+  }
 
   const has = async (file) => {
     const result = await runCommand(kpsewhich, [file], { timeout: 8000, signal });
@@ -373,6 +376,7 @@ export async function detectCjkPackages(environment, { signal } = {}) {
 
   return {
     checked: true,
+    distribution,
     xecjk: await has('xeCJK.sty'),
     ctex: await has('ctex.sty'),
     luatexja: await has('luatexja-fontspec.sty'),
@@ -470,12 +474,13 @@ export function planCjk({
   }
 
   if (!pkg) {
+    const wanted = engine === 'lualatex' ? 'luatexja' : 'xeCJK';
     warnings.push(
       packages.checked
-        ? `${engine === 'lualatex' ? 'luatexja' : 'xeCJK'} is not installed, so CJK text is set `
-          + 'with the font alone: glyphs are correct, but line breaking and punctuation spacing '
-          + `are not. Install ${engine === 'lualatex' ? 'texlive-lang-japanese' : 'texlive-lang-chinese'} for proper typesetting.`
-        : 'kpsewhich is not available, so MDTeX cannot tell whether xeCJK is installed. '
+        ? `${wanted} is not installed, so CJK text is set with the font alone: glyphs are `
+          + 'correct, but line breaking and punctuation spacing are not. '
+          + packageInstallHint(wanted, packages.distribution)
+        : `kpsewhich is not available, so MDTeX cannot tell whether ${wanted} is installed. `
           + 'CJK text is set with the font alone: glyphs are correct, spacing is basic.',
     );
   }
@@ -550,6 +555,39 @@ function chooseFont(preferred, preferences, installed) {
   // Nothing from the preference list, but fontconfig found *something* for this
   // script. A font that renders the text beats no font at all.
   return installed[0] || null;
+}
+
+/**
+ * How to install a LaTeX package *here*.
+ *
+ * The distribution decides this, not the operating system: TeX Live uses tlmgr
+ * on every platform, MiKTeX fetches packages during the build, and only a Linux
+ * distribution's own packaging has a name like `texlive-lang-chinese`. Telling
+ * a Windows user to apt-get something is worse than saying nothing — it reads
+ * as an instruction and cannot be followed.
+ */
+export function packageInstallHint(pkg, distribution = null) {
+  const tlmgrName = { xeCJK: 'xecjk', luatexja: 'luatexja' }[pkg] || pkg.toLowerCase();
+
+  if (/MiKTeX/i.test(distribution || '')) {
+    // MiKTeX only fetches what a document actually asks for, and MDTeX
+    // deliberately does not ask for a package it could not confirm — so there
+    // is nothing to trigger the on-demand install. It has to be added first.
+    return `Add "${tlmgrName}" in the MiKTeX Console (Packages), then compile again.`;
+  }
+  if (/TeX Live/i.test(distribution || '')) {
+    const sudo = process.platform === 'win32' ? '' : 'sudo ';
+    return `Install it with: ${sudo}tlmgr install ${tlmgrName}`;
+  }
+  if (process.platform === 'win32') {
+    return `Install "${tlmgrName}" through your TeX distribution — tlmgr install ${tlmgrName} `
+      + 'for TeX Live, or the MiKTeX Console for MiKTeX.';
+  }
+  if (process.platform === 'darwin') {
+    return `Install it with: sudo tlmgr install ${tlmgrName}`;
+  }
+  const apt = { xeCJK: 'texlive-lang-chinese', luatexja: 'texlive-lang-japanese' }[pkg];
+  return `Install ${apt} (Debian/Ubuntu) or run tlmgr install ${tlmgrName}.`;
 }
 
 function installHint(script) {
