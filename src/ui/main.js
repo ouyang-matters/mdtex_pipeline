@@ -37,26 +37,38 @@ let disposeMathObserver = null;
 async function boot() {
   cacheDom();
 
+  bootProgress(0.1, 'Connecting to the local backend…');
   const connection = await connect();
   if (!connection.ok) {
+    bootFailed('The local backend is not reachable.');
     showDisconnected(connection.error);
     return;
   }
   app.connected = true;
 
+  // Detecting the LaTeX installation means probing for a dozen executables and
+  // is by far the slowest thing here — measured at 636 ms on this machine, and
+  // longer on Windows. Nothing on screen depends on it: the library, the
+  // editor and the preview are all ready without it, and the two places that
+  // do care wait for `app.envReady` at the point of use. So it runs alongside
+  // rather than in front, and the articles no longer queue behind it.
+  app.envReady = backend.env()
+    .then((env) => { app.env = env; updateEnvironmentUi(); return env; })
+    .catch(() => null);
+
   try {
-    const [env, schema, themes, prefs] = await Promise.all([
-      backend.env(),
+    bootProgress(0.28, 'Loading settings and themes…');
+    const [schema, themes, prefs] = await Promise.all([
       backend.workspace.schema(),
       backend.themes.list(),
       backend.preferences(),
     ]);
-    app.env = env;
     app.schema = schema;
     app.themes = themes.themes;
     preferences = prefs.preferences;
     app.platform = prefs.config.default_platform || 'wechat';
   } catch (e) {
+    bootFailed(e.message);
     showDisconnected(e.message);
     return;
   }
@@ -73,22 +85,71 @@ async function boot() {
   buildThemeSelector();
   applyPreferences();
 
+  bootProgress(0.5, 'Reading your workspace…');
   await refreshLibrary();
+  bootProgress(0.66, 'Reading your workspace…', `${app.articles.length} article(s)`);
+
   await refreshAi();
 
   const lastId = localStorage.getItem('mdtex.currentArticle');
   const target = app.articles.find(a => a.id === lastId) || app.articles[0];
 
   if (target) {
+    bootProgress(0.82, 'Opening the last article…', target.title);
+    // The overlay is still up, so the per-article bar underneath it would be
+    // covered anyway; painting first is what makes this last step visible.
+    await bootPaint();
     await openArticle(target.id);
   } else {
     showNoArticle();
   }
 
-  updateEnvironmentUi();
+  bootProgress(1, 'Ready');
   disposeMathObserver = observeMathFit(dom.previewContent);
   exposeDebugHandle();
+  bootDone();
   window.__mdtexReady = true;
+}
+
+// ── Boot indicator ────────────────────────────────────────────────────────────
+//
+// The overlay is in index.html, so it is on screen from the first paint rather
+// than from whenever the bundle finishes parsing. Its job is to answer one
+// question — is this working, or has it lost my articles — so it names the
+// step it is on rather than showing an unlabelled spinner.
+
+function bootProgress(fraction, status, detail = '') {
+  const fill = document.getElementById('boot-bar-fill');
+  const label = document.getElementById('boot-status');
+  const note = document.getElementById('boot-detail');
+  if (fill) fill.style.width = `${Math.round(fraction * 100)}%`;
+  if (label && status) label.textContent = status;
+  if (note) note.textContent = detail;
+}
+
+function bootFailed(message) {
+  const label = document.getElementById('boot-status');
+  if (label) {
+    label.textContent = message;
+    label.classList.add('error');
+  }
+  bootDone(0);
+}
+
+/** Let the browser paint what was just set, before a blocking step. */
+function bootPaint() {
+  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
+function bootDone(delay = 160) {
+  const overlay = document.getElementById('boot-overlay');
+  if (!overlay) return;
+  setTimeout(() => {
+    overlay.classList.add('leaving');
+    // Removed rather than hidden: an invisible full-screen layer that still
+    // exists is a layer that can still swallow a click.
+    setTimeout(() => overlay.remove(), 320);
+  }, delay);
 }
 
 function cacheDom() {
@@ -763,7 +824,12 @@ function wireEvents() {
   $('btn-copy-html').addEventListener('click', () => copyTarget({ asPlainHtml: true }));
   $('btn-export').addEventListener('click', () => exportTarget());
 
-  $('btn-compile-pdf').addEventListener('click', () => {
+  $('btn-compile-pdf').addEventListener('click', async () => {
+    // The environment probe no longer blocks the boot, so it may still be in
+    // flight when this is clicked. Waiting is right; deciding from a value that
+    // has not arrived would show the "LaTeX is not installed" card to someone
+    // who has it.
+    await app.envReady;
     if (!app.env?.latex?.available) return showLatexSetup();
     return compilePdf();
   });

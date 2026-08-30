@@ -12,6 +12,10 @@ export const app = {
   // Backend
   connected: false,
   env: null,
+  // Resolves once the LaTeX probe has landed. It runs alongside the boot
+  // rather than in front of it, so anything that reads `env` must await this
+  // first or risk deciding from a value that has not arrived.
+  envReady: Promise.resolve(null),
   schema: null,
 
   // Library

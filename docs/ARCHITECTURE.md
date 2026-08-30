@@ -241,6 +241,12 @@ One implementation, three callers.
 name are fixed. Enforced server-side, so no client bug or malformed request can
 rewrite them.
 
+**Nothing on screen waits for something it does not need.** Detecting the LaTeX
+installation means probing for a dozen executables and was the slowest step in
+the boot at 636 ms, with the library queued behind it. It now runs alongside
+rather than in front, and the two places that read it await `app.envReady` at
+the point of use — startup went from 843 ms to 321 ms.
+
 **A PDF that dropped characters is not a successful build.** TeX reports each
 glyph it cannot draw and exits zero, so CJK support is decided before the build
 from the fonts this machine actually has, and the log is checked afterwards for

@@ -13,7 +13,7 @@ import { openConnectionManager, openQuickConnect, refreshAi } from './ai-panel.j
 export async function openSettings({ tab = 'general' } = {}) {
   const [{ preferences, config }, env] = await Promise.all([
     backend.preferences(),
-    app.env ? Promise.resolve(app.env) : backend.env(),
+    app.env ? Promise.resolve(app.env) : app.envReady.then(e => e || backend.env()),
   ]);
   app.env = env;
 

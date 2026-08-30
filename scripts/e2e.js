@@ -63,6 +63,24 @@ async function main() {
     await page.waitFor('document.getElementById("library-list") !== null', { label: 'app shell' });
 
     console.log('Startup');
+
+    // The overlay is markup, not something the bundle creates, so it is on
+    // screen before any JavaScript runs — which is the part of the wait a
+    // JS-created spinner could never cover. Checked before waiting for ready,
+    // because after that it is gone.
+    const bootTrace = await page.eval(`(() => {
+      const overlay = document.getElementById('boot-overlay');
+      if (!overlay) return { present: false };
+      window.__bootPhases = [document.getElementById('boot-status').textContent];
+      new MutationObserver(() => {
+        const text = document.getElementById('boot-status')?.textContent;
+        if (text && window.__bootPhases.at(-1) !== text) window.__bootPhases.push(text);
+      }).observe(overlay, { subtree: true, childList: true, characterData: true });
+      return { present: true, status: document.getElementById('boot-status').textContent };
+    })()`);
+    check('A loading screen is up before the application has started', bootTrace.present,
+      bootTrace.present ? `"${bootTrace.status}"` : 'no #boot-overlay in the served HTML');
+
     const booted = await page.waitFor(
       'window.__mdtexReady === true || document.querySelectorAll("#library-list .library-empty").length > 0',
       { timeout: 20000, label: 'library render' },
@@ -70,6 +88,22 @@ async function main() {
     check('UI boots against the backend', booted);
     check('No page errors during boot', page.pageErrors.length === 0,
       page.pageErrors.slice(0, 2).join(' | '));
+
+    const bootEnd = await page.eval(`(async () => {
+      const phases = window.__bootPhases || [];
+      // The overlay is removed rather than hidden; an invisible full-screen
+      // layer that still exists can still swallow a click.
+      for (let i = 0; i < 60; i++) {
+        if (document.getElementById('boot-overlay') === null) break;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return { phases, gone: document.getElementById('boot-overlay') === null };
+    })()`, { timeout: 20000 });
+
+    check('It names each step rather than spinning silently', bootEnd.phases.length >= 3,
+      bootEnd.phases.join(' → '));
+    check('It gets out of the way once the application is ready', bootEnd.gone,
+      bootEnd.gone ? 'removed from the DOM' : 'still present');
 
     // ── Article creation ────────────────────────────────────────────────────
     console.log('\nArticle management');

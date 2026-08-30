@@ -7,6 +7,21 @@
   <link rel="stylesheet" href="/src/ui/styles.css" />
 </head>
 <body>
+  <!--
+    The boot overlay is markup rather than something JavaScript creates, so it
+    is on screen at first paint — before the bundle has parsed, let alone run.
+    A spinner that only appears once the application is ready would cover none
+    of the wait it exists to explain.
+  -->
+  <div id="boot-overlay" class="boot-overlay">
+    <div class="boot-card">
+      <div class="boot-title">MDTeX Studio</div>
+      <div class="boot-bar"><div id="boot-bar-fill" class="boot-bar-fill"></div></div>
+      <div id="boot-status" class="boot-status">Starting…</div>
+      <div id="boot-detail" class="boot-detail"></div>
+    </div>
+  </div>
+
   <div id="app">
 
     <!-- Toolbar -->

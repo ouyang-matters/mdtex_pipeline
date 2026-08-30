@@ -172,6 +172,42 @@ button { font-family: inherit; font-size: inherit; }
 .badge-ok { background: rgba(76, 183, 130, 0.18); color: var(--ok); }
 .badge-muted { background: var(--bg-3); color: var(--text-faint); }
 
+/* ── Boot ─────────────────────────────────────────────────────────────────── */
+
+.boot-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: var(--bg-0);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.28s ease;
+}
+.boot-overlay.leaving { opacity: 0; pointer-events: none; }
+
+.boot-card { width: 320px; text-align: center; }
+
+.boot-title {
+  font-size: 15px; font-weight: 700; letter-spacing: 0.4px;
+  color: var(--text); margin-bottom: 18px;
+}
+
+.boot-bar {
+  height: 3px; background: var(--bg-3);
+  border-radius: 2px; overflow: hidden;
+}
+.boot-bar-fill {
+  height: 100%; width: 6%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  border-radius: 2px;
+  transition: width 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.boot-status { margin-top: 14px; font-size: 12px; color: var(--text-muted); }
+.boot-detail { margin-top: 5px; font-size: 11px; color: var(--text-faint); min-height: 15px; }
+.boot-status.error { color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-bar-fill, .boot-overlay { transition: none; }
+}
+
 /* ── Page progress ────────────────────────────────────────────────────────── */
 
 .page-progress {
