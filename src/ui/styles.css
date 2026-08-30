@@ -172,6 +172,48 @@ button { font-family: inherit; font-size: inherit; }
 .badge-ok { background: rgba(76, 183, 130, 0.18); color: var(--ok); }
 .badge-muted { background: var(--bg-3); color: var(--text-faint); }
 
+/* ── Page progress ────────────────────────────────────────────────────────── */
+
+.page-progress {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 2px; z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.page-progress[data-state="active"] { opacity: 1; }
+.page-progress[data-state="done"],
+.page-progress[data-state="failed"] { opacity: 0; transition: opacity 0.3s ease 0.06s; }
+
+.page-progress-fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
+  /* Cubic-bezier rather than ease: the bar should surge early and settle, which
+     reads as progress. A linear ramp reads as a timer. */
+  transition: width 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+  position: relative;
+}
+/* The leading edge, so the bar has a head rather than just an end. */
+.page-progress-fill::after {
+  content: "";
+  position: absolute; top: 0; right: 0; height: 100%; width: 90px;
+  background: linear-gradient(90deg, transparent, var(--accent-hover));
+  box-shadow: 0 0 8px 1px var(--accent);
+  opacity: 0.85;
+}
+.page-progress[data-state="failed"] .page-progress-fill {
+  background: var(--danger);
+}
+.page-progress[data-state="failed"] .page-progress-fill::after {
+  background: linear-gradient(90deg, transparent, var(--danger));
+  box-shadow: 0 0 8px 1px var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-progress-fill { transition: none; }
+  .page-progress-fill::after { display: none; }
+}
+
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 
 .workspace-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }

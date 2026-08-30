@@ -135,6 +135,7 @@ All of the above is covered by `tests/backend-api.test.js`.
 | `ai-panel.js` | Quick Connect, backend switcher, runs, diffs |
 | `build-panel.js` | Target and PDF builds, PDF preview |
 | `math-fit.js` | Display-mathematics fitting and overflow |
+| `progress.js` | The page-level loading bar |
 | `latex-view.js` | The read-only LaTeX tab and the one-way adopt action |
 | `browser-compiler.js` | Preview-only Markdown rendering and validation |
 | `snippets.js` | Snippet definitions and insertion |

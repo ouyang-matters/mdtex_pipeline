@@ -431,6 +431,62 @@ async function main() {
     check('Local detection ran before the user clicked anything', quick.detected >= 0,
       `${quick.detected} detected`);
 
+    // ── Loading bar ─────────────────────────────────────────────────────────
+    //
+    // The claim is not "a bar exists" — it is that the bar appears when a load
+    // is long enough to feel like one, and stays out of the way when it is not.
+    // Both halves are checked, because a bar that flashes on every click is
+    // worse than no bar at all.
+    console.log('\nLoading indicator');
+
+    const barSetup = await page.eval(`(async () => {
+      const bar = document.querySelector('.page-progress');
+      if (!bar) return { present: false };
+
+      // Two articles: one trivial, one large enough that rendering it blocks.
+      const short = await window.__mdtex.debug.createArticle('Short load', '# Short\\n\\nOne line.\\n');
+      const unit = '## Section\\n\\nProse with $a^2+b^2=c^2$ inline and several more words.\\n\\n$$\\\\int_0^1 x^2\\\\,dx$$\\n\\n';
+      const long = await window.__mdtex.debug.createArticle('Long load', unit.repeat(140));
+      return { present: true, short, long };
+    })()`, { timeout: 30000 });
+
+    if (!barSetup.present) {
+      check('A page-level loading bar exists', false, 'no .page-progress element');
+    } else {
+      check('A page-level loading bar exists', true, 'fixed 2px bar above the toolbar');
+
+      const barRun = await page.eval(`(async () => {
+        const bar = document.querySelector('.page-progress');
+        const open = async (id) => {
+          const before = window.__mdtex.state.progressShown;
+          const states = [];
+          const obs = new MutationObserver(() => states.push(bar.dataset.state));
+          obs.observe(bar, { attributes: true, attributeFilter: ['data-state'] });
+          await window.__mdtex.debug.openArticle(id);
+          await new Promise(r => setTimeout(r, 700));
+          obs.disconnect();
+          return {
+            shown: window.__mdtex.state.progressShown - before,
+            states: [...new Set(states)],
+            endState: bar.dataset.state,
+            opacity: getComputedStyle(bar).opacity,
+          };
+        };
+        return { short: await open(${JSON.stringify(barSetup.short)}), long: await open(${JSON.stringify(barSetup.long)}) };
+      })()`, { timeout: 60000 });
+
+      check('A slow article load shows the bar', barRun.long.shown === 1,
+        `states: ${barRun.long.states.join(' → ')}`);
+      check('The bar reaches completion rather than being cut off',
+        barRun.long.states.includes('done'),
+        barRun.long.states.join(' → '));
+      check('It clears itself afterwards',
+        barRun.long.endState === 'idle' && barRun.long.opacity === '0',
+        `state ${barRun.long.endState}, opacity ${barRun.long.opacity}`);
+      check('A fast article load does not flash a bar', barRun.short.shown === 0,
+        barRun.short.shown === 0 ? 'never shown' : `shown ${barRun.short.shown}×`);
+    }
+
     // ── Properties dialog ───────────────────────────────────────────────────
     console.log('\nArticle properties');
     await page.eval(`document.getElementById('article-title').click()`);

@@ -12,6 +12,7 @@ import {
 } from './build-panel.js';
 import { openSettings } from './settings-dialog.js';
 import { initLatexView, syncLatexTabs, isLatexView } from './latex-view.js';
+import { initPageProgress, beginTask, progressShownCount } from './progress.js';
 import 'katex/dist/katex.min.css';
 
 /**
@@ -92,6 +93,7 @@ async function boot() {
 
 function cacheDom() {
   dom.app = $('app');
+  initPageProgress();
   dom.editor = $('editor');
   dom.editorPane = $('editor-pane');
   dom.previewContent = $('preview-content');
@@ -151,8 +153,18 @@ function showDisconnected(message) {
 async function openArticle(id) {
   await flushPendingSave();
 
+  // The bar shows itself only if this outlives its delay. A short article opens
+  // in about 20 ms and never causes a flash; a long one takes 150-200 ms, most
+  // of it in the preview render, and is worth showing.
+  const loading = beginTask();
+
   try {
     const data = await backend.workspace.article(id);
+    // A second click while the first fetch was in flight owns the editor now.
+    if (loading.superseded) return;
+
+    loading.to(0.45);
+
     app.currentArticleId = id;
     app.currentArticle = data.article;
     app.source = data.source;
@@ -164,18 +176,57 @@ async function openArticle(id) {
     dom.editor.disabled = false;
 
     await loadTheme(data.article.theme || 'default');
+    if (loading.superseded) return;
+    loading.to(0.62);
+
     // Asset hashes for this article, so the preview can cache-bust correctly.
     await refreshAssetManifest(id);
+    if (loading.superseded) return;
 
     invalidateTarget('article-changed');
     updateHeader();
     buildEditorToolbar();
     renderLibrary();
+
+    // Rendering the preview is synchronous: markdown-it plus KaTeX for every
+    // formula, then the DOM insertion and layout that dominate the cost. A
+    // delay timer cannot fire while that runs, so a bar waiting to appear would
+    // never appear — the render would finish first. Decide up front instead,
+    // then give the browser a frame to actually paint the new width before the
+    // main thread goes away.
+    if (perceptiblePreview(data.source)) loading.showNow();
+    await loading.paint(0.72);
+    if (loading.superseded) return;
+
     updatePreview();
     emit('article:opened', data.article);
+    loading.done();
   } catch (e) {
+    loading.fail();
     toast(e.message, { type: 'error', timeout: 6000 });
   }
+}
+
+/**
+ * Whether rendering this source will be felt as a wait.
+ *
+ * Measured in Chrome on this machine, timing updatePreview end to end — the
+ * markdown pass, KaTeX, the innerHTML assignment and the layout it forces:
+ *
+ *     768 chars   11 ms      9 216 chars   103 ms
+ *   2 304 chars   30 ms     15 360 chars   182 ms
+ *   4 608 chars   48 ms     24 960 chars   356 ms
+ *
+ * Close enough to linear at ~0.012 ms per character, which crosses the ~80 ms
+ * where a pause stops feeling instant at around 7 000. A heuristic, not a
+ * promise: it decides whether to show a bar, and being wrong costs a bar that
+ * was not needed or one that was missed — never a wrong result.
+ */
+const PERCEPTIBLE_MS = 80;
+const MS_PER_CHAR = 0.012;
+
+function perceptiblePreview(source) {
+  return String(source || '').length * MS_PER_CHAR >= PERCEPTIBLE_MS;
 }
 
 function showNoArticle() {
@@ -911,6 +962,10 @@ function exposeDebugHandle() {
         return {
           connected: app.connected,
           articleId: app.currentArticleId,
+          // How many times the loading bar has actually been shown. The
+          // verification scripts assert both that it appears for a slow load
+          // and that it stays away for a fast one.
+          progressShown: progressShownCount(),
           // Where the open article lives and what it is. The verification
           // scripts need this to find its files on disk without guessing at
           // the workspace layout.
@@ -937,6 +992,19 @@ function exposeDebugHandle() {
         };
       },
       version: api.version,
+
+      // A deterministic way for the verification scripts to set up and open
+      // articles without driving dialogs, so a check about loading behaviour
+      // is not also a check about the New Article form.
+      debug: {
+        async createArticle(title, content = '') {
+          const created = await backend.workspace.create({ title, language: 'en' });
+          if (content) await backend.workspace.saveSource(created.article.id, content);
+          await refreshLibrary();
+          return created.article.id;
+        },
+        openArticle: (id) => openArticle(id),
+      },
     },
     writable: false,
     configurable: true,

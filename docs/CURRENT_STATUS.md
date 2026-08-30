@@ -6,7 +6,7 @@ works **only from the command line**, and what is genuinely **not built yet**.
 
 Last verified: 2026-08-30, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
 Chrome 146). All of `npx vitest run` (400 tests), `node scripts/e2e.js`
-(32 checks), `node scripts/workflow-check.js` (33 steps) and
+(37 checks), `node scripts/workflow-check.js` (33 steps) and
 `publisher doctor` pass; `node scripts/bench-wechat.js` produced the numbers
 below.
 
@@ -34,6 +34,7 @@ by `scripts/e2e.js`.
 | **Create / rename / delete folders** | Folder context menu. |
 | **Delete and restore articles** | Deletion goes to a trash you can restore from, with an Undo toast. |
 | **Article properties** | Full metadata editor: title, subtitle, author, language, summary, tags, series and position, status, folder, publishing targets, WeChat theme, PDF template, PDF engine, source format. |
+| **Loading indicator** | A 2px bar at the top of the window while an article opens. It appears only when the load is long enough to be felt — a short article opens in about 20 ms and shows nothing at all. |
 | **Search** | Title, folder, tags, series and summary; optional full-text search of the article body. |
 | **Insert images** | Button, drag-and-drop at the cursor position, or paste. Stored in the article's `assets/` directory. |
 | **Theme editing** | Live CSS editing with save / save-as / rename / delete / revert. Built-in themes are read-only and duplicating one is offered automatically. |
@@ -200,7 +201,7 @@ Plus two harnesses that drive real software rather than mocks:
 - `npm run check:data-safety` — populates an installation with articles, assets,
   LaTeX projects, themes, snippets, AI profiles and secrets, then updates the
   application by deleting the installation directory and reinstalling it, and
-  verifies every category of user data byte for byte. 32 checks.
+  verifies every category of user data byte for byte. 37 checks.
 
 ---
 
