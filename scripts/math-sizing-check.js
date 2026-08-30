@@ -196,3 +196,7 @@ if (failures) {
   process.exit(1);
 }
 console.log('\x1b[32mFormulas keep their intrinsic size in every theme and after sanitization.\x1b[0m');
+// Exit explicitly, as the other browser-driving checks do. Closing Chrome does
+// not always drain the CDP socket, and a check that reports success and then
+// never returns is a check nothing can run unattended.
+process.exit(0);
