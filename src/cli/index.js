@@ -15,9 +15,10 @@ import {
 } from '../core/config/index.js';
 import { createBackup, listBackups, restoreBackup } from '../core/config/backup.js';
 import { ArticleLibrary } from '../workspace/library.js';
+import { listCheckpoints, readCheckpoint, restoreCheckpoint } from '../workspace/checkpoints.js';
 import { startCommand } from './commands/start.js';
 import { checkForUpdate, describeReason } from '../core/update/check.js';
-import { box, bold, grey, green, yellow, cyan, TICK, ARROW } from './format.js';
+import { box, rows, bold, grey, green, yellow, cyan, TICK, ARROW } from './format.js';
 import { buildCommand, printValidation } from './commands/build.js';
 import { doctorCommand } from './commands/doctor.js';
 import { detectLatexEnvironment } from '../core/latex/environment.js';
@@ -581,6 +582,122 @@ wsCmd
       process.exit(1);
     }
   });
+
+// ── checkpoints ───────────────────────────────────────────────────────────────
+//
+// Every automated edit snapshots the article first — an AI change, and adopting
+// LaTeX as the source, which removes source.md. That made the loss reversible
+// in principle and unreachable in practice: nothing outside the backend API
+// could list a checkpoint, let alone restore one. These two commands are the
+// way back.
+
+wsCmd
+  .command('checkpoints')
+  .description('List the snapshots taken before automated edits')
+  .argument('[article]', 'Article title, directory name or id; omit for all')
+  .action((needle) => {
+    ensureUserDirs();
+    const lib = new ArticleLibrary();
+    const entries = lib.listAll().filter(e => !needle || matchesArticle(e, needle));
+
+    if (!entries.length) {
+      console.error(needle ? `No article matches "${needle}".` : 'The workspace is empty.');
+      process.exitCode = 1;
+      return;
+    }
+
+    let total = 0;
+    for (const { article } of entries) {
+      const points = listCheckpoints(article);
+      if (!points.length) continue;
+      total += points.length;
+      console.log('');
+      console.log(`${bold(article.title)}  ${grey(article.dirName)}`);
+      for (const point of points) {
+        const record = readCheckpoint(article, point.id);
+        const size = record?.source ? `${record.source.length} chars` : 'no source';
+        console.log(`  ${cyan(point.id)}`);
+        console.log(`    ${grey(point.createdAt)}  ${point.origin}  ${size}  ${grey(record?.sourceFile || '')}`);
+        if (point.label) console.log(`    ${point.label}`);
+      }
+    }
+
+    console.log('');
+    if (!total) {
+      console.log(grey('  No checkpoints. Nothing has been snapshotted for these articles.'));
+    } else {
+      console.log(grey(`  Restore one with:  publisher ws restore <article> <checkpoint-id>`));
+    }
+    console.log('');
+  });
+
+wsCmd
+  .command('restore')
+  .description('Restore an article from one of its checkpoints')
+  .argument('<article>', 'Article title, directory name or id')
+  .argument('[checkpoint]', 'Checkpoint id; omit to use the most recent')
+  .action((needle, checkpointId) => {
+    ensureUserDirs();
+    const lib = new ArticleLibrary();
+    const entry = lib.listAll().find(e => matchesArticle(e, needle));
+
+    if (!entry) {
+      console.error(`No article matches "${needle}".`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const { article } = entry;
+    const points = listCheckpoints(article);
+    if (!points.length) {
+      console.error(`"${article.title}" has no checkpoints.`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const target = checkpointId
+      ? points.find(p => p.id === checkpointId || p.id.startsWith(checkpointId))
+      : points[0];
+
+    if (!target) {
+      console.error(`No checkpoint "${checkpointId}" on "${article.title}".`);
+      console.error(`Available: ${points.map(p => p.id).join(', ')}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const before = { format: article.sourceFormat, file: article.sourceFile };
+    let restored;
+    try {
+      restored = restoreCheckpoint(article, target.id);
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log('');
+    console.log(`  ${green(TICK)} Restored ${bold(article.title)} from ${cyan(target.id)}`);
+    console.log(rows([
+      ['Source', `${restored.sourceFile}  ${grey(`(${restored.source.length} chars)`)}`],
+      ['Format', before.format === restored.sourceFormat
+        ? restored.sourceFormat
+        : `${before.format} ${ARROW} ${restored.sourceFormat}`],
+      ['File', article.sourcePath],
+    ]));
+    console.log('');
+    console.log(grey('  The state before this restore was itself snapshotted, so this is reversible too.'));
+    console.log('');
+  });
+
+/** Match an article by title, directory name or id — whichever the user typed. */
+function matchesArticle(entry, needle) {
+  const key = String(needle).toLowerCase();
+  return entry.article.id === needle
+    || entry.article.dirName?.toLowerCase() === key
+    || entry.article.title.toLowerCase() === key
+    || entry.article.title.toLowerCase().includes(key);
+}
 
 wsCmd
   .command('list')
