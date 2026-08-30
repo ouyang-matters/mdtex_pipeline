@@ -453,21 +453,31 @@ async function main() {
     if (!barSetup.present) {
       check('A page-level loading bar exists', false, 'no .page-progress element');
     } else {
-      check('A page-level loading bar exists', true, 'fixed 2px bar above the toolbar');
+      check('A page-level loading bar exists', true, 'fixed 3px bar across the top of the window');
 
       const barRun = await page.eval(`(async () => {
         const bar = document.querySelector('.page-progress');
         const open = async (id) => {
           const before = window.__mdtex.state.progressShown;
-          const states = [];
-          const obs = new MutationObserver(() => states.push(bar.dataset.state));
+          const seen = [];
+          let activeAt = 0;
+          let leftActiveAt = 0;
+          const obs = new MutationObserver(() => {
+            const state = bar.dataset.state;
+            seen.push(state);
+            if (state === 'active' && !activeAt) activeAt = performance.now();
+            if (activeAt && state !== 'active' && !leftActiveAt) leftActiveAt = performance.now();
+          });
           obs.observe(bar, { attributes: true, attributeFilter: ['data-state'] });
+
           await window.__mdtex.debug.openArticle(id);
-          await new Promise(r => setTimeout(r, 700));
+          await new Promise(r => setTimeout(r, 1200));
           obs.disconnect();
+
           return {
             shown: window.__mdtex.state.progressShown - before,
-            states: [...new Set(states)],
+            states: [...new Set(seen)],
+            visibleMs: activeAt && leftActiveAt ? Math.round(leftActiveAt - activeAt) : null,
             endState: bar.dataset.state,
             opacity: getComputedStyle(bar).opacity,
           };
@@ -475,16 +485,23 @@ async function main() {
         return { short: await open(${JSON.stringify(barSetup.short)}), long: await open(${JSON.stringify(barSetup.long)}) };
       })()`, { timeout: 60000 });
 
-      check('A slow article load shows the bar', barRun.long.shown === 1,
-        `states: ${barRun.long.states.join(' → ')}`);
-      check('The bar reaches completion rather than being cut off',
-        barRun.long.states.includes('done'),
-        barRun.long.states.join(' → '));
+      check('Opening an article shows the bar, every time',
+        barRun.short.shown === 1 && barRun.long.shown === 1,
+        `short ${barRun.short.shown}x, long ${barRun.long.shown}x`);
+
+      // The reason a bar can always appear without becoming a flicker: once up,
+      // it stays up. Completing 20 ms after appearing is what reads as a glitch.
+      check('Even the fastest load holds the bar long enough to be seen',
+        barRun.short.visibleMs !== null && barRun.short.visibleMs >= 350,
+        `${barRun.short.visibleMs} ms visible on a 20 ms load`);
+
+      check('It reaches completion rather than being cut off',
+        barRun.long.states.includes('done'), barRun.long.states.join(' → '));
+
       check('It clears itself afterwards',
-        barRun.long.endState === 'idle' && barRun.long.opacity === '0',
+        barRun.long.endState === 'idle' && barRun.long.opacity === '0'
+        && barRun.short.endState === 'idle',
         `state ${barRun.long.endState}, opacity ${barRun.long.opacity}`);
-      check('A fast article load does not flash a bar', barRun.short.shown === 0,
-        barRun.short.shown === 0 ? 'never shown' : `shown ${barRun.short.shown}×`);
     }
 
     // ── Properties dialog ───────────────────────────────────────────────────

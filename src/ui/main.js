@@ -153,9 +153,6 @@ function showDisconnected(message) {
 async function openArticle(id) {
   await flushPendingSave();
 
-  // The bar shows itself only if this outlives its delay. A short article opens
-  // in about 20 ms and never causes a flash; a long one takes 150-200 ms, most
-  // of it in the preview render, and is worth showing.
   const loading = beginTask();
 
   try {
@@ -189,12 +186,9 @@ async function openArticle(id) {
     renderLibrary();
 
     // Rendering the preview is synchronous: markdown-it plus KaTeX for every
-    // formula, then the DOM insertion and layout that dominate the cost. A
-    // delay timer cannot fire while that runs, so a bar waiting to appear would
-    // never appear — the render would finish first. Decide up front instead,
-    // then give the browser a frame to actually paint the new width before the
-    // main thread goes away.
-    if (perceptiblePreview(data.source)) loading.showNow();
+    // formula, then the DOM insertion and layout that dominate the cost. The
+    // bar cannot move while that runs, so it is moved first and given a frame
+    // to actually reach the screen before the main thread goes away.
     await loading.paint(0.72);
     if (loading.superseded) return;
 
@@ -205,28 +199,6 @@ async function openArticle(id) {
     loading.fail();
     toast(e.message, { type: 'error', timeout: 6000 });
   }
-}
-
-/**
- * Whether rendering this source will be felt as a wait.
- *
- * Measured in Chrome on this machine, timing updatePreview end to end — the
- * markdown pass, KaTeX, the innerHTML assignment and the layout it forces:
- *
- *     768 chars   11 ms      9 216 chars   103 ms
- *   2 304 chars   30 ms     15 360 chars   182 ms
- *   4 608 chars   48 ms     24 960 chars   356 ms
- *
- * Close enough to linear at ~0.012 ms per character, which crosses the ~80 ms
- * where a pause stops feeling instant at around 7 000. A heuristic, not a
- * promise: it decides whether to show a bar, and being wrong costs a bar that
- * was not needed or one that was missed — never a wrong result.
- */
-const PERCEPTIBLE_MS = 80;
-const MS_PER_CHAR = 0.012;
-
-function perceptiblePreview(source) {
-  return String(source || '').length * MS_PER_CHAR >= PERCEPTIBLE_MS;
 }
 
 function showNoArticle() {

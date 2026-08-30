@@ -1,12 +1,14 @@
 /**
  * The page-level loading bar.
  *
- * Opening an article is four steps — fetch, theme, assets, render — and on this
- * machine a short one finishes in about 20 ms while a 20 000-character article
- * with 143 formulas takes 150–200 ms. A bar that appeared for both would be a
- * flash of noise most of the time, so it waits: nothing is shown unless the
- * load is still going after `delay`, and a load that beats the delay leaves the
- * page untouched.
+ * Opening an article shows it. Always — a bar that decides for itself when it
+ * is worth appearing is a bar nobody ever sees, because most articles open in
+ * about 20 ms and only a very long one takes 150–200 ms.
+ *
+ * What stops that being a flicker is a floor, not a threshold: once shown, the
+ * bar stays for `MIN_VISIBLE_MS` before it is allowed to complete. A fast load
+ * therefore reads as a deliberate transition rather than a glitch, and a slow
+ * one is covered for as long as it actually takes.
  *
  * The fractions are real. Each step advances the bar *before* it starts, so the
  * width means "this is what is happening now" rather than an animation timed to
@@ -15,14 +17,15 @@
  * it is moved, and given a frame to paint, before the work begins.
  */
 
-const DEFAULT_DELAY_MS = 120;
+/** How long the bar stays up once shown, so a quick load is not a flicker. */
+const MIN_VISIBLE_MS = 420;
 
 let bar = null;
 let fill = null;
 let token = 0;
 let shownCount = 0;
-let showTimer = null;
 let resetTimer = null;
+let shownAt = 0;
 
 export function initPageProgress(parent = document.body) {
   if (bar) return bar;
@@ -48,43 +51,30 @@ export function progressShownCount() {
  * clicking through the library quickly cannot leave an abandoned load driving
  * the bar backwards.
  */
-export function beginTask({ delay = DEFAULT_DELAY_MS } = {}) {
+export function beginTask() {
   const mine = ++token;
   const current = () => mine === token;
 
-  clearTimeout(showTimer);
   clearTimeout(resetTimer);
 
-  showTimer = setTimeout(() => {
-    if (!current() || !bar) return;
+  // Shown immediately. There is nothing to decide: the user asked for an
+  // article and this says it is being fetched.
+  if (bar) {
     shownCount++;
+    shownAt = performance.now();
     bar.dataset.state = 'active';
     bar.setAttribute('aria-hidden', 'false');
     // Start from a visible sliver rather than zero: a bar that appears empty
     // reads as "stuck", not as "starting".
+    fill.style.transition = 'none';
+    setWidth(0);
+    void fill.offsetWidth;
+    fill.style.transition = '';
     setWidth(0.08);
-  }, delay);
+  }
 
   return {
     get superseded() { return !current(); },
-
-    /**
-     * Show the bar now, without waiting out the delay.
-     *
-     * For work that blocks the main thread the delay is useless: a timer cannot
-     * fire while synchronous JavaScript is running, so a bar that waits 120 ms
-     * to appear never appears at all — the blocking work finishes first and
-     * completes the task. A caller that is about to block must say so.
-     */
-    showNow() {
-      if (!current() || !bar) return;
-      clearTimeout(showTimer);
-      if (bar.dataset.state === 'active') return;
-      shownCount++;
-      bar.dataset.state = 'active';
-      bar.setAttribute('aria-hidden', 'false');
-      if (widthFraction() < 0.08) setWidth(0.08);
-    },
 
     /** Move to a fraction of the whole task. Never backwards. */
     to(fraction) {
@@ -107,44 +97,38 @@ export function beginTask({ delay = DEFAULT_DELAY_MS } = {}) {
     /** Finish: rush to full, then fade out and reset. */
     done() {
       if (!current()) return;
-      clearTimeout(showTimer);
-      if (!bar || bar.dataset.state !== 'active') {
-        // Never shown, because the task beat the delay. Leave the page alone.
-        if (bar) bar.dataset.state = 'idle';
-        return;
-      }
-      setWidth(1);
-      bar.dataset.state = 'done';
-      resetTimer = setTimeout(() => {
-        if (!current()) return;
-        bar.dataset.state = 'idle';
-        bar.setAttribute('aria-hidden', 'true');
-        // Reset the width only once it is invisible, so it never rewinds on
-        // screen.
-        fill.style.transition = 'none';
-        setWidth(0);
-        void fill.offsetWidth;
-        fill.style.transition = '';
-      }, 320);
+      // Hold it for the rest of its minimum life. Completing 20 ms after
+      // appearing is the flicker this exists to avoid.
+      const held = performance.now() - shownAt;
+      const wait = Math.max(0, MIN_VISIBLE_MS - held);
+      resetTimer = setTimeout(() => finish('done'), wait);
     },
 
     /** Give up without completing — the bar retreats rather than claiming success. */
     fail() {
       if (!current()) return;
-      clearTimeout(showTimer);
-      if (!bar || bar.dataset.state !== 'active') { if (bar) bar.dataset.state = 'idle'; return; }
-      bar.dataset.state = 'failed';
-      resetTimer = setTimeout(() => {
-        if (!current()) return;
-        bar.dataset.state = 'idle';
-        bar.setAttribute('aria-hidden', 'true');
-        fill.style.transition = 'none';
-        setWidth(0);
-        void fill.offsetWidth;
-        fill.style.transition = '';
-      }, 320);
+      const held = performance.now() - shownAt;
+      resetTimer = setTimeout(() => finish('failed'), Math.max(0, MIN_VISIBLE_MS - held));
     },
   };
+}
+
+/** Run the bar out: full (or not), fade, then reset while invisible. */
+function finish(state) {
+  if (!bar || bar.dataset.state !== 'active') return;
+  if (state === 'done') setWidth(1);
+  bar.dataset.state = state;
+
+  resetTimer = setTimeout(() => {
+    if (bar.dataset.state === 'active') return;   // a new task took over
+    bar.dataset.state = 'idle';
+    bar.setAttribute('aria-hidden', 'true');
+    // Reset the width only once it is invisible, so it never rewinds on screen.
+    fill.style.transition = 'none';
+    setWidth(0);
+    void fill.offsetWidth;
+    fill.style.transition = '';
+  }, 320);
 }
 
 function setWidth(fraction) {

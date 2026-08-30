@@ -176,7 +176,7 @@ button { font-family: inherit; font-size: inherit; }
 
 .page-progress {
   position: fixed; top: 0; left: 0; right: 0;
-  height: 2px; z-index: 9999;
+  height: 3px; z-index: 9999;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.18s ease;
