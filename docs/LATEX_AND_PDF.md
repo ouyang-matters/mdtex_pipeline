@@ -248,14 +248,25 @@ they are spaced and where lines may break.
 
 ### How the decision is made
 
-Before the build, MDTeX asks this machine what it has — `fc-list` for fonts,
-`kpsewhich` for packages — and plans from the answer:
+Before the build, MDTeX asks this machine what it has and plans from the answer.
+Every probe that can answer is asked and the answers merged, because no single
+one is right everywhere:
+
+| Probe | Where it is trusted |
+| --- | --- |
+| `fc-list` (fontconfig) | Authoritative on Linux and macOS. On Windows it is usually TeX Live's own `fc-list`, whose cache covers TeX Live's fonts rather than the system's — so there it contributes, but never settles the question. |
+| Font registry | Authoritative on Windows. `HKLM` and `HKCU` list installed *family names* directly, so a font MDTeX has no filename for is still found. |
+| Font directories | Windows backstop: `%SystemRoot%\Fonts` **and** `%LOCALAPPDATA%\Microsoft\Windows\Fonts`, since a font installed "for me only" never appears in the system one. |
+| `kpsewhich` | Packages (`xeCJK`, `luatexja`). |
+
+The outcome:
 
 | Situation | Result |
 | --- | --- |
 | Font found, package found | `xeCJK` (XeLaTeX) or `luatexja-fontspec` (LuaLaTeX), with `\setCJKmainfont`, sans and mono all set |
 | Font found, no package | `\setmainfont` with the CJK font, plus `\XeTeXlinebreaklocale` under XeLaTeX. Warns that spacing is basic |
-| No font | **Build refused**, naming the package to install. It would otherwise produce a blank page |
+| No font, and a probe answered | **Build refused**, naming what to install and which probes were consulted. It would otherwise produce a blank page |
+| No font, and no probe could answer | Proceeds with the font that platform has always shipped (SimSun on Windows, Songti SC on macOS, Noto on Linux) and says so. A wrong guess stops the build with "font not found"; it never produces a PDF with the text missing |
 | Engine is pdfLaTeX | **Build refused**, telling you to switch engine |
 
 The trigger is the *text*, not the language tag. An article marked `en` that
@@ -267,6 +278,10 @@ Fonts are chosen per script — Simplified, Traditional, Japanese, Korean — fr
 preference list intersected with what is installed, so `zh-TW` gets a Traditional
 face rather than a Simplified one. A specific font can be pinned per article in
 **Properties → CJK font**; that list only offers fonts this machine actually has.
+
+"Could not find out" is not "there is none". Refusing on a detection gap turns a
+missing probe into a wall, and there is no need for the guess to be safe — the
+check below catches a guess that was wrong.
 
 ### The check after the build
 

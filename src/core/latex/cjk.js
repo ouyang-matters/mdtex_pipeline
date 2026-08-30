@@ -72,6 +72,20 @@ const MONO_PREFERENCES = {
   kr: ['Noto Sans Mono CJK KR', 'Source Han Mono K', 'Sarasa Mono K'],
 };
 
+/**
+ * The font to guess when no probe could tell us what is installed.
+ *
+ * One per platform and script, chosen for being the thing that platform has
+ * always shipped rather than the thing that looks best. A wrong guess stops the
+ * build with "font not found", which is a good failure; a guess biased towards
+ * a font that is usually absent would stop builds that should have worked.
+ */
+const PLATFORM_FALLBACK = {
+  win32: { sc: 'SimSun', tc: 'PMingLiU', jp: 'MS Mincho', kr: 'Batang' },
+  darwin: { sc: 'Songti SC', tc: 'Songti TC', jp: 'Hiragino Mincho ProN', kr: 'Apple SD Gothic Neo' },
+  default: { sc: 'Noto Serif CJK SC', tc: 'Noto Serif CJK TC', jp: 'Noto Serif CJK JP', kr: 'Noto Serif CJK KR' },
+};
+
 /** The script an article's language tag calls for, or null when it is not CJK. */
 export function scriptForLanguage(language) {
   const tag = String(language || '').toLowerCase();
@@ -90,46 +104,141 @@ export function containsCjk(text) {
 
 // ── Detection ────────────────────────────────────────────────────────────────
 
+/**
+ * Families that are known to cover a script, whatever names a platform gives
+ * them. Used to classify what a probe reports, so a font MDTeX has never heard
+ * of is still recognised when the platform tells us its name.
+ */
+const KNOWN_FAMILIES = {
+  sc: [
+    'noto serif cjk sc', 'noto sans cjk sc', 'noto sans mono cjk sc', 'noto serif sc', 'noto sans sc',
+    'source han serif sc', 'source han sans sc', 'source han mono sc',
+    'simsun', 'nsimsun', 'simhei', 'kaiti', 'fangsong', 'dengxian',
+    'microsoft yahei', 'microsoft yahei ui',
+    'songti sc', 'stsong', 'stheiti', 'heiti sc', 'pingfang sc', 'hiragino sans gb',
+    'fandolsong', 'fandolhei', 'wenquanyi micro hei', 'wenquanyi zen hei', 'sarasa mono sc',
+  ],
+  tc: [
+    'noto serif cjk tc', 'noto sans cjk tc', 'noto sans mono cjk tc', 'noto serif tc', 'noto sans tc',
+    'source han serif tc', 'source han sans tc', 'source han mono tc',
+    'pmingliu', 'mingliu', 'mingliu_hkscs', 'dfkai-sb',
+    'microsoft jhenghei', 'microsoft jhenghei ui',
+    'songti tc', 'pingfang tc', 'lisong pro', 'heiti tc', 'apple ligothic', 'sarasa mono tc',
+  ],
+  jp: [
+    'noto serif cjk jp', 'noto sans cjk jp', 'noto sans mono cjk jp', 'noto serif jp', 'noto sans jp',
+    'source han serif jp', 'source han sans jp', 'source han mono j',
+    'ms mincho', 'ms pmincho', 'ms gothic', 'ms pgothic',
+    'meiryo', 'meiryo ui', 'yu gothic', 'yu gothic ui', 'yu mincho',
+    'biz udmincho', 'biz udgothic', 'ipaexmincho', 'ipaexgothic',
+    'hiragino mincho pron', 'hiragino sans', 'hiragino kaku gothic pron', 'sarasa mono j',
+  ],
+  kr: [
+    'noto serif cjk kr', 'noto sans cjk kr', 'noto sans mono cjk kr', 'noto serif kr', 'noto sans kr',
+    'source han serif kr', 'source han sans kr', 'source han mono k',
+    'batang', 'batangche', 'gungsuh', 'gungsuhche', 'dotum', 'dotumche', 'gulim', 'gulimche',
+    'malgun gothic', 'nanummyeongjo', 'nanumgothic',
+    'apple sd gothic neo', 'applemyungjo', 'sarasa mono k',
+  ],
+};
+
+/** Which scripts a font family name covers, by name alone. */
+export function classifyFamily(name) {
+  const key = String(name || '').trim().toLowerCase();
+  if (!key) return [];
+
+  const scripts = [];
+  for (const [script, families] of Object.entries(KNOWN_FAMILIES)) {
+    if (families.includes(key)) scripts.push(script);
+  }
+  if (scripts.length) return scripts;
+
+  // A pan-CJK family named for its script, e.g. "Foo Sans CJK SC".
+  const m = key.match(/\bcjk\s*(sc|tc|hk|jp|kr|k|j)\b/);
+  if (m) {
+    const tag = { sc: 'sc', tc: 'tc', hk: 'tc', jp: 'jp', j: 'jp', kr: 'kr', k: 'kr' }[m[1]];
+    return tag ? [tag] : [];
+  }
+  // "... CJK" with no script tag covers all four.
+  if (/\bcjk\b/.test(key)) return ['sc', 'tc', 'jp', 'kr'];
+
+  return [];
+}
+
 let _fontCache = null;
 
 /**
  * Fonts installed on this machine that can render each CJK script.
  *
- * fontconfig is the reliable answer where it exists, because it knows what is
- * actually installed rather than what is usually installed. Windows has no
- * equivalent, so the font directory is read directly and matched against the
- * files those fonts ship as.
+ * Every probe that can answer is asked and the answers are merged, because no
+ * single one is right everywhere:
  *
- * Returns `{ available: string[], byScript: { sc: [], tc: [], jp: [], kr: [] },
- * method }`. An empty result means "we could not find one", which is treated as
- * "there is none" — claiming support we cannot demonstrate is how a blank PDF
- * gets reported as a success.
+ *   fontconfig  authoritative on Linux and macOS. On Windows it is usually
+ *               TeX Live's own fc-list, whose cache covers TeX Live's fonts
+ *               rather than the system's — so on Windows it is a contributor,
+ *               never the whole answer.
+ *   registry    authoritative on Windows: it lists installed family names
+ *               directly, for the machine and for the user.
+ *   directories the Windows font folders, system and per-user, as a backstop
+ *               when the registry cannot be read.
+ *
+ * `certain` says whether any probe actually answered. It is the difference
+ * between "this machine has no CJK font" and "MDTeX could not find out", and
+ * only the first may refuse a build.
  */
-export async function detectCjkFonts({ force = false, signal } = {}) {
+export async function detectCjkFonts({ force = false, signal, env = process.env } = {}) {
   if (_fontCache && !force) return _fontCache;
 
   const byScript = { sc: [], tc: [], jp: [], kr: [] };
-  let method = 'none';
+  const methods = [];
+  let certain = false;
 
-  const fc = resolveExecutable('fc-list');
+  const add = (script, name) => {
+    if (!byScript[script].some(f => f.toLowerCase() === name.toLowerCase())) {
+      byScript[script].push(name);
+    }
+  };
+
+  const fc = resolveExecutable('fc-list', { env });
   if (fc) {
-    method = 'fontconfig';
+    let answered = false;
     for (const [script, { lang }] of Object.entries(SCRIPTS)) {
       const result = await runCommand(fc, [`:lang=${lang}`, 'family'], { timeout: 10000, signal });
       if (result.code !== 0) continue;
-      byScript[script] = parseFontFamilies(result.stdout);
+      answered = true;
+      for (const name of parseFontFamilies(result.stdout)) add(script, name);
     }
-  } else if (process.platform === 'win32') {
-    method = 'windows-font-directory';
-    const installed = windowsFontFamilies();
-    for (const script of Object.keys(byScript)) {
-      byScript[script] = [...FONT_PREFERENCES[script], ...MONO_PREFERENCES[script]]
-        .filter(name => installed.has(name.toLowerCase()));
+    if (answered) {
+      methods.push('fontconfig');
+      // On Windows this is very often TeX Live's fc-list, which knows about
+      // TeX Live's fonts and not the system's. An empty answer there proves
+      // nothing, so it does not settle the question on its own.
+      if (process.platform !== 'win32') certain = true;
     }
   }
 
-  const available = [...new Set(Object.values(byScript).flat())];
-  _fontCache = { available, byScript, method };
+  if (process.platform === 'win32') {
+    const registry = await windowsRegistryFamilies({ signal });
+    if (registry.ok) {
+      methods.push('windows-registry');
+      certain = true;
+      for (const name of registry.families) {
+        for (const script of classifyFamily(name)) add(script, name);
+      }
+    }
+
+    const fromDisk = windowsFontFiles(env);
+    if (fromDisk.ok) {
+      methods.push('windows-font-directory');
+      if (fromDisk.families.size) certain = true;
+      for (const name of fromDisk.families) {
+        for (const script of classifyFamily(name)) add(script, name);
+      }
+    }
+  }
+
+  const available = [...new Set(Object.values(byScript).flat())].sort();
+  _fontCache = { available, byScript, methods, method: methods[0] || 'none', certain };
   return _fontCache;
 }
 
@@ -152,31 +261,101 @@ function parseFontFamilies(stdout) {
   return [...families].sort();
 }
 
-/** Family names implied by the font files present in the Windows font directory. */
-function windowsFontFamilies() {
-  const dir = process.env.SystemRoot ? `${process.env.SystemRoot}\\Fonts` : 'C:\\Windows\\Fonts';
-  if (!existsSync(dir)) return new Set();
+/**
+ * Family names from the Windows font registry.
+ *
+ * This is the authoritative list: Windows records every installed font here,
+ * for the machine and for the current user, under its real family name — so a
+ * font MDTeX has no filename for is still found.
+ */
+export async function windowsRegistryFamilies({ signal, run = runCommand } = {}) {
+  const KEYS = [
+    'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
+    'HKCU\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
+  ];
 
+  const families = new Set();
+  let ok = false;
+
+  for (const key of KEYS) {
+    const result = await run('reg', ['query', key], { timeout: 10000, signal });
+    if (result.code !== 0) continue;
+    ok = true;
+    for (const name of parseRegistryFonts(result.stdout)) families.add(name);
+  }
+
+  return { ok, families: [...families] };
+}
+
+/**
+ * Parse `reg query` output into family names.
+ *
+ *     SimSun & NSimSun (TrueType)    REG_SZ    simsun.ttc
+ *
+ * The value name carries the families, ampersand-separated, with the format in
+ * parentheses. That is the only part we want.
+ */
+export function parseRegistryFonts(stdout) {
+  const families = new Set();
+  for (const line of String(stdout).split(/\r?\n/)) {
+    const m = line.match(/^\s{2,}(.+?)\s+REG_(?:SZ|EXPAND_SZ)\s+\S/);
+    if (!m) continue;
+    const label = m[1].replace(/\s*\((?:TrueType|OpenType|VarType|All res)\)\s*$/i, '').trim();
+    for (const part of label.split('&')) {
+      const name = part.trim();
+      if (name) families.add(name);
+    }
+  }
+  return [...families];
+}
+
+/**
+ * Family names implied by the font files present in the Windows font
+ * directories, system-wide and per-user. A backstop for when the registry
+ * cannot be read; the map only has to cover the fonts Windows itself ships.
+ */
+export function windowsFontFiles(env = process.env, { readDir = readdirSync, exists = existsSync, dirs = null } = {}) {
   const FILE_TO_FAMILY = {
-    'simsun.ttc': 'simsun', 'simsunb.ttf': 'simsun',
-    'msyh.ttc': 'microsoft yahei', 'msyhbd.ttc': 'microsoft yahei',
-    'msjh.ttc': 'microsoft jhenghei',
-    'mingliu.ttc': 'mingliu', 'pmingliu.ttf': 'pmingliu',
-    'yugothm.ttc': 'yu gothic', 'yumin.ttf': 'yu mincho',
-    'msmincho.ttc': 'ms mincho',
-    'malgun.ttf': 'malgun gothic', 'batang.ttc': 'batang',
+    'simsun.ttc': 'SimSun', 'simsunb.ttf': 'SimSun', 'simhei.ttf': 'SimHei',
+    'simkai.ttf': 'KaiTi', 'simfang.ttf': 'FangSong',
+    'msyh.ttc': 'Microsoft YaHei', 'msyhbd.ttc': 'Microsoft YaHei', 'msyhl.ttc': 'Microsoft YaHei',
+    'deng.ttf': 'DengXian', 'dengb.ttf': 'DengXian',
+    'msjh.ttc': 'Microsoft JhengHei', 'msjhbd.ttc': 'Microsoft JhengHei',
+    'mingliu.ttc': 'MingLiU', 'pmingliu.ttf': 'PMingLiU', 'kaiu.ttf': 'DFKai-SB',
+    'msmincho.ttc': 'MS Mincho', 'msgothic.ttc': 'MS Gothic',
+    'meiryo.ttc': 'Meiryo', 'meiryob.ttc': 'Meiryo',
+    'yugothm.ttc': 'Yu Gothic', 'yugothb.ttc': 'Yu Gothic', 'yugothr.ttc': 'Yu Gothic',
+    'yumin.ttf': 'Yu Mincho', 'yumindb.ttf': 'Yu Mincho',
+    'malgun.ttf': 'Malgun Gothic', 'malgunbd.ttf': 'Malgun Gothic',
+    'batang.ttc': 'Batang', 'gulim.ttc': 'Gulim',
   };
 
-  const found = new Set();
-  try {
-    for (const file of readdirSync(dir)) {
-      const family = FILE_TO_FAMILY[file.toLowerCase()];
-      if (family) found.add(family);
-    }
-  } catch {
-    return new Set();
+  const home = env.USERPROFILE || '';
+  // Both of them: a font installed "for me only" — which is what a download
+  // usually does — lands in the per-user directory and never appears in the
+  // system one. Looking only at C:\Windows\Fonts misses it entirely.
+  const searchDirs = dirs || [
+    env.SystemRoot ? `${env.SystemRoot}\\Fonts` : 'C:\\Windows\\Fonts',
+    env.LOCALAPPDATA
+      ? `${env.LOCALAPPDATA}\\Microsoft\\Windows\\Fonts`
+      : (home ? `${home}\\AppData\\Local\\Microsoft\\Windows\\Fonts` : null),
+  ].filter(Boolean);
+
+  const families = new Set();
+  let ok = false;
+
+  for (const dir of searchDirs) {
+    if (!exists(dir)) continue;
+    try {
+      ok = true;
+      for (const file of readDir(dir)) {
+        const family = FILE_TO_FAMILY[String(file).toLowerCase()];
+        if (family) families.add(family);
+      }
+    } catch { /* an unreadable font directory is not an answer */ }
   }
-  return found;
+
+  return { ok, families };
 }
 
 /**
@@ -213,12 +392,15 @@ export async function detectCjkPackages(environment, { signal } = {}) {
  * }}
  *
  * `usable: false` with a `blocker` means the build must not run: it would exit
- * zero and produce a page with nothing on it.
+ * zero and produce a page with nothing on it. That verdict requires `fonts` to
+ * be a real answer — see `certain` in `detectCjkFonts`. When no probe could
+ * answer, the plan guesses and says so, because the post-build check catches a
+ * guess that was wrong and a wall helps nobody.
  */
 export function planCjk({
   language,
   engine,
-  fonts = { byScript: {} },
+  fonts = { byScript: {}, certain: true },
   packages = { checked: false },
   preferredFont = null,
   requireForScript = null,
@@ -244,15 +426,32 @@ export function planCjk({
     };
   }
 
-  const mainFont = chooseFont(preferredFont, FONT_PREFERENCES[script], installed);
+  let mainFont = chooseFont(preferredFont, FONT_PREFERENCES[script], installed);
+  let unverified = false;
+
   if (!mainFont) {
-    return {
-      script, needed: true, usable: false, engine, package: null,
-      mainFont: null, monoFont: null, quality: 'none', warnings,
-      blocker: `No font on this machine can render ${SCRIPTS[script].label}, so the PDF `
-        + 'would be typeset with every character missing. Install a CJK font — '
-        + `${installHint(script)}`,
-    };
+    // Refusing is only right when we *know* there is no font. When no probe
+    // could answer, refusing turns a detection gap into a wall — and there is
+    // no need for the guess to be safe, because the build is checked afterwards
+    // for characters that did not reach the page. Attempt, and let that catch it.
+    if (fonts.certain === false) {
+      mainFont = (PLATFORM_FALLBACK[process.platform] || PLATFORM_FALLBACK.default)[script];
+      unverified = true;
+      warnings.push(
+        `MDTeX could not read this machine's installed fonts, so it is guessing `
+        + `"${mainFont}" for ${SCRIPTS[script].label}. If that font is not present the `
+        + 'build will stop and say so — it will not produce a PDF with the text missing.',
+      );
+    } else {
+      const probed = fonts.methods?.length ? fonts.methods.join(', ') : 'no probe';
+      return {
+        script, needed: true, usable: false, engine, package: null,
+        mainFont: null, monoFont: null, quality: 'none', warnings,
+        blocker: `No font on this machine can render ${SCRIPTS[script].label}, so the PDF `
+          + `would be typeset with every character missing. ${installHint(script)} `
+          + `(checked: ${probed}.)`,
+      };
+    }
   }
 
   if (preferredFont && mainFont !== preferredFont) {
@@ -289,7 +488,7 @@ export function planCjk({
     package: pkg,
     mainFont,
     monoFont,
-    quality: pkg ? 'full' : 'glyphs-only',
+    quality: unverified ? 'unverified' : (pkg ? 'full' : 'glyphs-only'),
     warnings,
     blocker: null,
   };
@@ -354,15 +553,22 @@ function chooseFont(preferred, preferences, installed) {
 }
 
 function installHint(script) {
-  const packages = {
-    sc: 'fonts-noto-cjk (Debian/Ubuntu), google-noto-sans-cjk-fonts (Fedora), noto-fonts-cjk (Arch)',
-    tc: 'fonts-noto-cjk (Debian/Ubuntu), google-noto-sans-cjk-fonts (Fedora), noto-fonts-cjk (Arch)',
-    jp: 'fonts-noto-cjk (Debian/Ubuntu), or install Source Han Serif JP',
-    kr: 'fonts-noto-cjk (Debian/Ubuntu), or install Source Han Serif KR',
-  };
-  if (process.platform === 'darwin') return 'macOS ships Songti SC, Hiragino and Apple SD Gothic Neo; check Font Book.';
-  if (process.platform === 'win32') return 'Windows ships SimSun, Microsoft YaHei, Yu Gothic and Malgun Gothic; install the matching language pack.';
-  return packages[script];
+  if (process.platform === 'win32') {
+    const pack = {
+      sc: 'Chinese (Simplified)', tc: 'Chinese (Traditional)',
+      jp: 'Japanese', kr: 'Korean',
+    }[script];
+    return `Windows ships these fonts with its language packs: add ${pack} under `
+      + 'Settings → Time & language → Language & region, or install Noto Serif CJK '
+      + 'and choose "Install for all users" — a font installed for one user only is '
+      + 'still found, but only for that user.';
+  }
+  if (process.platform === 'darwin') {
+    return 'macOS ships Songti SC, Hiragino Mincho and Apple SD Gothic Neo; check Font Book, '
+      + 'or install Noto Serif CJK.';
+  }
+  return 'Install a CJK font: fonts-noto-cjk (Debian/Ubuntu), '
+    + 'google-noto-sans-cjk-fonts (Fedora), noto-fonts-cjk (Arch).';
 }
 
 /**

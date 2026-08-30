@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   scriptForLanguage, containsCjk, planCjk, cjkPreamble, resolveCjkPlan,
+  classifyFamily, parseRegistryFonts, windowsRegistryFamilies, windowsFontFiles,
 } from '../src/core/latex/cjk.js';
 import { parseLatexLog } from '../src/core/pdf/log-parser.js';
 
@@ -166,5 +167,101 @@ describe('containsCjk', () => {
     expect(containsCjk('naïve café Übergröße')).toBe(false);
     expect(containsCjk('αβγ ΔΣΩ')).toBe(false);
     expect(containsCjk('Привет мир')).toBe(false);
+  });
+});
+
+describe('Windows font discovery', () => {
+  const REG_OUTPUT = [
+    '',
+    'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
+    '    Arial (TrueType)    REG_SZ    arial.ttf',
+    '    SimSun & NSimSun (TrueType)    REG_SZ    simsun.ttc',
+    '    Microsoft YaHei & Microsoft YaHei UI (TrueType)    REG_SZ    msyh.ttc',
+    '    MS Mincho & MS PMincho (TrueType)    REG_SZ    msmincho.ttc',
+    '    Malgun Gothic (TrueType)    REG_SZ    malgun.ttf',
+    '    PMingLiU & MingLiU & MingLiU_HKSCS (TrueType)    REG_SZ    mingliu.ttc',
+    '',
+  ].join('\r\n');
+
+  it('reads family names out of the registry, ampersands and all', () => {
+    const families = parseRegistryFonts(REG_OUTPUT);
+    expect(families).toContain('SimSun');
+    expect(families).toContain('NSimSun');
+    expect(families).toContain('Microsoft YaHei UI');
+    expect(families).toContain('PMingLiU');
+    expect(families).toContain('Arial');
+  });
+
+  it('is not confused by the key header or blank lines', () => {
+    expect(parseRegistryFonts(REG_OUTPUT).some(f => f.includes('HKEY_LOCAL_MACHINE'))).toBe(false);
+    expect(parseRegistryFonts('')).toEqual([]);
+  });
+
+  it('sorts the fonts Windows ships into the right scripts', () => {
+    const byScript = { sc: [], tc: [], jp: [], kr: [] };
+    for (const name of parseRegistryFonts(REG_OUTPUT)) {
+      for (const script of classifyFamily(name)) byScript[script].push(name);
+    }
+    expect(byScript.sc).toContain('SimSun');
+    expect(byScript.sc).toContain('Microsoft YaHei');
+    expect(byScript.tc).toContain('PMingLiU');
+    expect(byScript.jp).toContain('MS Mincho');
+    expect(byScript.kr).toContain('Malgun Gothic');
+    // Latin fonts belong to no CJK script.
+    expect(Object.values(byScript).flat()).not.toContain('Arial');
+  });
+
+  it('reports whether the registry could be read at all', async () => {
+    const denied = await windowsRegistryFamilies({ run: async () => ({ code: 1, stdout: '' }) });
+    expect(denied.ok).toBe(false);
+    expect(denied.families).toEqual([]);
+
+    const allowed = await windowsRegistryFamilies({ run: async () => ({ code: 0, stdout: REG_OUTPUT }) });
+    expect(allowed.ok).toBe(true);
+    expect(allowed.families.length).toBeGreaterThan(0);
+  });
+
+  it('finds the Chinese fonts Windows ships from the font directory alone', () => {
+    const files = [
+      'arial.ttf', 'simsun.ttc', 'simhei.ttf', 'simkai.ttf',
+      'msyh.ttc', 'msjh.ttc', 'meiryo.ttc', 'batang.ttc',
+    ];
+    const { ok, families } = windowsFontFiles({}, {
+      dirs: ['C:\\Windows\\Fonts', 'C:\\Users\\me\\AppData\\Local\\Microsoft\\Windows\\Fonts'],
+      exists: () => true,
+      readDir: (dir) => (dir.includes('AppData') ? ['NotoSerifCJKsc-Regular.otf'] : files),
+    });
+    expect(ok).toBe(true);
+    expect([...families]).toContain('SimSun');
+    expect([...families]).toContain('SimHei');
+    expect([...families]).toContain('KaiTi');
+    expect([...families]).toContain('Microsoft JhengHei');
+    expect([...families]).toContain('Meiryo');
+  });
+});
+
+describe('an unanswerable probe is not a verdict', () => {
+  const NOTHING = { byScript: { sc: [], tc: [], jp: [], kr: [] } };
+
+  it('refuses when detection answered and found nothing', () => {
+    const plan = planCjk({
+      language: 'zh-CN', engine: 'xelatex',
+      fonts: { ...NOTHING, certain: true }, packages: HAS_XECJK,
+    });
+    expect(plan.usable).toBe(false);
+    expect(plan.blocker).toMatch(/No font on this machine/);
+  });
+
+  it('guesses, loudly, when detection could not answer', () => {
+    const plan = planCjk({
+      language: 'zh-CN', engine: 'xelatex',
+      fonts: { ...NOTHING, certain: false }, packages: HAS_XECJK,
+    });
+    expect(plan.usable).toBe(true);
+    expect(plan.quality).toBe('unverified');
+    expect(plan.mainFont).toBeTruthy();
+    expect(plan.warnings.join(' ')).toMatch(/could not read this machine's installed fonts/);
+    // The guess is still checked: the build stops rather than dropping text.
+    expect(plan.warnings.join(' ')).toMatch(/build will stop/);
   });
 });
