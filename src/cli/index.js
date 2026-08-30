@@ -9,10 +9,15 @@ import { listThemes, listBuiltinThemes, listUserThemes, copyTheme } from '../cor
 import { paths, ensureUserDirs, getVersionSync, getGitCommitSync } from '../core/paths.js';
 import { checkUpdateSafety, inventory, compareInventories, protectedEntries } from '../core/data-model.js';
 import { migrateLegacyData, formatMigrationReport } from '../core/migrate/data.js';
-import { initConfig, migrateConfig, getConfig, CONFIG_VERSION, DATA_VERSION } from '../core/config/index.js';
+import {
+  initConfig, migrateConfig, getConfig, saveConfig as saveConfigFile,
+  CONFIG_VERSION, DATA_VERSION,
+} from '../core/config/index.js';
 import { createBackup, listBackups, restoreBackup } from '../core/config/backup.js';
 import { ArticleLibrary } from '../workspace/library.js';
 import { startCommand } from './commands/start.js';
+import { checkForUpdate, describeReason } from '../core/update/check.js';
+import { box, bold, grey, green, yellow, cyan, TICK, ARROW } from './format.js';
 import { buildCommand, printValidation } from './commands/build.js';
 import { doctorCommand } from './commands/doctor.js';
 import { detectLatexEnvironment } from '../core/latex/environment.js';
@@ -33,6 +38,7 @@ program
   .option('-p, --port <port>', 'Port to listen on', '4173')
   .option('--no-open', 'Do not open a browser')
   .option('--force', 'Start even if another instance is already running')
+  .option('--no-update-check', 'Skip the check for a newer version this time')
   .action(async (opts) => {
     await startCommand(opts);
   });
@@ -319,7 +325,20 @@ program
   .command('update')
   .description('Safely update to the latest version')
   .option('--force', 'Force update even with dirty checkout')
+  .option('--check', 'Only report whether a newer version exists; change nothing')
+  .option('--auto <state>', 'Turn the automatic check on start on or off (on|off)')
   .action(async (opts) => {
+    // Both of these answer a question about updating rather than performing
+    // one, so they run before any of the machinery below and return.
+    if (opts.auto !== undefined) {
+      setAutoUpdateCheck(opts.auto);
+      return;
+    }
+    if (opts.check) {
+      await reportUpdateCheck();
+      return;
+    }
+
     const oldVersion = getVersionSync();
     console.log(`Publisher ${oldVersion}\n`);
 
@@ -639,5 +658,63 @@ wsCmd.action(() => {
     console.log(`  ${article.title}  (${date})  ${folder}`);
   }
 });
+
+/**
+ * `publisher update --check` — ask, report, change nothing.
+ *
+ * Unlike the notice on start, this reports every outcome, because the user
+ * asked the question and silence would not be an answer.
+ */
+async function reportUpdateCheck() {
+  console.log('');
+  const result = await checkForUpdate({ force: true });
+
+  if (!result.checked) {
+    console.log(box([
+      yellow('Could not check for updates'),
+      grey(describeReason(result.reason)),
+    ], { colour: yellow }));
+    console.log('');
+    // Not an error: being offline is not a failure of this command.
+    return;
+  }
+
+  if (!result.available) {
+    console.log(box([
+      `${green(TICK)}  ${bold('Up to date')}`,
+      grey(`${result.local.slice(0, 7)} on ${result.remoteName}/${result.branch}`),
+    ], { colour: green }));
+    console.log('');
+    return;
+  }
+
+  console.log(box([
+    yellow('A newer version is available'),
+    `${grey('installed')}  ${result.local.slice(0, 7)}${grey(`  ${ARROW}  `)}${green(result.remote.slice(0, 7))}  ${grey(`on ${result.remoteName}/${result.branch}`)}`,
+    '',
+    `Update with  ${bold('publisher update')}`,
+  ], { colour: yellow }));
+  console.log('');
+}
+
+/** `publisher update --auto on|off` — persist whether start checks. */
+function setAutoUpdateCheck(state) {
+  const value = String(state).toLowerCase();
+  if (!['on', 'off', 'true', 'false'].includes(value)) {
+    console.error(`Expected "on" or "off", got "${state}".`);
+    process.exitCode = 1;
+    return;
+  }
+  const enabled = value === 'on' || value === 'true';
+  const config = getConfig();
+  saveConfigFile(paths.configFile, { ...config, update_check: enabled });
+
+  console.log('');
+  console.log(enabled
+    ? `  ${green(TICK)} ${bold('publisher start')} will check for a newer version.`
+    : `  ${green(TICK)} ${bold('publisher start')} will not check for updates.`);
+  console.log(grey(`    Setting: update_check = ${enabled} in ${paths.configFile}`));
+  console.log('');
+}
 
 program.parse();

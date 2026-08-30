@@ -5,7 +5,7 @@ table is the one that matters: it separates what works **from the UI**, what
 works **only from the command line**, and what is genuinely **not built yet**.
 
 Last verified: 2026-08-30, on Linux (Ubuntu, TeX Live 2024, Node 22.22.1,
-Chrome 146). All of `npx vitest run` (422 tests), `node scripts/e2e.js`
+Chrome 146). All of `npx vitest run` (437 tests), `node scripts/e2e.js`
 (38 checks), `node scripts/workflow-check.js` (37 steps) and
 `publisher doctor` pass; `node scripts/bench-wechat.js` produced the numbers
 below.
@@ -56,6 +56,8 @@ by `scripts/e2e.js`.
 | Inspect the LaTeX environment | `publisher latex [--verbose]` |
 | Health check | `publisher doctor [--verbose]` |
 | Update in place | `publisher update` |
+| Check for a newer version | `publisher update --check` |
+| Turn the check on start on or off | `publisher update --auto on\|off` |
 | Workspace listing / search / import | `publisher ws list\|search\|import\|create` |
 | Theme management | `publisher themes list\|copy` |
 | Backups | `publisher backups list\|create\|restore` |

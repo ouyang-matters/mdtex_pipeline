@@ -10,6 +10,10 @@ const DEFAULT_CONFIG = {
   default_theme: 'default',
   default_platform: 'wechat',
   output_dir: './dist',
+  // Whether `publisher start` asks the remote if there is a newer commit. The
+  // check never modifies the checkout and never blocks the launch; turning it
+  // off stops the network request entirely.
+  update_check: true,
 };
 
 const DEFAULT_PREFERENCES = {

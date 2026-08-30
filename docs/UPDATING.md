@@ -1,5 +1,67 @@
 # Updating
 
+MDTeX updates by pulling the git checkout it runs from. `publisher update` does
+that safely; `publisher start` only tells you when there is something to pull.
+
+---
+
+## The check on start
+
+`publisher start` asks the remote whether its branch has moved on, after the
+server is up and the browser is opening. It never delays the launch, and it
+never modifies the checkout: the question is asked with `git ls-remote`, which
+reads the remote's refs and writes nothing locally — no fetch, no ref update,
+no objects.
+
+The cost of that restraint is precision. Without the remote's objects the check
+can see that the commit differs, not how far behind you are or what changed, so
+it reports "a newer version is available" and never a commit count that nobody
+verified.
+
+```text
+┌───────────────────────────────────────────────────┐
+│ A newer version is available                      │
+│ installed  a431c7f  →  9f2c1de  on origin/main    │
+│                                                   │
+│ Update with  publisher update                     │
+│ Turn this check off:  publisher update --auto off │
+└───────────────────────────────────────────────────┘
+```
+
+Only that outcome is printed. Being up to date is the expected case and says
+nothing worth interrupting for, and a check that could not run says nothing
+either — "the remote could not be reached" is not news to someone who is
+offline.
+
+The answer is remembered for 24 hours in `~/.config/publisher/update-check.json`,
+so a launch does not always make a network request. The cache records which
+commit it was about, so after an update the previous answer is discarded rather
+than repeated.
+
+### Asking explicitly
+
+```bash
+publisher update --check
+```
+
+Reports every outcome, because you asked: up to date, an update available, or
+the reason the check could not run. Changes nothing either way, and an
+unreachable remote is not an error exit — being offline is not a failure of
+this command.
+
+### Turning it off
+
+```bash
+publisher update --auto off      # stop checking on start
+publisher update --auto on       # start again
+publisher start --no-update-check   # skip it once, without changing the setting
+```
+
+The setting is `update_check` in `~/.config/publisher/config.json`. With it off,
+no network request is made at launch at all.
+
+---
+
 > **Updating MDTeX changes the application, not your workspace.**
 >
 > Articles, folders, images, LaTeX projects, themes, snippets, metadata,
