@@ -6,3 +6,6 @@ dist/
 .env
 secrets.env
 *.secret
+
+# Local agent runtime: daemon state, session logs and downloaded models.
+.claude/
