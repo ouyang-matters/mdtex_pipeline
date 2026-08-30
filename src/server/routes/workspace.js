@@ -4,7 +4,9 @@ import { sendJson, sendBuffer, readJson, badRequest, notFound, conflict } from '
 import { ArticleLibrary } from '../../workspace/library.js';
 import { ARTICLE_STATUSES, safeAssetName } from '../../workspace/article.js';
 import { listCheckpoints, createCheckpoint, restoreCheckpoint, deleteCheckpoint } from '../../workspace/checkpoints.js';
-import { latexSourceOf, adoptLatexSource } from '../../workspace/latex-source.js';
+import {
+  latexSourceOf, adoptLatexSource, saveLatexSnapshot, discardLatexSnapshot,
+} from '../../workspace/latex-source.js';
 import { detectLatexEnvironment } from '../../core/latex/environment.js';
 import { resolveCjkPlan, detectCjkFonts } from '../../core/latex/cjk.js';
 import { listThemes } from '../../core/themes/index.js';
@@ -201,10 +203,11 @@ export function workspaceRoutes(ctx) {
     // builder the PDF build uses, so what the editor shows is exactly what a
     // build compiles and exactly what adopting would write.
 
-    'GET /api/workspace/article/:id/latex': async (req, res, { params }) => {
+    'GET /api/workspace/article/:id/latex': async (req, res, { params, query }) => {
       const { article } = findArticle(params.id);
+      const regenerate = query.get('regenerate') === '1';
       const cjk = await cjkPlanFor(article);
-      const latex = latexSourceOf(article, { cjk, persist: true });
+      const latex = latexSourceOf(article, { cjk, persist: true, regenerate });
       sendJson(res, 200, {
         ...latex,
         sourceFormat: article.sourceFormat,
@@ -218,6 +221,26 @@ export function workspaceRoutes(ctx) {
           : latex.errors,
         warnings: [...latex.warnings, ...cjk.warnings],
       });
+    },
+
+    // Keeping a generated document: from here on the editor shows this text
+    // rather than deriving a new one, until the user asks for a fresh pass.
+    'POST /api/workspace/article/:id/latex/save': async (req, res, { params }) => {
+      const body = await readJson(req);
+      const { article, folder, path } = findArticle(params.id);
+      let saved;
+      try {
+        saved = saveLatexSnapshot(article, body.tex);
+      } catch (e) {
+        throw badRequest(e.message);
+      }
+      sendJson(res, 200, { ...saved, saved: true, article: view(article, folder, path) });
+    },
+
+    'DELETE /api/workspace/article/:id/latex/save': async (req, res, { params }) => {
+      const { article, folder, path } = findArticle(params.id);
+      const result = discardLatexSnapshot(article);
+      sendJson(res, 200, { ...result, saved: false, article: view(article, folder, path) });
     },
 
     'POST /api/workspace/article/:id/latex/adopt': async (req, res, { params }) => {

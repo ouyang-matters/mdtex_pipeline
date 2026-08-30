@@ -87,6 +87,12 @@
                     aria-label="Generated LaTeX source"></textarea>
           <div class="latex-view-footer">
             <span id="latex-view-origin" class="latex-view-origin"></span>
+            <button id="btn-regen-latex" class="btn btn-xs hidden"
+                    title="Generate again from the current Markdown">Regenerate</button>
+            <button id="btn-discard-latex" class="btn btn-xs hidden"
+                    title="Stop keeping this copy and generate each time">Stop keeping</button>
+            <button id="btn-save-latex" class="btn btn-sm btn-primary"
+                    title="Keep this LaTeX. Opening the tab again shows it instead of generating a new one.">Save this LaTeX</button>
             <button id="btn-adopt-latex" class="btn btn-xs"
                     title="Make this LaTeX the article's source. One-way.">Use as source…</button>
           </div>

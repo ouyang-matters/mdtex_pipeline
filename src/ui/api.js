@@ -185,7 +185,10 @@ export const backend = {
 
     // The LaTeX document an article is, or would become. Read-only for a
     // Markdown article until `adoptLatex` makes it the source.
-    latex: (id) => get(`/workspace/article/${encodeURIComponent(id)}/latex`),
+    latex: (id, { regenerate = false } = {}) =>
+      get(`/workspace/article/${encodeURIComponent(id)}/latex${regenerate ? '?regenerate=1' : ''}`),
+    saveLatex: (id, tex) => post(`/workspace/article/${encodeURIComponent(id)}/latex/save`, { tex }),
+    discardLatex: (id) => del(`/workspace/article/${encodeURIComponent(id)}/latex/save`),
     adoptLatex: (id) => post(`/workspace/article/${encodeURIComponent(id)}/latex/adopt`),
 
     checkpoints: (id) => get(`/workspace/article/${encodeURIComponent(id)}/checkpoints`),

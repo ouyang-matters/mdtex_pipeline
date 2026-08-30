@@ -1,4 +1,4 @@
-import { el, clear, mount, toast, confirmDialog } from './ui-kit.js';
+import { el, clear, mount, toast, confirmDialog, relativeTime } from './ui-kit.js';
 import { backend } from './api.js';
 import { app } from './state.js';
 
@@ -38,10 +38,16 @@ export function initLatexView({ onBeforeLeaveEditor, onSourceAdopted, editor, ed
   dom.text = document.getElementById('latex-source');
   dom.origin = document.getElementById('latex-view-origin');
   dom.adopt = document.getElementById('btn-adopt-latex');
+  dom.save = document.getElementById('btn-save-latex');
+  dom.regen = document.getElementById('btn-regen-latex');
+  dom.discard = document.getElementById('btn-discard-latex');
 
   dom.tabSource.addEventListener('click', () => showSource());
   dom.tabLatex.addEventListener('click', () => showLatex());
   dom.adopt.addEventListener('click', () => adopt());
+  dom.save.addEventListener('click', () => save());
+  dom.regen.addEventListener('click', () => refresh({ regenerate: true }));
+  dom.discard.addEventListener('click', () => discard());
 }
 
 /** Which face is showing. The editor's own handlers use this to stay out of the way. */
@@ -66,6 +72,7 @@ export function syncLatexTabs() {
   const changed = app.currentArticleId !== shownFor;
   shownFor = app.currentArticleId;
 
+  if (changed) current = null;
   if (view === 'latex' && (!derivable || changed)) showSource();
 }
 
@@ -97,33 +104,95 @@ async function showLatex() {
   await refresh();
 }
 
-async function refresh() {
+let current = null;
+
+async function refresh({ regenerate = false } = {}) {
   dom.text.value = '';
-  dom.origin.textContent = 'Generating…';
-  dom.adopt.disabled = true;
+  dom.origin.textContent = regenerate ? 'Generating…' : 'Loading…';
+  setBusy(true);
   clear(dom.notes);
 
   let result;
   try {
-    result = await backend.workspace.latex(app.currentArticleId);
+    result = await backend.workspace.latex(app.currentArticleId, { regenerate });
   } catch (e) {
+    current = null;
     dom.origin.textContent = '';
+    setBusy(false);
     mount(dom.notes, el('div', { class: 'latex-view-note error' }, e.message));
     return;
   }
 
+  current = result;
   dom.text.value = result.tex;
   renderNotes(result);
+  setBusy(false);
+  renderFooter(result);
+}
 
+/**
+ * The footer says which of three states this document is in, because they
+ * behave differently and guessing between them is exactly the confusion a
+ * saved copy could otherwise cause.
+ */
+function renderFooter(result) {
   const blocked = result.errors.length > 0;
+
   dom.adopt.disabled = blocked;
   dom.adopt.title = blocked
     ? 'Resolve the errors above first.'
     : "Make this LaTeX the article's source. One-way.";
 
-  dom.origin.textContent = result.derivedPath
-    ? `Generated from source.md — read-only. Also written to ${result.derivedPath}.`
-    : 'Generated from source.md — read-only.';
+  dom.save.classList.toggle('hidden', result.saved && !result.stale);
+  dom.save.disabled = blocked || !result.tex;
+  dom.save.textContent = result.stale ? 'Save this version' : 'Save this LaTeX';
+
+  dom.regen.classList.toggle('hidden', !result.saved);
+  dom.discard.classList.toggle('hidden', !result.saved);
+
+  clear(dom.origin);
+  if (result.saved) {
+    mount(dom.origin,
+      el('span', { class: result.stale ? 'latex-stale-badge' : 'latex-saved-badge' },
+        result.stale ? 'saved · out of date' : 'saved'),
+      el('span', {}, ` ${result.savedPath} — kept ${relativeTime(result.savedAt)}.`
+        + (result.stale ? ' The Markdown has changed since.' : ' Regenerate to rebuild it.')),
+    );
+  } else {
+    mount(dom.origin, el('span', {},
+      result.derivedPath
+        ? `Generated from source.md — read-only. Also written to ${result.derivedPath}.`
+        : 'Generated from source.md — read-only.'));
+  }
+}
+
+function setBusy(busy) {
+  for (const node of [dom.save, dom.regen, dom.discard, dom.adopt]) node.disabled = busy;
+}
+
+async function save() {
+  if (!current?.tex) return;
+  setBusy(true);
+  try {
+    await backend.workspace.saveLatex(app.currentArticleId, current.tex);
+    toast('LaTeX saved. This tab will show it instead of generating a new one.');
+    await refresh();
+  } catch (e) {
+    setBusy(false);
+    toast(e.message, { type: 'error', timeout: 8000 });
+  }
+}
+
+async function discard() {
+  setBusy(true);
+  try {
+    await backend.workspace.discardLatex(app.currentArticleId);
+    toast('Stopped keeping it. The tab generates from the Markdown again.');
+    await refresh({ regenerate: true });
+  } catch (e) {
+    setBusy(false);
+    toast(e.message, { type: 'error', timeout: 8000 });
+  }
 }
 
 function renderNotes(result) {

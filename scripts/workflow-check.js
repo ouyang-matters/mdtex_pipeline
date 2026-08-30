@@ -335,6 +335,63 @@ async function main() {
     check(latexTab.adoptEnabled && (latexTab.errors || []).length === 0,
       'Adoption is offered because nothing is unresolved');
 
+    // Keeping the generated document: the point is that reopening the tab shows
+    // what was saved rather than deriving it again, so the check edits the
+    // Markdown in between and asserts the saved text did *not* follow it.
+    const kept = await page.eval(`(async () => {
+      const shown = document.getElementById('latex-source').value;
+      document.getElementById('btn-save-latex').click();
+
+      const wait = async (test) => {
+        for (let i = 0; i < 200; i++) {
+          if (test()) return true;
+          await new Promise(r => setTimeout(r, 50));
+        }
+        return false;
+      };
+      const savedShown = await wait(() => document.querySelector('.latex-saved-badge'));
+
+      // Back to Markdown, change it, then return to the LaTeX tab.
+      document.getElementById('tab-source').click();
+      const editor = document.getElementById('editor');
+      editor.value = editor.value + '\\n\\nA paragraph added after saving.\\n';
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(() => window.__mdtex.state.dirty === false);
+
+      document.getElementById('tab-latex').click();
+      await wait(() => document.getElementById('latex-source').value.length > 0);
+      await new Promise(r => setTimeout(r, 400));
+
+      const afterEdit = document.getElementById('latex-source').value;
+      const stale = Boolean(document.querySelector('.latex-stale-badge'));
+
+      // Regenerate, which must pick the new paragraph up.
+      document.getElementById('btn-regen-latex').click();
+      await wait(() => document.getElementById('latex-source').value.includes('added after saving'));
+      const regenerated = document.getElementById('latex-source').value;
+
+      return {
+        savedShown,
+        identical: afterEdit === shown,
+        stale,
+        regeneratedHasEdit: regenerated.includes('added after saving'),
+        savedHadEdit: afterEdit.includes('added after saving'),
+      };
+    })()`, { timeout: 60000 });
+
+    check(kept.savedShown, 'Saving the generated LaTeX is one click, and says so afterwards');
+    check(kept.identical && !kept.savedHadEdit,
+      'Reopening shows the saved text, not a fresh generation',
+      'byte-identical to what was saved');
+    check(kept.stale, 'It says so when the Markdown has moved on since',
+      'marked out of date rather than silently wrong');
+    check(kept.regeneratedHasEdit, 'Regenerating picks the new Markdown up');
+
+    // Adoption works against the regenerated document, which is no longer the
+    // text captured at step 19 — the save check edited the Markdown in between.
+    // Compare against what is actually on screen at this moment.
+    const beforeAdopt = await page.eval("document.getElementById('latex-source').value");
+
     const adopted = await page.eval(`(async () => {
       document.getElementById('btn-adopt-latex').click();
       await new Promise(r => setTimeout(r, 200));
@@ -371,7 +428,7 @@ async function main() {
 
     check(
       existsSync(join(articleDir, 'main.tex'))
-      && readFileSync(join(articleDir, 'main.tex'), 'utf-8') === latexTab.tex
+      && readFileSync(join(articleDir, 'main.tex'), 'utf-8') === beforeAdopt
       && !existsSync(join(articleDir, 'source.md')),
       'What was adopted is exactly what was shown, and the Markdown is gone from the root',
       'main.tex written, source.md removed',
@@ -390,7 +447,7 @@ async function main() {
       adoptCheckpoint ? `"${adoptCheckpoint.label}"` : 'no checkpoint taken',
     );
 
-    check(adopted.editorText === latexTab.tex,
+    check(adopted.editorText === beforeAdopt,
       'The editor now edits the LaTeX, not the Markdown that is no longer there');
 
     // 12 — open a LaTeX project and compile it

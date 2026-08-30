@@ -47,7 +47,7 @@ const KNOWN_META_FIELDS = new Set([
   'id', 'title', 'subtitle', 'author', 'summary', 'language', 'tags', 'series',
   'seriesIndex', 'sourceFormat', 'sourceFile', 'targets', 'theme', 'pdfTemplate',
   'pdfEngine', 'cjkFont', 'status', 'slug', 'createdAt', 'updatedAt',
-  'publishState', 'deletedAt', 'originalFolder',
+  'publishState', 'deletedAt', 'originalFolder', 'latexSnapshot',
 ]);
 
 export const ARTICLE_STATUSES = ['draft', 'review', 'published', 'archived'];
@@ -75,6 +75,10 @@ export class Article {
     this.pdfEngine = meta.pdfEngine || 'xelatex';
     // Empty means "let MDTeX pick one that is installed"; see core/latex/cjk.js.
     this.cjkFont = meta.cjkFont || '';
+    // { savedAt, sourceHash } once the user keeps a generated LaTeX document.
+    // Not editable from the properties dialog: it records an action, not a
+    // preference.
+    this.latexSnapshot = meta.latexSnapshot || null;
     this.status = ARTICLE_STATUSES.includes(meta.status) ? meta.status : 'draft';
     this.slug = meta.slug || '';
 
@@ -369,6 +373,7 @@ export class Article {
       pdfTemplate: this.pdfTemplate,
       pdfEngine: this.pdfEngine,
       cjkFont: this.cjkFont,
+      latexSnapshot: this.latexSnapshot,
       status: this.status,
       slug: this.slug,
       createdAt: this.createdAt,

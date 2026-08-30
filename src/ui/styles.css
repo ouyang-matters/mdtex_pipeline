@@ -302,6 +302,18 @@ button { font-family: inherit; font-size: inherit; }
   font-size: 11px; color: var(--text-faint);
 }
 .latex-view-origin { flex: 1; }
+.latex-view-footer .hidden { display: none; }
+
+/* The saved state is a property of the document, so it is stated on the bar
+   rather than only in a toast that has already gone. */
+.latex-saved-badge {
+  background: rgba(76, 183, 130, 0.16); color: var(--ok);
+  padding: 1px 7px; border-radius: 3px; font-size: 10px; font-weight: 600;
+}
+.latex-stale-badge {
+  background: rgba(224, 164, 88, 0.16); color: var(--warn);
+  padding: 1px 7px; border-radius: 3px; font-size: 10px; font-weight: 600;
+}
 
 .editor-pane.dragover::after {
   content: "Drop to insert";

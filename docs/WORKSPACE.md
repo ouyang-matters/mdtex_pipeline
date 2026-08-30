@@ -109,6 +109,22 @@ diverge from the first with no way to reconcile them. Anything the conversion
 cannot carry — an unusable image format, a heading deeper than LaTeX has a
 command for — is listed above the document rather than discovered at build time.
 
+### Keeping a generated document
+
+**Save this LaTeX** keeps the document exactly as shown. From then on the tab
+opens that text rather than deriving a new one — the point of saving it is that
+it stops changing under you. It is written to `latex/main.tex`: its own
+directory, so it can never be mistaken for the article's source, and outside
+`dist/`, because that is build output and this is something you chose to keep.
+
+`article.json` records when it was saved and a hash of the Markdown it came
+from. When the Markdown changes, the tab still shows the saved text — that is
+what saving means — but marks it **out of date** and offers **Regenerate**.
+Staleness is decided by content, not by timestamps, so a file touched without
+being changed is not stale, and an edit reverted back is not either.
+
+**Stop keeping** discards it and returns to generating every time.
+
 **Use as source** is the one-way door. It writes the document to `main.tex`,
 makes LaTeX the article's source format, and removes `source.md` — after
 snapshotting the Markdown, the metadata and the theme into a checkpoint. There

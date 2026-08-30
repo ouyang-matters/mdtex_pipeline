@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
+import { createHash } from 'crypto';
 import { ensureDir } from '../core/paths.js';
 import { buildLatexDocument, articleRootImageStrategy } from '../core/latex/document.js';
 import { createCheckpoint } from './checkpoints.js';
@@ -25,8 +26,86 @@ import { createCheckpoint } from './checkpoints.js';
 export const DERIVED_DIR = join('dist', 'latex');
 export const DERIVED_FILE = 'main.tex';
 
+/**
+ * Where a *saved* document is kept.
+ *
+ * Its own directory rather than the article root, so it can never be mistaken
+ * for the article's source; and outside `dist/`, because that is build output
+ * and this is something the user chose to keep.
+ */
+export const SAVED_DIR = 'latex';
+export const SAVED_FILE = 'main.tex';
+
 function derivedPath(article) {
   return article.dir ? join(article.dir, DERIVED_DIR, DERIVED_FILE) : null;
+}
+
+function savedPath(article) {
+  return article.dir ? join(article.dir, SAVED_DIR, SAVED_FILE) : null;
+}
+
+/** What the saved document was generated from, so staleness is exact. */
+function sourceFingerprint(article) {
+  return createHash('sha256').update(article.readSource(), 'utf8').digest('hex').slice(0, 16);
+}
+
+/**
+ * The saved document, if there is one, with whether it still matches the
+ * Markdown it came from.
+ *
+ * Staleness is decided by hashing the source rather than comparing timestamps:
+ * a file touched but not changed is not stale, and a change reverted back is
+ * not stale either. Only the content decides.
+ */
+export function readLatexSnapshot(article) {
+  const file = savedPath(article);
+  const record = article.latexSnapshot;
+  if (!file || !record?.savedAt || !existsSync(file)) return null;
+
+  let tex;
+  try {
+    tex = readFileSync(file, 'utf-8');
+  } catch {
+    return null;
+  }
+
+  return {
+    tex,
+    savedAt: record.savedAt,
+    path: join(SAVED_DIR, SAVED_FILE),
+    stale: record.sourceHash !== sourceFingerprint(article),
+  };
+}
+
+/**
+ * Keep this LaTeX. From now on the editor shows it instead of generating a new
+ * one, until the user asks for a fresh generation.
+ *
+ * The text to save is passed in rather than regenerated, so what is kept is
+ * exactly what was on screen when the button was pressed.
+ */
+export function saveLatexSnapshot(article, tex) {
+  if (!article.dir) throw new Error('The article has no directory on disk yet.');
+  if (typeof tex !== 'string' || !tex.trim()) throw new Error('There is no LaTeX to save.');
+
+  const file = savedPath(article);
+  ensureDir(join(article.dir, SAVED_DIR));
+  writeFileSync(file, tex, 'utf-8');
+
+  article.latexSnapshot = { savedAt: new Date().toISOString(), sourceHash: sourceFingerprint(article) };
+  article.saveMeta();
+
+  return { savedAt: article.latexSnapshot.savedAt, path: join(SAVED_DIR, SAVED_FILE), bytes: tex.length };
+}
+
+/** Forget the saved document; the editor generates again from here on. */
+export function discardLatexSnapshot(article) {
+  const file = savedPath(article);
+  if (file && existsSync(file)) rmSync(file, { force: true });
+  const had = Boolean(article.latexSnapshot?.savedAt);
+  article.latexSnapshot = null;
+  article.saveMeta();
+  return { discarded: had };
 }
 
 /**
@@ -43,10 +122,13 @@ function derivedPath(article) {
  *
  * @returns {{ derived, tex, sourceFile, warnings, errors, embedded, stats, template }}
  */
-export function latexSourceOf(article, { cjk = null, persist = false } = {}) {
+export function latexSourceOf(article, { cjk = null, persist = false, regenerate = false } = {}) {
   if (article.sourceFormat === 'latex') {
     return {
       derived: false,
+      saved: false,
+      stale: false,
+      savedAt: null,
       tex: article.readSource(),
       sourceFile: article.sourceFile,
       warnings: [],
@@ -55,6 +137,35 @@ export function latexSourceOf(article, { cjk = null, persist = false } = {}) {
       stats: null,
       template: null,
     };
+  }
+
+  // A saved document is shown as it was saved, byte for byte, until the user
+  // asks for a new one. Regenerating behind their back would defeat the point
+  // of saving it — and would quietly discard a document they chose to keep.
+  if (!regenerate) {
+    const snapshot = readLatexSnapshot(article);
+    if (snapshot) {
+      return {
+        derived: true,
+        saved: true,
+        stale: snapshot.stale,
+        savedAt: snapshot.savedAt,
+        savedPath: snapshot.path,
+        tex: snapshot.tex,
+        sourceFile: SAVED_FILE,
+        derivedPath: null,
+        // The saved text is not re-derived, so there is nothing new to report
+        // about it. Staleness is the one thing the caller has to know.
+        warnings: snapshot.stale
+          ? ['This LaTeX was saved from an earlier version of the Markdown. '
+            + 'Regenerate to match what the article says now.']
+          : [],
+        errors: [],
+        embedded: [],
+        stats: null,
+        template: null,
+      };
+    }
   }
 
   const images = articleRootImageStrategy({ articleRoot: article.dir, articleId: article.id });
@@ -81,6 +192,9 @@ export function latexSourceOf(article, { cjk = null, persist = false } = {}) {
 
   return {
     derived: true,
+    saved: false,
+    stale: false,
+    savedAt: null,
     tex: document.tex,
     sourceFile: DERIVED_FILE,
     derivedPath: article.dir ? join(DERIVED_DIR, DERIVED_FILE) : null,
@@ -181,9 +295,11 @@ export function adoptLatexSource(article, { cjk = null } = {}) {
   }
 
   // The derived copy under dist/ described a Markdown article that no longer
-  // exists.
+  // exists, and a saved snapshot of that Markdown's LaTeX is now just a second
+  // copy of the source.
   const derived = derivedPath(article);
   if (derived && existsSync(derived)) rmSync(derived, { force: true });
+  discardLatexSnapshot(article);
 
   return {
     adopted: true,

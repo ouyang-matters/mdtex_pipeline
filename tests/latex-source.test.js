@@ -3,7 +3,10 @@ import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Article } from '../src/workspace/article.js';
-import { latexSourceOf, adoptLatexSource, DERIVED_DIR, DERIVED_FILE } from '../src/workspace/latex-source.js';
+import {
+  latexSourceOf, adoptLatexSource, saveLatexSnapshot, discardLatexSnapshot, readLatexSnapshot,
+  DERIVED_DIR, DERIVED_FILE, SAVED_DIR, SAVED_FILE,
+} from '../src/workspace/latex-source.js';
 import { createCheckpoint, restoreCheckpoint, listCheckpoints } from '../src/workspace/checkpoints.js';
 import { materialiseMarkdownProject } from '../src/core/pdf/compiler.js';
 
@@ -253,5 +256,121 @@ describe('the build and the editor agree', () => {
 
     // The image strategies differ by design; everything else must not.
     expect(project.tex).toBe(view.tex);
+  });
+});
+
+describe('keeping a generated document', () => {
+  it('shows the saved text next time instead of generating again', () => {
+    const article = makeArticle('kept', '# Title\n\nOriginal prose.\n');
+    const generated = latexSourceOf(article).tex;
+    saveLatexSnapshot(article, generated);
+
+    const reopened = latexSourceOf(article);
+    expect(reopened.saved).toBe(true);
+    expect(reopened.stale).toBe(false);
+    expect(reopened.tex).toBe(generated);
+  });
+
+  it('keeps exactly the text it was handed, not a fresh derivation', () => {
+    const article = makeArticle('verbatim', '# Title\n\ntext\n');
+    saveLatexSnapshot(article, '% hand-checked\n\\documentclass{article}\n');
+
+    expect(latexSourceOf(article).tex).toBe('% hand-checked\n\\documentclass{article}\n');
+  });
+
+  it('survives a reload, because the record is in article.json', () => {
+    const article = makeArticle('durable', '# Title\n\ntext\n');
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+
+    const reloaded = Article.fromDir(article.dir);
+    expect(reloaded.latexSnapshot?.savedAt).toBeTruthy();
+    expect(latexSourceOf(reloaded).saved).toBe(true);
+  });
+
+  it('writes it where it cannot be mistaken for the source', () => {
+    const article = makeArticle('placement', '# Title\n\ntext\n');
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+
+    expect(existsSync(join(article.dir, SAVED_DIR, SAVED_FILE))).toBe(true);
+    // Not at the article root, where a .tex reads as the source file.
+    expect(existsSync(join(article.dir, 'main.tex'))).toBe(false);
+    expect(article.sourceFormat).toBe('markdown');
+  });
+
+  it('notices when the Markdown has moved on, by content not by clock', () => {
+    const article = makeArticle('stale', '# Title\n\nBefore.\n');
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+    expect(latexSourceOf(article).stale).toBe(false);
+
+    article.writeSource('# Title\n\nAfter.\n');
+    const shown = latexSourceOf(article);
+    expect(shown.saved).toBe(true);
+    expect(shown.stale).toBe(true);
+    // Still the saved text: that is what "saved" means.
+    expect(shown.tex).not.toContain('After');
+    expect(shown.warnings.join(' ')).toMatch(/earlier version/);
+  });
+
+  it('is not stale again once the source is changed back', () => {
+    const original = '# Title\n\nBefore.\n';
+    const article = makeArticle('reverted', original);
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+
+    article.writeSource('# Title\n\nAfter.\n');
+    expect(latexSourceOf(article).stale).toBe(true);
+
+    article.writeSource(original);
+    expect(latexSourceOf(article).stale).toBe(false);
+  });
+
+  it('regenerates on request, without discarding what was saved', () => {
+    const article = makeArticle('regen', '# Title\n\nBefore.\n');
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+    article.writeSource('# Title\n\nAfter.\n');
+
+    const fresh = latexSourceOf(article, { regenerate: true });
+    expect(fresh.saved).toBe(false);
+    expect(fresh.tex).toContain('After');
+
+    // The saved copy is still there until the user replaces or discards it.
+    expect(latexSourceOf(article).saved).toBe(true);
+    expect(latexSourceOf(article).tex).not.toContain('After');
+  });
+
+  it('goes back to generating every time once discarded', () => {
+    const article = makeArticle('discard', '# Title\n\ntext\n');
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+
+    const result = discardLatexSnapshot(article);
+    expect(result.discarded).toBe(true);
+    expect(existsSync(join(article.dir, SAVED_DIR, SAVED_FILE))).toBe(false);
+    expect(readLatexSnapshot(article)).toBeNull();
+    expect(latexSourceOf(article).saved).toBe(false);
+  });
+
+  it('refuses to save nothing', () => {
+    const article = makeArticle('empty-save', '# Title\n\ntext\n');
+    expect(() => saveLatexSnapshot(article, '')).toThrow(/no LaTeX to save/i);
+    expect(() => saveLatexSnapshot(article, '   ')).toThrow(/no LaTeX to save/i);
+  });
+
+  it('forgets the saved copy when LaTeX becomes the source', () => {
+    const article = makeArticle('adopt-clears', '# Title\n\ntext\n');
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+
+    adoptLatexSource(article);
+
+    expect(article.latexSnapshot).toBeNull();
+    expect(existsSync(join(article.dir, SAVED_DIR, SAVED_FILE))).toBe(false);
+    expect(existsSync(join(article.dir, 'main.tex'))).toBe(true);
+  });
+
+  it('ignores a record whose file has gone', () => {
+    const article = makeArticle('orphaned', '# Title\n\ntext\n');
+    saveLatexSnapshot(article, latexSourceOf(article).tex);
+    rmSync(join(article.dir, SAVED_DIR, SAVED_FILE), { force: true });
+
+    expect(readLatexSnapshot(article)).toBeNull();
+    expect(latexSourceOf(article).saved).toBe(false);
   });
 });
