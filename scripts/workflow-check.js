@@ -8,7 +8,8 @@
  *   launch → create a folder → create an article → edit its metadata →
  *   write Markdown with live preview → drag an image in → render WeChat without
  *   freezing → copy the finished rich text → compile a PDF and inspect it →
- *   read the article as LaTeX and adopt it → open a real LaTeX project
+ *   read the article as LaTeX and adopt it → convert it back to Markdown from
+ *   the tab, on request → open a real LaTeX project
  *
  *   node scripts/workflow-check.js [--headed]
  */
@@ -409,7 +410,8 @@ async function main() {
           return {
             confirmed: true,
             format: label,
-            tabsHidden: document.getElementById('source-tabs').classList.contains('hidden'),
+            tabsVisible: !document.getElementById('source-tabs').classList.contains('hidden'),
+            latexTabActive: document.getElementById('tab-latex').classList.contains('active'),
             editorText: text,
           };
         }
@@ -422,9 +424,9 @@ async function main() {
       };
     })()`, { timeout: 40000 });
 
-    check(adopted.format === 'TeX' && adopted.tabsHidden,
-      'Adopting makes LaTeX the source and retires the tabs',
-      'the article now has one source, not two');
+    check(adopted.format === 'TeX' && adopted.tabsVisible && adopted.latexTabActive,
+      'Adopting makes LaTeX the source; the LaTeX tab becomes the editable one',
+      'tabs stay visible — the Markdown tab still offers the way back');
 
     check(
       existsSync(join(articleDir, 'main.tex'))
@@ -449,6 +451,84 @@ async function main() {
 
     check(adopted.editorText === beforeAdopt,
       'The editor now edits the LaTeX, not the Markdown that is no longer there');
+
+    // The way back: the Markdown tab on a LaTeX article generates nothing
+    // until asked — a best-effort reversal earns an explicit gate that a
+    // pure, lossless-for-what-it-covers preview (the other direction) does not.
+    const markdownTab = await page.eval(`(async () => {
+      document.getElementById('tab-source').click();
+      await new Promise(r => setTimeout(r, 100));
+      return {
+        placeholderText: document.getElementById('markdown-view-origin').textContent,
+        textEmpty: document.getElementById('markdown-source').value === '',
+        previewVisible: !document.getElementById('btn-preview-markdown').classList.contains('hidden'),
+        adoptHidden: document.getElementById('btn-adopt-markdown').classList.contains('hidden'),
+      };
+    })()`);
+    check(
+      markdownTab.textEmpty && markdownTab.previewVisible && markdownTab.adoptHidden
+      && /no Markdown source yet/i.test(markdownTab.placeholderText),
+      'The Markdown tab asks first rather than converting on open',
+      markdownTab.placeholderText,
+    );
+
+    const mdPreview = await page.eval(`(async () => {
+      document.getElementById('btn-preview-markdown').click();
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline) {
+        const text = document.getElementById('markdown-source').value;
+        if (text) {
+          return {
+            text,
+            adoptVisible: !document.getElementById('btn-adopt-markdown').classList.contains('hidden'),
+          };
+        }
+        await new Promise(r => setTimeout(r, 150));
+      }
+      return { timedOut: true };
+    })()`, { timeout: 20000 });
+    check(
+      Boolean(mdPreview.text) && mdPreview.text.includes('assets/diagram.png') && mdPreview.adoptVisible,
+      'Preview conversion recovers the Markdown, on request',
+      mdPreview.text ? `${mdPreview.text.length} chars` : 'timed out',
+    );
+
+    const converted = await page.eval(`(async () => {
+      document.getElementById('btn-adopt-markdown').click();
+      await new Promise(r => setTimeout(r, 200));
+      const dialog = document.querySelector('.mdtex-dialog');
+      if (!dialog) return { confirmed: false };
+      [...dialog.querySelectorAll('button')].find(b => /Convert to Markdown/.test(b.textContent))?.click();
+
+      const deadline = Date.now() + 20000;
+      while (Date.now() < deadline) {
+        if (document.getElementById('editor-format-label').textContent === 'MD') {
+          return {
+            confirmed: true,
+            format: document.getElementById('editor-format-label').textContent,
+            markdownTabActive: document.getElementById('tab-source').classList.contains('active'),
+            editorText: document.getElementById('editor').value,
+          };
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+      return { confirmed: true, timedOut: true };
+    })()`, { timeout: 25000 });
+
+    check(converted.format === 'MD' && converted.markdownTabActive,
+      'Converting back makes Markdown the source again; its tab becomes the editable one');
+    check(
+      existsSync(join(articleDir, 'source.md')) && !existsSync(join(articleDir, 'main.tex'))
+      && converted.editorText === readFileSync(join(articleDir, 'source.md'), 'utf-8'),
+      'source.md is written, main.tex is gone, and the editor shows exactly that',
+    );
+
+    const backCheckpoint = readdirSync(checkpointDir)
+      .map(f => JSON.parse(readFileSync(join(checkpointDir, f), 'utf-8')))
+      .find(c => c.origin === 'latex-to-markdown');
+    check(Boolean(backCheckpoint) && backCheckpoint.sourceFile === 'main.tex',
+      'The LaTeX just converted away from is itself checkpointed',
+      backCheckpoint ? `"${backCheckpoint.label}"` : 'no checkpoint taken');
 
     // 12 — open a LaTeX project and compile it
     const latexDir = join(workspace, 'research', 'latex-paper');

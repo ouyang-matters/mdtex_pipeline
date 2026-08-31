@@ -11,7 +11,7 @@ import {
   initBuildPanel, prepareTarget, copyTarget, exportTarget, compilePdf, showLatexSetup, appendBuildLog,
 } from './build-panel.js';
 import { openSettings } from './settings-dialog.js';
-import { initLatexView, syncLatexTabs, isLatexView } from './latex-view.js';
+import { initLatexView, syncLatexTabs, isPreviewView, primaryTabLabel } from './latex-view.js';
 import { initPageProgress, beginTask, progressShownCount } from './progress.js';
 import 'katex/dist/katex.min.css';
 
@@ -487,10 +487,10 @@ function handleDrop(e) {
   const file = e.dataTransfer?.files?.[0];
   if (!file) return;
 
-  // The LaTeX view is generated and read-only. Inserting into the editor
+  // A preview tab is generated and read-only. Inserting into the editor
   // underneath it would change the article with nothing on screen to show it.
-  if (isLatexView() && file.type.startsWith('image/')) {
-    toast('Switch to the Markdown tab to insert an image.', { type: 'error' });
+  if (isPreviewView() && file.type.startsWith('image/')) {
+    toast(`Switch to the ${primaryTabLabel()} tab to insert an image.`, { type: 'error' });
     return;
   }
 
@@ -754,7 +754,7 @@ function wireEvents() {
 
   dom.editorPane.addEventListener('dragover', (e) => {
     if (!e.dataTransfer.types.includes('Files')) return;
-    if (isLatexView()) return;
+    if (isPreviewView()) return;
     e.preventDefault();
     dom.editorPane.classList.add('dragover');
   });

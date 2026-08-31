@@ -92,59 +92,8 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
         label: 'Source format', type: 'select', value: article.sourceFormat,
         options: schema.sourceFormats.map(f => ({ value: f.value, label: `${f.label} (${f.file})` })),
         hint: 'Switching format renames the source file. The text is kept verbatim — '
-          + 'it is not converted. Use the AI panel to convert content.',
+          + 'it is not converted. Use the Markdown/LaTeX tabs in the editor to convert between them.',
       });
-
-      // The only place this is offered: a LaTeX article has no second face
-      // (the LaTeX tab exists only for Markdown articles), and this is a
-      // one-way, best-effort reversal — it needs its own explicit action and
-      // confirmation, not a silent side effect of the format dropdown above.
-      const convertToMarkdown = article.sourceFormat === 'latex'
-        ? el('button', {
-          class: 'btn btn-xs', type: 'button',
-          onClick: async (e) => {
-            const button = e.currentTarget;
-            button.disabled = true;
-
-            let preview;
-            try {
-              preview = await backend.workspace.markdownFromLatex(article.id);
-            } catch (err) {
-              button.disabled = false;
-              toast(err.message, { type: 'error', timeout: 8000 });
-              return;
-            }
-
-            const warningText = preview.warnings.length
-              ? `\n\n${preview.warnings.join(' ')}`
-              : '';
-            const confirmed = await confirmDialog({
-              title: 'Convert LaTeX to Markdown?',
-              message: `"${article.title}" will become a Markdown article. This is a best-effort reversal — `
-                + 'LaTeX with no Markdown equivalent (\\label, \\newcommand, custom environments, TikZ, '
-                + 'bibliographies) is kept as raw LaTeX text rather than dropped.' + warningText,
-              detail: 'The LaTeX is saved to a checkpoint first: `publisher ws restore` gets it back.',
-              confirmLabel: 'Convert to Markdown',
-              danger: true,
-            });
-            if (!confirmed) { button.disabled = false; return; }
-
-            let result;
-            try {
-              result = await backend.workspace.adoptMarkdown(article.id);
-            } catch (err) {
-              button.disabled = false;
-              toast(err.message, { type: 'error', timeout: 8000 });
-              return;
-            }
-
-            saved = result.article;
-            toast(`Converted to Markdown. The LaTeX is in checkpoint "${result.checkpoint.label}".`,
-              { timeout: 5000 });
-            ctx.close(saved);
-          },
-        }, 'Convert to Markdown…')
-        : null;
       fields.targets = field({
         label: 'Publishing targets', type: 'checkbox-group',
         value: article.targets, options: schema.targets,
@@ -206,7 +155,6 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
           fields.theme.node, fields.pdfTemplate.node, fields.pdfEngine.node,
           fields.cjkFont.node,
           fields.sourceFormat.node,
-          convertToMarkdown,
         ]),
 
         updated,
