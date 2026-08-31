@@ -948,14 +948,26 @@ function wireEvents() {
     applyPreferences();
   });
   on('article:metadata-changed', async () => {
-    if (app.currentArticleId) {
-      const data = await backend.workspace.article(app.currentArticleId);
-      app.currentArticle = data.article;
-      updateHeader();
-      if (data.article.theme !== app.themeName) {
-        await loadTheme(data.article.theme);
-        updatePreview();
-      }
+    if (!app.currentArticleId) return;
+
+    const previousFormat = app.currentArticle?.sourceFormat;
+    const data = await backend.workspace.article(app.currentArticleId);
+
+    // A source-format change means the editor is showing the wrong file —
+    // possibly a different one entirely, as when converting between LaTeX and
+    // Markdown. That needs the same full reload `openArticle` already does
+    // for adopting LaTeX; a metadata-only refresh would leave stale text in
+    // the editor under a header that now claims a different format.
+    if (previousFormat !== undefined && data.article.sourceFormat !== previousFormat) {
+      await openArticle(app.currentArticleId);
+      return;
+    }
+
+    app.currentArticle = data.article;
+    updateHeader();
+    if (data.article.theme !== app.themeName) {
+      await loadTheme(data.article.theme);
+      updatePreview();
     }
   });
   on('article:none', showNoArticle);

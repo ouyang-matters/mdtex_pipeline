@@ -3,6 +3,7 @@ import { join } from 'path';
 import { createHash } from 'crypto';
 import { ensureDir } from '../core/paths.js';
 import { buildLatexDocument, articleRootImageStrategy } from '../core/latex/document.js';
+import { latexToMarkdownBody } from '../core/latex/latex-to-markdown.js';
 import { createCheckpoint } from './checkpoints.js';
 
 /**
@@ -308,5 +309,64 @@ export function adoptLatexSource(article, { cjk = null } = {}) {
     checkpoint,
     assets,
     warnings: [...document.warnings, ...images.warnings],
+  };
+}
+
+/**
+ * Preview what `convertLatexToMarkdown` would write, without writing it.
+ *
+ * Only inverts the closed grammar `markdownToLatexBody` itself produces —
+ * `\label`, `\newcommand`, custom environments, TikZ and bibliographies have
+ * no Markdown spelling. Anything outside that grammar is kept verbatim in the
+ * output and listed in `warnings`, so the confirmation dialog that gates this
+ * can show the user exactly what would not come back as Markdown, before
+ * anything on disk changes.
+ */
+export function markdownSourceOf(article) {
+  if (article.sourceFormat !== 'latex') {
+    throw new Error('This article does not use LaTeX as its source.');
+  }
+  return latexToMarkdownBody(article.readSource());
+}
+
+/**
+ * Make the Markdown recovered from this article's LaTeX its source. One-way,
+ * same as `adoptLatexSource` in reverse: the LaTeX is checkpointed first, so
+ * this is itself reversible via `publisher ws restore`.
+ *
+ * @returns {{ converted: true, markdown, sourceFile, checkpoint, warnings }}
+ */
+export function convertLatexToMarkdown(article) {
+  if (article.sourceFormat !== 'latex') {
+    throw new Error('This article does not use LaTeX as its source.');
+  }
+  if (!article.dir) {
+    throw new Error('The article has no directory on disk yet.');
+  }
+
+  const { markdown, warnings } = latexToMarkdownBody(article.readSource());
+
+  const checkpoint = createCheckpoint(article, {
+    label: 'Before converting LaTeX to Markdown',
+    origin: 'latex-to-markdown',
+  });
+
+  const previousSource = article.sourcePath;
+  article.setSourceContainer('markdown');
+  article.writeSource(markdown);
+
+  // The LaTeX is in the checkpoint. Leaving a copy at the article root would
+  // recreate the two-files-one-of-them-not-read ambiguity adoption exists to
+  // avoid, just in the other direction.
+  if (previousSource && previousSource !== article.sourcePath && existsSync(previousSource)) {
+    rmSync(previousSource, { force: true });
+  }
+
+  return {
+    converted: true,
+    markdown,
+    sourceFile: article.sourceFile,
+    checkpoint,
+    warnings,
   };
 }

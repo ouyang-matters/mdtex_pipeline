@@ -191,6 +191,11 @@ export const backend = {
     discardLatex: (id) => del(`/workspace/article/${encodeURIComponent(id)}/latex/save`),
     adoptLatex: (id) => post(`/workspace/article/${encodeURIComponent(id)}/latex/adopt`),
 
+    // The Markdown recovered from a LaTeX article's source. Only meaningful
+    // when sourceFormat is 'latex'; the preview writes nothing.
+    markdownFromLatex: (id) => get(`/workspace/article/${encodeURIComponent(id)}/markdown`),
+    adoptMarkdown: (id) => post(`/workspace/article/${encodeURIComponent(id)}/markdown/adopt`),
+
     checkpoints: (id) => get(`/workspace/article/${encodeURIComponent(id)}/checkpoints`),
     createCheckpoint: (id, data) => post(`/workspace/article/${encodeURIComponent(id)}/checkpoints`, data),
     restoreCheckpoint: (id, cid) =>

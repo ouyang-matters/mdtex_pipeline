@@ -6,6 +6,7 @@ import { ARTICLE_STATUSES, safeAssetName } from '../../workspace/article.js';
 import { listCheckpoints, createCheckpoint, restoreCheckpoint, deleteCheckpoint } from '../../workspace/checkpoints.js';
 import {
   latexSourceOf, adoptLatexSource, saveLatexSnapshot, discardLatexSnapshot,
+  markdownSourceOf, convertLatexToMarkdown,
 } from '../../workspace/latex-source.js';
 import { detectLatexEnvironment } from '../../core/latex/environment.js';
 import { resolveCjkPlan, detectCjkFonts } from '../../core/latex/cjk.js';
@@ -248,6 +249,35 @@ export function workspaceRoutes(ctx) {
       let result;
       try {
         result = adoptLatexSource(article, { cjk: await cjkPlanFor(article) });
+      } catch (e) {
+        throw conflict(e.message);
+      }
+      sendJson(res, 200, { ...result, article: view(article, folder, path) });
+    },
+
+    // ── The Markdown recovered from a LaTeX article ──────────────────────────
+    //
+    // Only exists for a LaTeX-sourced article, and only inverts the grammar
+    // `latex/adopt` itself produces — see latex-to-markdown.js. The preview is
+    // read-only so a confirmation dialog can show what would happen before
+    // anything is written.
+
+    'GET /api/workspace/article/:id/markdown': async (req, res, { params }) => {
+      const { article } = findArticle(params.id);
+      let preview;
+      try {
+        preview = markdownSourceOf(article);
+      } catch (e) {
+        throw badRequest(e.message);
+      }
+      sendJson(res, 200, preview);
+    },
+
+    'POST /api/workspace/article/:id/markdown/adopt': async (req, res, { params }) => {
+      const { article, folder, path } = findArticle(params.id);
+      let result;
+      try {
+        result = convertLatexToMarkdown(article);
       } catch (e) {
         throw conflict(e.message);
       }

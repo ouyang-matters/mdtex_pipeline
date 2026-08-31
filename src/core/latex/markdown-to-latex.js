@@ -360,7 +360,7 @@ function renderCodeBlock(token, ctx) {
  * Language names the `listings` package understands. Anything not listed is
  * typeset without keyword highlighting rather than failing the build.
  */
-const LISTINGS_LANGUAGES = {
+export const LISTINGS_LANGUAGES = {
   // Shipped with the listings package.
   python: 'Python', py: 'Python',
   java: 'Java',

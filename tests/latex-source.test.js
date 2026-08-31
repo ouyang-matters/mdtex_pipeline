@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { Article } from '../src/workspace/article.js';
 import {
   latexSourceOf, adoptLatexSource, saveLatexSnapshot, discardLatexSnapshot, readLatexSnapshot,
+  markdownSourceOf, convertLatexToMarkdown,
   DERIVED_DIR, DERIVED_FILE, SAVED_DIR, SAVED_FILE,
 } from '../src/workspace/latex-source.js';
 import { createCheckpoint, restoreCheckpoint, listCheckpoints } from '../src/workspace/checkpoints.js';
@@ -235,6 +236,80 @@ describe('adoption is reversible', () => {
     expect(article.sourceFormat).toBe('markdown');
     expect(article.readSource()).toBe('# One\n');
     expect(existsSync(join(article.dir, 'source.md'))).toBe(true);
+  });
+});
+
+describe('markdownSourceOf', () => {
+  it('previews without writing anything', () => {
+    const article = makeArticle('preview', '# Title\n\ntext\n');
+    adoptLatexSource(article);
+
+    const preview = markdownSourceOf(article);
+    expect(preview.markdown).toContain('# Test');
+    expect(existsSync(join(article.dir, 'source.md'))).toBe(false);
+    expect(article.sourceFormat).toBe('latex');
+  });
+
+  it('refuses on a Markdown article', () => {
+    const article = makeArticle('not-latex', '# T\n\ntext\n');
+    expect(() => markdownSourceOf(article)).toThrow(/does not use LaTeX/i);
+  });
+});
+
+describe('convertLatexToMarkdown', () => {
+  it('recovers what adopting produced, byte for byte', () => {
+    // The article's metadata title ("Test", from makeArticle) is what ends up
+    // in \title{} — not necessarily the Markdown's own H1 — so for a genuine
+    // byte-identical round trip the two have to agree, exactly as they would
+    // for an article whose heading was never edited out of sync with its title.
+    const markdown = '# Test\n\nSome **text** with $x^2$.\n';
+    const article = makeArticle('convert', markdown);
+    adoptLatexSource(article);
+
+    const result = convertLatexToMarkdown(article);
+
+    expect(result.markdown).toBe(markdown.trim());
+    expect(article.sourceFormat).toBe('markdown');
+    expect(article.sourceFile).toBe('source.md');
+    expect(readFileSync(join(article.dir, 'source.md'), 'utf-8')).toBe(result.markdown);
+  });
+
+  it('leaves exactly one source file behind', () => {
+    const article = makeArticle('one-source-back', '# Title\n\ntext\n');
+    adoptLatexSource(article);
+
+    convertLatexToMarkdown(article);
+
+    expect(existsSync(join(article.dir, 'source.md'))).toBe(true);
+    expect(existsSync(join(article.dir, 'main.tex'))).toBe(false);
+  });
+
+  it('refuses on a Markdown article', () => {
+    const article = makeArticle('already-md', '# T\n\ntext\n');
+    expect(() => convertLatexToMarkdown(article)).toThrow(/does not use LaTeX/i);
+  });
+
+  it('is reversible: the LaTeX comes back from the checkpoint', () => {
+    const article = makeArticle('convert-reversible', '# Title\n\ntext\n');
+    const { tex } = adoptLatexSource(article);
+
+    const { checkpoint } = convertLatexToMarkdown(article);
+    expect(article.sourceFormat).toBe('markdown');
+
+    const restored = restoreCheckpoint(article, checkpoint.id);
+    expect(restored.sourceFormat).toBe('latex');
+    expect(article.readSource()).toBe(tex);
+    expect(existsSync(join(article.dir, 'main.tex'))).toBe(true);
+    expect(existsSync(join(article.dir, 'source.md'))).toBe(false);
+  });
+
+  it('reports LaTeX with no Markdown spelling instead of dropping it', () => {
+    const article = makeArticle('lossy', '\\documentclass{article}\n\\begin{document}\n'
+      + 'See \\ref{fig:one}.\n\\end{document}\n', { sourceFormat: 'latex', sourceFile: 'main.tex' });
+
+    const result = convertLatexToMarkdown(article);
+    expect(result.markdown).toContain('\\ref{fig:one}');
+    expect(result.warnings.some(w => w.includes('\\ref'))).toBe(true);
   });
 });
 
