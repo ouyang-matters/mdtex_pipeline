@@ -421,6 +421,13 @@ export function field(spec) {
 
 let openMenu = null;
 
+// Cleanup for whatever `contextMenu` last set up — the pending timeout if the
+// dismiss listeners have not been attached yet, or the listeners themselves
+// if they have. `closeContextMenu` always runs this before doing anything
+// else, so no listener from one menu can ever outlive it and catch the event
+// that opens the next one.
+let cleanupDismissal = null;
+
 /**
  * Show a context menu at a point.
  * `items` are { label, onClick, danger, disabled, icon } or { separator: true }.
@@ -460,16 +467,31 @@ export function contextMenu(event, items) {
 
   openMenu = menu;
 
+  // A click that lands inside the menu (on padding, a disabled item, a
+  // separator) must not disarm dismissal — only a click that decides to
+  // close removes these listeners, via `closeContextMenu`.
   const dismiss = (e) => {
     if (e && menu.contains(e.target)) return;
     closeContextMenu();
   };
-  setTimeout(() => {
-    document.addEventListener('mousedown', dismiss, { once: true });
-    document.addEventListener('contextmenu', dismiss, { once: true });
-    window.addEventListener('blur', closeContextMenu, { once: true });
+
+  // Deferred so the click/right-click that opened this menu — still bubbling
+  // toward `document` in this same dispatch — cannot immediately trigger its
+  // own dismissal.
+  const timerId = setTimeout(() => {
+    document.addEventListener('mousedown', dismiss);
+    document.addEventListener('contextmenu', dismiss);
+    window.addEventListener('blur', closeContextMenu);
     document.addEventListener('keydown', onMenuKey);
   }, 0);
+
+  cleanupDismissal = () => {
+    clearTimeout(timerId);
+    document.removeEventListener('mousedown', dismiss);
+    document.removeEventListener('contextmenu', dismiss);
+    window.removeEventListener('blur', closeContextMenu);
+    document.removeEventListener('keydown', onMenuKey);
+  };
 
   menu.querySelector('.context-item:not([disabled])')?.focus();
 }
@@ -485,7 +507,8 @@ function onMenuKey(e) {
 }
 
 export function closeContextMenu() {
-  document.removeEventListener('keydown', onMenuKey);
+  cleanupDismissal?.();
+  cleanupDismissal = null;
   openMenu?.remove();
   openMenu = null;
 }
