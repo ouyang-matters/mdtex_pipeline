@@ -35,6 +35,15 @@ export function diffLines(oldText, newText) {
     return a.map((line, i) => ({ type: 'equal', line, oldIndex: i, newIndex: i }));
   }
 
+  return diffSequences(a, b);
+}
+
+/**
+ * Diff two sequences of strings — source lines, or rendered preview blocks —
+ * into operations of the same shape as diffLines. One algorithm, so the source
+ * view and the preview can never disagree about what changed.
+ */
+export function diffSequences(a, b) {
   const { table, cols } = lcsMatrix(a, b);
   const ops = [];
   let i = 0;

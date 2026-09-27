@@ -3,6 +3,7 @@ import footnotePlugin from 'markdown-it-footnote';
 import texmathPlugin from 'markdown-it-texmath';
 import katex from 'katex';
 import hljs from 'highlight.js';
+import { t } from './i18n.js';
 
 function escapeHtml(str) {
   return str
@@ -99,6 +100,19 @@ export function resolveCssVariables(css) {
     iterations++;
   }
   return resolved;
+}
+
+/**
+ * Keep a theme's stylesheet inside the article it styles.
+ *
+ * The preview shares its document with the application, so a theme's `:root`
+ * block would define custom properties for the whole interface — a theme that
+ * declares `--text` recolours MDTeX's own buttons. Once variables are resolved
+ * (resolveCssVariables) those declarations have done their job, so they are
+ * dropped rather than scoped.
+ */
+export function scopeThemeCss(resolvedCss) {
+  return String(resolvedCss).replace(/(^|[^\w-]):root\s*\{[^{}]*\}/g, '$1');
 }
 
 /**
@@ -240,14 +254,14 @@ export function validate(html, source, platform) {
   const katexErrors = (html.match(/katex-error/g) || []).length;
   const mathErrors = (html.match(/math-error/g) || []).length;
   if (katexErrors + mathErrors > 0) {
-    errors.push(`${katexErrors + mathErrors} math expression(s) failed to render`);
+    errors.push(t('app.validate.mathFailed', { n: katexErrors + mathErrors }));
   }
 
-  if (/<script[\s>]/i.test(html)) errors.push('Script tags detected');
-  if (/<iframe[\s>]/i.test(html)) errors.push('Iframe tags detected');
+  if (/<script[\s>]/i.test(html)) errors.push(t('app.validate.scriptTags'));
+  if (/<iframe[\s>]/i.test(html)) errors.push(t('app.validate.iframeTags'));
 
   if (/var\(--[\w-]+\)/.test(html)) {
-    warnings.push('Unresolved CSS variable(s) in output');
+    warnings.push(t('app.validate.unresolvedCss'));
   }
 
   return { valid: errors.length === 0, errors, warnings, stats };

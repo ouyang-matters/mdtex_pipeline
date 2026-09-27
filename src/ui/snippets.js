@@ -3,76 +3,101 @@
  *
  * Each snippet defines:
  *   lang: 'markdown' | 'latex' | 'both'
- *   label: display name
- *   category: grouping (e.g. 'Structure', 'Math', 'Text')
+ *   id: names the display label, `snippets.<id>` in the interface strings
+ *   category: grouping id (e.g. 'structure', 'math', 'text')
  *   template: insertion text with $CURSOR$ marking cursor position
  *             and $SELECTION$ marking where selected text goes
  *   shortcut: optional keyboard shortcut (e.g. 'Ctrl+B')
+ *
+ * Only the label and the category name are interface text, and so translated.
+ * The template is what lands in the user's document, and is never translated.
  */
+
+import { t } from './i18n.js';
 
 const STORAGE_KEY_SNIPPETS = 'publisher_user_snippets';
 
-export const BUILTIN_SNIPPETS = [
+const BUILTIN_DEFINITIONS = [
   // ── Markdown: Structure ──────────────────────────────────────────────────
-  { lang: 'markdown', category: 'Structure', label: 'Heading 1',     template: '# $CURSOR$',              shortcut: '' },
-  { lang: 'markdown', category: 'Structure', label: 'Heading 2',     template: '## $CURSOR$',             shortcut: '' },
-  { lang: 'markdown', category: 'Structure', label: 'Heading 3',     template: '### $CURSOR$',            shortcut: '' },
-  { lang: 'markdown', category: 'Structure', label: 'Horizontal Rule', template: '\n---\n$CURSOR$',       shortcut: '' },
-  { lang: 'markdown', category: 'Structure', label: 'Blockquote',    template: '> $SELECTION$$CURSOR$',   shortcut: '' },
-  { lang: 'markdown', category: 'Structure', label: 'Footnote',      template: '[^$CURSOR$]: ',           shortcut: '' },
+  { lang: 'markdown', category: 'structure', id: 'heading1',     template: '# $CURSOR$',              shortcut: '' },
+  { lang: 'markdown', category: 'structure', id: 'heading2',     template: '## $CURSOR$',             shortcut: '' },
+  { lang: 'markdown', category: 'structure', id: 'heading3',     template: '### $CURSOR$',            shortcut: '' },
+  { lang: 'markdown', category: 'structure', id: 'horizontalRule', template: '\n---\n$CURSOR$',       shortcut: '' },
+  { lang: 'markdown', category: 'structure', id: 'blockquote',    template: '> $SELECTION$$CURSOR$',   shortcut: '' },
+  { lang: 'markdown', category: 'structure', id: 'footnote',      template: '[^$CURSOR$]: ',           shortcut: '' },
 
   // ── Markdown: Text ───────────────────────────────────────────────────────
-  { lang: 'markdown', category: 'Text',      label: 'Bold',          template: '**$SELECTION$$CURSOR$**', shortcut: 'Ctrl+B' },
-  { lang: 'markdown', category: 'Text',      label: 'Italic',        template: '*$SELECTION$$CURSOR$*',   shortcut: 'Ctrl+I' },
-  { lang: 'markdown', category: 'Text',      label: 'Inline Code',   template: '`$SELECTION$$CURSOR$`',  shortcut: 'Ctrl+`' },
-  { lang: 'markdown', category: 'Text',      label: 'Link',          template: '[$SELECTION$]($CURSOR$)', shortcut: 'Ctrl+K' },
-  { lang: 'markdown', category: 'Text',      label: 'Image',         template: '![$CURSOR$](url)',        shortcut: '' },
+  { lang: 'markdown', category: 'text',      id: 'bold',          template: '**$SELECTION$$CURSOR$**', shortcut: 'Ctrl+B' },
+  { lang: 'markdown', category: 'text',      id: 'italic',        template: '*$SELECTION$$CURSOR$*',   shortcut: 'Ctrl+I' },
+  { lang: 'markdown', category: 'text',      id: 'inlineCode',   template: '`$SELECTION$$CURSOR$`',  shortcut: 'Ctrl+`' },
+  { lang: 'markdown', category: 'text',      id: 'link',          template: '[$SELECTION$]($CURSOR$)', shortcut: 'Ctrl+K' },
+  { lang: 'markdown', category: 'text',      id: 'image',         template: '![$CURSOR$](url)',        shortcut: '' },
 
   // ── Markdown: Code & Lists ───────────────────────────────────────────────
-  { lang: 'markdown', category: 'Blocks',    label: 'Code Block',    template: '```$CURSOR$\n\n```',      shortcut: '' },
-  { lang: 'markdown', category: 'Blocks',    label: 'Unordered List', template: '- $CURSOR$',             shortcut: '' },
-  { lang: 'markdown', category: 'Blocks',    label: 'Ordered List',  template: '1. $CURSOR$',             shortcut: '' },
-  { lang: 'markdown', category: 'Blocks',    label: 'Table',         template: '| Column 1 | Column 2 |\n|----------|----------|\n| $CURSOR$ |          |', shortcut: '' },
+  { lang: 'markdown', category: 'blocks',    id: 'codeBlock',    template: '```$CURSOR$\n\n```',      shortcut: '' },
+  { lang: 'markdown', category: 'blocks',    id: 'unorderedList', template: '- $CURSOR$',             shortcut: '' },
+  { lang: 'markdown', category: 'blocks',    id: 'orderedList',  template: '1. $CURSOR$',             shortcut: '' },
+  { lang: 'markdown', category: 'blocks',    id: 'table',         template: '| Column 1 | Column 2 |\n|----------|----------|\n| $CURSOR$ |          |', shortcut: '' },
 
   // ── Markdown: Math ───────────────────────────────────────────────────────
-  { lang: 'markdown', category: 'Math',      label: 'Inline Math',   template: '$$$SELECTION$$CURSOR$$$', shortcut: 'Ctrl+M' },
-  { lang: 'markdown', category: 'Math',      label: 'Display Math',  template: '\n$$\n$SELECTION$$CURSOR$\n$$\n', shortcut: 'Ctrl+Shift+M' },
+  { lang: 'markdown', category: 'math',      id: 'inlineMath',   template: '$$$SELECTION$$CURSOR$$$', shortcut: 'Ctrl+M' },
+  { lang: 'markdown', category: 'math',      id: 'displayMath',  template: '\n$$\n$SELECTION$$CURSOR$\n$$\n', shortcut: 'Ctrl+Shift+M' },
 
   // ── LaTeX: Structure ─────────────────────────────────────────────────────
-  { lang: 'latex', category: 'Structure', label: 'Section',          template: '\\section{$CURSOR$}',     shortcut: '' },
-  { lang: 'latex', category: 'Structure', label: 'Subsection',       template: '\\subsection{$CURSOR$}',  shortcut: '' },
-  { lang: 'latex', category: 'Structure', label: 'Subsubsection',    template: '\\subsubsection{$CURSOR$}', shortcut: '' },
-  { lang: 'latex', category: 'Structure', label: 'Label',            template: '\\label{$CURSOR$}',       shortcut: '' },
-  { lang: 'latex', category: 'Structure', label: 'Reference',        template: '\\ref{$CURSOR$}',         shortcut: '' },
-  { lang: 'latex', category: 'Structure', label: 'Citation',         template: '\\cite{$CURSOR$}',        shortcut: '' },
+  { lang: 'latex', category: 'structure', id: 'section',          template: '\\section{$CURSOR$}',     shortcut: '' },
+  { lang: 'latex', category: 'structure', id: 'subsection',       template: '\\subsection{$CURSOR$}',  shortcut: '' },
+  { lang: 'latex', category: 'structure', id: 'subsubsection',    template: '\\subsubsection{$CURSOR$}', shortcut: '' },
+  { lang: 'latex', category: 'structure', id: 'label',            template: '\\label{$CURSOR$}',       shortcut: '' },
+  { lang: 'latex', category: 'structure', id: 'reference',        template: '\\ref{$CURSOR$}',         shortcut: '' },
+  { lang: 'latex', category: 'structure', id: 'citation',         template: '\\cite{$CURSOR$}',        shortcut: '' },
 
   // ── LaTeX: Text ──────────────────────────────────────────────────────────
-  { lang: 'latex', category: 'Text',      label: 'Bold',             template: '\\textbf{$SELECTION$$CURSOR$}', shortcut: 'Ctrl+B' },
-  { lang: 'latex', category: 'Text',      label: 'Italic',           template: '\\textit{$SELECTION$$CURSOR$}', shortcut: 'Ctrl+I' },
-  { lang: 'latex', category: 'Text',      label: 'Emphasis',         template: '\\emph{$SELECTION$$CURSOR$}',   shortcut: '' },
-  { lang: 'latex', category: 'Text',      label: 'Typewriter',       template: '\\texttt{$SELECTION$$CURSOR$}', shortcut: '' },
+  { lang: 'latex', category: 'text',      id: 'bold',             template: '\\textbf{$SELECTION$$CURSOR$}', shortcut: 'Ctrl+B' },
+  { lang: 'latex', category: 'text',      id: 'italic',           template: '\\textit{$SELECTION$$CURSOR$}', shortcut: 'Ctrl+I' },
+  { lang: 'latex', category: 'text',      id: 'emphasis',         template: '\\emph{$SELECTION$$CURSOR$}',   shortcut: '' },
+  { lang: 'latex', category: 'text',      id: 'typewriter',       template: '\\texttt{$SELECTION$$CURSOR$}', shortcut: '' },
 
   // ── LaTeX: Math ──────────────────────────────────────────────────────────
-  { lang: 'latex', category: 'Math',      label: 'Inline Math',      template: '$$$SELECTION$$CURSOR$$$', shortcut: 'Ctrl+M' },
-  { lang: 'latex', category: 'Math',      label: 'Display Equation', template: '\\[\n$SELECTION$$CURSOR$\n\\]', shortcut: 'Ctrl+Shift+M' },
-  { lang: 'latex', category: 'Math',      label: 'Aligned',          template: '\\begin{aligned}\n  $CURSOR$ &= \\\\\\\\\n\\end{aligned}', shortcut: '' },
-  { lang: 'latex', category: 'Math',      label: 'Fraction',         template: '\\frac{$CURSOR$}{}',     shortcut: '' },
-  { lang: 'latex', category: 'Math',      label: 'Sum',              template: '\\sum_{$CURSOR$}^{}',    shortcut: '' },
-  { lang: 'latex', category: 'Math',      label: 'Integral',         template: '\\int_{$CURSOR$}^{}',    shortcut: '' },
-  { lang: 'latex', category: 'Math',      label: 'Matrix',           template: '\\begin{pmatrix}\n  $CURSOR$ & \\\\\\\\\n  & \n\\end{pmatrix}', shortcut: '' },
+  { lang: 'latex', category: 'math',      id: 'inlineMath',      template: '$$$SELECTION$$CURSOR$$$', shortcut: 'Ctrl+M' },
+  { lang: 'latex', category: 'math',      id: 'displayEquation', template: '\\[\n$SELECTION$$CURSOR$\n\\]', shortcut: 'Ctrl+Shift+M' },
+  { lang: 'latex', category: 'math',      id: 'aligned',          template: '\\begin{aligned}\n  $CURSOR$ &= \\\\\\\\\n\\end{aligned}', shortcut: '' },
+  { lang: 'latex', category: 'math',      id: 'fraction',         template: '\\frac{$CURSOR$}{}',     shortcut: '' },
+  { lang: 'latex', category: 'math',      id: 'sum',              template: '\\sum_{$CURSOR$}^{}',    shortcut: '' },
+  { lang: 'latex', category: 'math',      id: 'integral',         template: '\\int_{$CURSOR$}^{}',    shortcut: '' },
+  { lang: 'latex', category: 'math',      id: 'matrix',           template: '\\begin{pmatrix}\n  $CURSOR$ & \\\\\\\\\n  & \n\\end{pmatrix}', shortcut: '' },
 
   // ── LaTeX: Environments ──────────────────────────────────────────────────
-  { lang: 'latex', category: 'Environments', label: 'Figure',        template: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{$CURSOR$}\n  \\caption{}\n  \\label{fig:}\n\\end{figure}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Table',         template: '\\begin{table}[htbp]\n  \\centering\n  \\begin{tabular}{ll}\n    \\hline\n    $CURSOR$ & \\\\\\\\\n    \\hline\n  \\end{tabular}\n  \\caption{}\n  \\label{tab:}\n\\end{table}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Itemize',       template: '\\begin{itemize}\n  \\item $CURSOR$\n\\end{itemize}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Enumerate',     template: '\\begin{enumerate}\n  \\item $CURSOR$\n\\end{enumerate}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Theorem',       template: '\\begin{theorem}\n  $CURSOR$\n\\end{theorem}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Definition',    template: '\\begin{definition}\n  $CURSOR$\n\\end{definition}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Lemma',         template: '\\begin{lemma}\n  $CURSOR$\n\\end{lemma}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Proof',         template: '\\begin{proof}\n  $CURSOR$\n\\end{proof}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Quotation',     template: '\\begin{quote}\n  $CURSOR$\n\\end{quote}', shortcut: '' },
-  { lang: 'latex', category: 'Environments', label: 'Includegraphics', template: '\\includegraphics[width=$CURSOR$\\textwidth]{}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'figure',        template: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{$CURSOR$}\n  \\caption{}\n  \\label{fig:}\n\\end{figure}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'table',         template: '\\begin{table}[htbp]\n  \\centering\n  \\begin{tabular}{ll}\n    \\hline\n    $CURSOR$ & \\\\\\\\\n    \\hline\n  \\end{tabular}\n  \\caption{}\n  \\label{tab:}\n\\end{table}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'itemize',       template: '\\begin{itemize}\n  \\item $CURSOR$\n\\end{itemize}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'enumerate',     template: '\\begin{enumerate}\n  \\item $CURSOR$\n\\end{enumerate}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'theorem',       template: '\\begin{theorem}\n  $CURSOR$\n\\end{theorem}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'definition',    template: '\\begin{definition}\n  $CURSOR$\n\\end{definition}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'lemma',         template: '\\begin{lemma}\n  $CURSOR$\n\\end{lemma}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'proof',         template: '\\begin{proof}\n  $CURSOR$\n\\end{proof}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'quotation',     template: '\\begin{quote}\n  $CURSOR$\n\\end{quote}', shortcut: '' },
+  { lang: 'latex', category: 'environments', id: 'includegraphics', template: '\\includegraphics[width=$CURSOR$\\textwidth]{}', shortcut: '' },
 ];
+
+/**
+ * The built-in snippets, each with a `label` that reads the current interface
+ * language every time it is shown — so a language change needs no rebuild.
+ */
+export const BUILTIN_SNIPPETS = BUILTIN_DEFINITIONS.map(definition => Object.defineProperty(
+  { ...definition }, 'label', { get: () => t(`snippets.${definition.id}`), enumerable: true },
+));
+
+const CATEGORIES = new Set(['structure', 'text', 'blocks', 'math', 'environments', 'other']);
+
+/**
+ * The display name of a category. Built-in category ids — and a user snippet
+ * spelling one the old way ('Math') — are translated; any other name is the
+ * user's own and is shown as written.
+ */
+export function categoryLabel(category) {
+  const id = String(category || 'other').toLowerCase();
+  return CATEGORIES.has(id) ? t(`snippets.category.${id}`) : category;
+}
 
 /**
  * Get snippets filtered by language.
@@ -89,7 +114,7 @@ export function getSnippetsGrouped(lang) {
   const snippets = getSnippetsForLang(lang);
   const groups = {};
   for (const s of snippets) {
-    const cat = s.category || 'Other';
+    const cat = categoryLabel(s.category);
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(s);
   }

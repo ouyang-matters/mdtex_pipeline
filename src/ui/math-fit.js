@@ -24,6 +24,8 @@
  * visually fits perfectly well.
  */
 
+import { t } from './i18n.js';
+
 /** Do not shrink below this fraction of natural size; smaller is unreadable. */
 const MIN_SCALE = 0.72;
 
@@ -80,7 +82,7 @@ export function fitDisplayMath(root) {
     if (sizer) sizer.style.margin = '0';   // scroll from the left edge, not centred
     container.classList.add('math-scroll');
     container.dataset.mathFit = 'scroll';
-    container.title = 'This equation is wider than the column — scroll it sideways to see the rest.';
+    container.title = t('app.math.scrollHint');
     stats.scrolled++;
   }
 

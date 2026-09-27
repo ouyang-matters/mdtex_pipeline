@@ -1,7 +1,8 @@
 import { el, clear, toast, contextMenu, confirmDialog, promptDialog, chooseDialog, relativeTime, modal, field, mount } from './ui-kit.js';
 import { backend } from './api.js';
 import { app, emit } from './state.js';
-import { openArticleProperties } from './properties-dialog.js';
+import { openArticleProperties, statusLabel } from './properties-dialog.js';
+import { t } from './i18n.js';
 
 /**
  * Article library.
@@ -184,6 +185,7 @@ function folderRow(folder, depth, isCollapsed, count) {
 
 function articleRow(article, depth) {
   const active = app.currentArticleId === article.id;
+  const isLatex = article.sourceFormat === 'latex';
   const row = el('div', {
     class: `library-item${active ? ' active' : ''}`,
     style: { paddingLeft: `${10 + depth * 14}px` },
@@ -207,14 +209,18 @@ function articleRow(article, depth) {
     el('div', { class: 'library-item-main' },
       el('span', { class: 'library-item-title', title: article.title }, article.title),
       article.status && article.status !== 'draft'
-        ? el('span', { class: `status-pill status-${article.status}` }, article.status)
+        ? el('span', { class: `status-pill status-${article.status}` }, statusLabel(article.status))
         : null,
     ),
     el('div', { class: 'library-item-meta' },
-      el('span', { class: `format-chip ${article.sourceFormat}` },
-        article.sourceFormat === 'latex' ? 'TeX' : 'MD'),
+      el('span', {
+        class: `format-chip ${article.sourceFormat}`,
+        title: isLatex ? t('library.formatLatex') : t('library.formatMarkdown'),
+      }, isLatex ? 'TeX' : 'MD'),
       el('span', {}, relativeTime(article.updatedAt)),
-      article.series ? el('span', { class: 'series-chip', title: `Series: ${article.series}` }, article.series) : null,
+      article.series
+        ? el('span', { class: 'series-chip', title: t('library.seriesTooltip', { series: article.series }) }, article.series)
+        : null,
       ...(article.tags || []).slice(0, 2).map(tag => el('span', { class: 'tag-chip' }, tag)),
     ),
   );
@@ -224,19 +230,19 @@ function articleRow(article, depth) {
 
 function renderSearchResults() {
   const header = el('div', { class: 'library-section' },
-    el('span', {}, `${searchResults.length} result${searchResults.length === 1 ? '' : 's'}`),
+    el('span', {}, t('library.searchResults', { n: searchResults.length })),
     el('button', {
       class: `link-btn${searchIncludesBody ? ' on' : ''}`,
-      title: 'Also search inside article text',
+      title: t('library.fullTextTitle'),
       onClick: () => { searchIncludesBody = !searchIncludesBody; runSearch(); },
-    }, searchIncludesBody ? 'full text ✓' : 'full text'),
+    }, searchIncludesBody ? t('library.fullTextOn') : t('library.fullText')),
   );
   host.append(header);
 
   if (!searchResults.length) {
     host.append(el('div', { class: 'library-empty' },
-      el('p', {}, 'Nothing matched that search.'),
-      el('p', { class: 'muted' }, searchIncludesBody ? '' : 'Try enabling full-text search above.'),
+      el('p', {}, t('library.noMatch')),
+      el('p', { class: 'muted' }, searchIncludesBody ? '' : t('library.tryFullText')),
     ));
     return;
   }
@@ -256,17 +262,17 @@ function renderTrashToggle() {
   host.append(el('button', {
     class: 'library-trash-toggle',
     onClick: () => { showTrash = true; render(); },
-  }, `Trash (${app.trash.length})`));
+  }, t('library.trashToggle', { n: app.trash.length })));
 }
 
 function renderTrash() {
   host.append(el('div', { class: 'library-section' },
-    el('span', {}, `Trash · ${app.trash.length}`),
-    el('button', { class: 'link-btn', onClick: () => { showTrash = false; render(); } }, 'back'),
+    el('span', {}, t('library.trashHeader', { n: app.trash.length })),
+    el('button', { class: 'link-btn', onClick: () => { showTrash = false; render(); } }, t('library.back')),
   ));
 
   if (!app.trash.length) {
-    host.append(el('div', { class: 'library-empty' }, el('p', {}, 'The trash is empty.')));
+    host.append(el('div', { class: 'library-empty' }, el('p', {}, t('library.trashEmpty'))));
     return;
   }
 
@@ -275,32 +281,32 @@ function renderTrash() {
       el('div', { class: 'library-item-main' },
         el('span', { class: 'library-item-title' }, article.title)),
       el('div', { class: 'library-item-meta' },
-        el('span', {}, `deleted ${relativeTime(article.deletedAt)}`)),
+        el('span', {}, t('library.deletedAgo', { time: relativeTime(article.deletedAt) }))),
       el('div', { class: 'library-item-actions' },
         el('button', {
           class: 'link-btn',
           onClick: async () => {
             await backend.workspace.restore(article.id);
-            toast(`Restored “${article.title}”.`);
+            toast(t('library.restoredTitle', { title: article.title }));
             await refreshLibrary();
           },
-        }, 'Restore'),
+        }, t('library.restore')),
         el('button', {
           class: 'link-btn danger',
           onClick: async () => {
             const ok = await confirmDialog({
-              title: 'Delete permanently?',
-              message: `“${article.title}” and all of its assets will be removed from disk.`,
-              detail: 'This cannot be undone.',
-              confirmLabel: 'Delete permanently',
+              title: t('library.purgeTitle'),
+              message: t('library.purgeMessage', { title: article.title }),
+              detail: t('library.cannotUndo'),
+              confirmLabel: t('library.deletePermanently'),
               danger: true,
             });
             if (!ok) return;
             await backend.workspace.purge(article.id);
-            toast('Deleted permanently.');
+            toast(t('library.purged'));
             await refreshLibrary();
           },
-        }, 'Delete'),
+        }, t('library.delete')),
       ),
     ));
   }
@@ -309,26 +315,26 @@ function renderTrash() {
     class: 'library-trash-toggle danger',
     onClick: async () => {
       const ok = await confirmDialog({
-        title: 'Empty the trash?',
-        message: `${app.trash.length} article(s) will be permanently removed from disk.`,
-        confirmLabel: 'Empty trash',
+        title: t('library.emptyTrashTitle'),
+        message: t('library.emptyTrashMessage', { n: app.trash.length }),
+        confirmLabel: t('library.emptyTrash'),
         danger: true,
       });
       if (!ok) return;
       await backend.workspace.emptyTrash();
       showTrash = false;
-      toast('Trash emptied.');
+      toast(t('library.trashEmptied'));
       await refreshLibrary();
     },
-  }, 'Empty trash'));
+  }, t('library.emptyTrash')));
 }
 
 function emptyState() {
   return el('div', { class: 'library-empty' },
     el('div', { class: 'empty-icon' }, '📄'),
-    el('p', { class: 'empty-title' }, 'No articles yet'),
-    el('p', { class: 'muted' }, 'Create your first article, or drop a .md / .tex file onto the editor.'),
-    el('button', { class: 'btn btn-primary btn-sm', onClick: () => createArticle() }, 'New article'),
+    el('p', { class: 'empty-title' }, t('library.emptyTitle')),
+    el('p', { class: 'muted' }, t('library.emptyHint')),
+    el('button', { class: 'btn btn-primary btn-sm', onClick: () => createArticle() }, t('library.newArticle')),
   );
 }
 
@@ -336,25 +342,25 @@ function emptyState() {
 
 function articleMenu(event, article) {
   contextMenu(event, [
-    { label: 'Open', onClick: () => onSelect?.(article.id) },
-    { label: 'Properties…', shortcut: 'Ctrl+I', onClick: () => openProperties(article.id) },
+    { label: t('library.menu.open'), onClick: () => onSelect?.(article.id) },
+    { label: t('library.menu.properties'), shortcut: 'Ctrl+I', onClick: () => openProperties(article.id) },
     { separator: true },
-    { label: 'Rename…', shortcut: 'F2', onClick: () => renameArticle(article) },
-    { label: 'Move to…', onClick: () => moveArticleInteractive(article) },
-    { label: 'Duplicate', onClick: () => duplicateArticle(article) },
+    { label: t('library.menu.rename'), shortcut: 'F2', onClick: () => renameArticle(article) },
+    { label: t('library.menu.move'), onClick: () => moveArticleInteractive(article) },
+    { label: t('library.menu.duplicate'), onClick: () => duplicateArticle(article) },
     { separator: true },
-    { label: 'Delete', shortcut: 'Del', danger: true, onClick: () => deleteArticle(article) },
+    { label: t('library.delete'), shortcut: t('library.key.delete'), danger: true, onClick: () => deleteArticle(article) },
   ]);
 }
 
 function folderMenu(event, folder) {
   event.stopPropagation();
   contextMenu(event, [
-    { label: 'New article here…', onClick: () => createArticle(folder.path) },
-    { label: 'New subfolder…', onClick: () => createFolder(folder.path) },
+    { label: t('library.menu.newArticleHere'), onClick: () => createArticle(folder.path) },
+    { label: t('library.menu.newSubfolder'), onClick: () => createFolder(folder.path) },
     { separator: true },
-    { label: 'Rename folder…', onClick: () => renameFolder(folder) },
-    { label: 'Delete folder', danger: true, onClick: () => deleteFolder(folder) },
+    { label: t('library.menu.renameFolder'), onClick: () => renameFolder(folder) },
+    { label: t('library.menu.deleteFolder'), danger: true, onClick: () => deleteFolder(folder) },
   ]);
 }
 
@@ -366,38 +372,44 @@ export async function openProperties(articleId) {
   }
 }
 
+function folderChoices() {
+  return [
+    { value: '', label: t('library.workspaceRoot') },
+    ...app.folders.map(f => ({ value: f.path, label: `/${f.path}` })),
+  ];
+}
+
 export async function createArticle(folder = '') {
   const schema = app.schema || await backend.workspace.schema();
 
   let titleField, formatField, folderField, templateField;
   const created = await modal({
-    title: 'New article',
+    title: t('library.newArticle'),
     width: 520,
     render: () => {
-      titleField = field({ label: 'Title', value: '', placeholder: 'Untitled', wide: true });
+      titleField = field({ label: t('library.field.title'), value: '', placeholder: t('library.untitled'), wide: true });
       formatField = field({
-        label: 'Source format', type: 'select', value: 'markdown',
+        label: t('library.field.sourceFormat'), type: 'select', value: 'markdown',
         options: schema.sourceFormats.map(f => ({ value: f.value, label: `${f.label} (${f.file})` })),
       });
       folderField = field({
-        label: 'Folder', type: 'select', value: folder,
-        options: [{ value: '', label: '/ (workspace root)' },
-          ...app.folders.map(f => ({ value: f.path, label: `/${f.path}` }))],
+        label: t('library.field.folder'), type: 'select', value: folder,
+        options: folderChoices(),
       });
       templateField = field({
-        label: 'PDF template', type: 'select', value: 'default',
+        label: t('library.field.pdfTemplate'), type: 'select', value: 'default',
         options: schema.pdfTemplates,
       });
       return el('div', { class: 'field-grid' },
         titleField.node, formatField.node, folderField.node, templateField.node);
     },
     actions: [
-      { label: 'Cancel', value: undefined },
+      { label: t('library.cancel'), value: undefined },
       {
-        label: 'Create',
+        label: t('library.create'),
         variant: 'primary',
         onClick: async (ctx) => {
-          const title = titleField.get().trim() || 'Untitled';
+          const title = titleField.get().trim() || t('library.untitled');
           try {
             const { article } = await backend.workspace.create({
               title,
@@ -419,24 +431,24 @@ export async function createArticle(folder = '') {
   if (!created) return null;
   await refreshLibrary();
   onSelect?.(created.id);
-  toast(`Created “${created.title}”.`);
+  toast(t('library.created', { title: created.title }));
   return created;
 }
 
 export async function createFolder(parent = '') {
   const name = await promptDialog({
-    title: parent ? `New folder in /${parent}` : 'New folder',
-    label: 'Folder name',
-    placeholder: 'research',
-    confirmLabel: 'Create folder',
-    validate: (v) => (v.trim() ? null : 'A folder name is required.'),
+    title: parent ? t('library.newFolderIn', { parent }) : t('library.newFolder'),
+    label: t('library.folderName'),
+    placeholder: t('library.folderPlaceholder'),
+    confirmLabel: t('library.createFolder'),
+    validate: (v) => (v.trim() ? null : t('library.folderNameRequired')),
   });
   if (name === undefined) return;
 
   try {
     await backend.workspace.createFolder(parent ? `${parent}/${name}` : name);
     await refreshLibrary();
-    toast(`Folder “${name}” created.`);
+    toast(t('library.folderCreated', { name }));
   } catch (e) {
     toast(e.message, { type: 'error' });
   }
@@ -444,18 +456,18 @@ export async function createFolder(parent = '') {
 
 async function renameFolder(folder) {
   const name = await promptDialog({
-    title: 'Rename folder',
-    label: 'Folder name',
+    title: t('library.renameFolderTitle'),
+    label: t('library.folderName'),
     value: folder.name,
-    confirmLabel: 'Rename',
-    validate: (v) => (v.trim() ? null : 'A folder name is required.'),
+    confirmLabel: t('library.rename'),
+    validate: (v) => (v.trim() ? null : t('library.folderNameRequired')),
   });
   if (name === undefined || name === folder.name) return;
 
   try {
     await backend.workspace.renameFolder(folder.path, name);
     await refreshLibrary();
-    toast('Folder renamed.');
+    toast(t('library.folderRenamed'));
   } catch (e) {
     toast(e.message, { type: 'error', timeout: 5000 });
   }
@@ -463,10 +475,10 @@ async function renameFolder(folder) {
 
 async function deleteFolder(folder) {
   const ok = await confirmDialog({
-    title: 'Delete folder?',
-    message: `“${folder.name}” will be removed.`,
-    detail: 'Only empty folders can be deleted — move or delete the articles inside it first.',
-    confirmLabel: 'Delete folder',
+    title: t('library.deleteFolderTitle'),
+    message: t('library.deleteFolderMessage', { name: folder.name }),
+    detail: t('library.deleteFolderDetail'),
+    confirmLabel: t('library.deleteFolder'),
     danger: true,
   });
   if (!ok) return;
@@ -474,7 +486,7 @@ async function deleteFolder(folder) {
   try {
     await backend.workspace.deleteFolder(folder.path);
     await refreshLibrary();
-    toast('Folder deleted.');
+    toast(t('library.folderDeleted'));
   } catch (e) {
     toast(e.message, { type: 'error', timeout: 6000 });
   }
@@ -482,12 +494,12 @@ async function deleteFolder(folder) {
 
 async function renameArticle(article) {
   const title = await promptDialog({
-    title: 'Rename article',
-    label: 'Title',
+    title: t('library.renameArticleTitle'),
+    label: t('library.field.title'),
     value: article.title,
-    hint: 'The article keeps its ID, folder on disk, assets and history.',
-    confirmLabel: 'Rename',
-    validate: (v) => (v.trim() ? null : 'A title is required.'),
+    hint: t('library.renameHint'),
+    confirmLabel: t('library.rename'),
+    validate: (v) => (v.trim() ? null : t('library.titleRequired')),
   });
   if (title === undefined || title === article.title) return;
 
@@ -495,7 +507,7 @@ async function renameArticle(article) {
     await backend.workspace.saveMeta(article.id, { title });
     await refreshLibrary();
     emit('article:metadata-changed', { id: article.id, title });
-    toast('Renamed.');
+    toast(t('library.renamed'));
   } catch (e) {
     toast(e.message, { type: 'error' });
   }
@@ -503,14 +515,11 @@ async function renameArticle(article) {
 
 async function moveArticleInteractive(article) {
   const folder = await chooseDialog({
-    title: 'Move article',
+    title: t('library.moveArticleTitle'),
     subtitle: article.title,
-    options: [
-      { value: '', label: '/ (workspace root)' },
-      ...app.folders.map(f => ({ value: f.path, label: `/${f.path}` })),
-    ],
+    options: folderChoices(),
     value: article.folder ?? '',
-    confirmLabel: 'Move here',
+    confirmLabel: t('library.moveHere'),
   });
   if (folder === undefined) return;
   await moveArticle(article.id, folder);
@@ -522,7 +531,7 @@ async function moveArticle(id, folder) {
   try {
     await backend.workspace.move(id, folder);
     await refreshLibrary();
-    toast(folder ? `Moved to /${folder}.` : 'Moved to the workspace root.');
+    toast(folder ? t('library.movedTo', { folder }) : t('library.movedToRoot'));
   } catch (e) {
     toast(e.message, { type: 'error', timeout: 5000 });
   }
@@ -533,7 +542,7 @@ async function duplicateArticle(article) {
     const { article: copy } = await backend.workspace.duplicate(article.id);
     await refreshLibrary();
     onSelect?.(copy.id);
-    toast(`Duplicated as “${copy.title}”.`);
+    toast(t('library.duplicated', { title: copy.title }));
   } catch (e) {
     toast(e.message, { type: 'error' });
   }
@@ -541,10 +550,10 @@ async function duplicateArticle(article) {
 
 async function deleteArticle(article) {
   const ok = await confirmDialog({
-    title: 'Move to trash?',
-    message: `“${article.title}” will be moved to the trash.`,
-    detail: 'You can restore it from the trash at the bottom of the library.',
-    confirmLabel: 'Move to trash',
+    title: t('library.trashTitle'),
+    message: t('library.trashMessage', { title: article.title }),
+    detail: t('library.trashDetail'),
+    confirmLabel: t('library.moveToTrash'),
     danger: true,
   });
   if (!ok) return;
@@ -552,13 +561,13 @@ async function deleteArticle(article) {
   try {
     await backend.workspace.remove(article.id);
     await refreshLibrary();
-    toast(`“${article.title}” moved to trash.`, {
+    toast(t('library.movedToTrash', { title: article.title }), {
       action: {
-        label: 'Undo',
+        label: t('library.undo'),
         onClick: async () => {
           await backend.workspace.restore(article.id);
           await refreshLibrary();
-          toast('Restored.');
+          toast(t('library.restored'));
         },
       },
       timeout: 6000,

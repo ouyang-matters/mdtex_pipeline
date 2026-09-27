@@ -1,5 +1,6 @@
 import { api, backend } from './api.js';
 import { app } from './state.js';
+import { t } from './i18n.js';
 
 /**
  * Article assets in the browser.
@@ -125,7 +126,7 @@ function rewriteImages(root, articleId) {
     if (!url) {
       unresolved++;
       img.removeAttribute('src');
-      img.setAttribute('data-mdtex-unresolved', 'This article has not been saved to disk yet.');
+      img.setAttribute('data-mdtex-unresolved', t('assets.notSaved'));
       continue;
     }
 
@@ -189,17 +190,17 @@ function markMissing(img, source, reason) {
   const placeholder = document.createElement('span');
   placeholder.className = 'asset-missing';
   placeholder.setAttribute('role', 'img');
-  placeholder.setAttribute('aria-label', `Image not found: ${source}`);
+  placeholder.setAttribute('aria-label', t('assets.missing.aria', { source }));
 
   const title = document.createElement('strong');
-  title.textContent = 'Image not found';
+  title.textContent = t('assets.missing.title');
 
   const path = document.createElement('code');
   path.textContent = source;
 
   const detail = document.createElement('span');
   detail.className = 'asset-missing-detail';
-  detail.textContent = reason || 'Resolving…';
+  detail.textContent = reason || t('assets.resolving');
 
   placeholder.append(title, path, detail);
   img.replaceWith(placeholder);
@@ -217,21 +218,22 @@ function markMissing(img, source, reason) {
       // corrupt or non-image file, not a path problem, and saying "not found"
       // would send the reader looking for a file that is already there.
       if (record.exists && !record.error) {
-        title.textContent = 'Image could not be displayed';
-        placeholder.setAttribute('aria-label', `Image could not be displayed: ${source}`);
+        title.textContent = t('assets.unreadable.title');
+        placeholder.setAttribute('aria-label', t('assets.unreadable.aria', { source }));
       }
 
       detail.textContent = '';
-      appendLine(detail, 'Article root', data.articleRoot);
-      appendLine(detail, record.exists ? 'Found at' : 'Expected', record.expected);
+      appendLine(detail, t('assets.line.articleRoot'), data.articleRoot);
+      appendLine(detail, t(record.exists ? 'assets.line.foundAt' : 'assets.line.expected'), record.expected);
       appendLine(
         detail,
-        'Reason',
+        t('assets.line.reason'),
+        // record.error is the backend's own diagnosis, shown as it came.
         record.error
-          || (record.exists ? 'The file is on disk but is not a readable image.' : null),
+          || (record.exists ? t('assets.notImage') : null),
       );
     })
-    .catch(() => { detail.textContent = 'The backend could not be reached.'; });
+    .catch(() => { detail.textContent = t('assets.backendUnreachable'); });
 }
 
 function appendLine(parent, label, value) {
@@ -239,7 +241,7 @@ function appendLine(parent, label, value) {
   const line = document.createElement('span');
   line.className = 'asset-missing-line';
   const key = document.createElement('em');
-  key.textContent = `${label}: `;
+  key.textContent = t('assets.line', { label });
   const val = document.createElement('code');
   val.textContent = value;
   line.append(key, val);
@@ -261,12 +263,12 @@ function appendLine(parent, label, value) {
  */
 export async function importImage(file, { articleId = app.currentArticleId, replace = false } = {}) {
   if (!articleId) {
-    const error = new Error('Open an article before inserting images.');
+    const error = new Error(t('assets.noArticle'));
     error.code = 'NO_ARTICLE';
     throw error;
   }
   if (!file || file.size === 0) {
-    throw new Error('That file is empty.');
+    throw new Error(t('assets.emptyFile'));
   }
 
   const dataBase64 = await fileToBase64(file);
@@ -293,7 +295,7 @@ export function fileToBase64(file) {
   return new Promise((resolvePromise, rejectPromise) => {
     const reader = new FileReader();
     reader.onload = () => resolvePromise(String(reader.result).split(',')[1] || '');
-    reader.onerror = () => rejectPromise(reader.error || new Error('The file could not be read.'));
+    reader.onerror = () => rejectPromise(reader.error || new Error(t('assets.unreadableFile')));
     reader.readAsDataURL(file);
   });
 }

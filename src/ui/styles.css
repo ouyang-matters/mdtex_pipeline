@@ -659,6 +659,7 @@ button { font-family: inherit; font-size: inherit; }
 .ai-msg.assistant { background: var(--bg-2); border-left: 2px solid var(--accent); white-space: pre-wrap; }
 .ai-msg.progress { color: var(--text-faint); font-style: italic; font-size: 11.5px; padding: 4px 11px; }
 .ai-msg.error { background: rgba(224, 98, 95, 0.12); color: #f0a9a7; border-left: 2px solid var(--danger); }
+.ai-msg.error .sign-in-card { color: var(--text); max-width: 640px; }
 
 .ai-tools { margin-top: 8px; font-size: 11px; color: var(--text-faint); }
 .ai-tools summary { cursor: pointer; }
@@ -892,6 +893,21 @@ textarea.field-input { resize: vertical; line-height: 1.5; }
 .status-ok { color: var(--ok); }
 .status-error { color: var(--danger); line-height: 1.5; }
 
+.sign-in-card { display: flex; flex-direction: column; gap: 8px; }
+.sign-in-card .dialog-detail { margin: 0; }
+.sign-in-actions { display: flex; gap: 8px; }
+.sign-in-status:empty { display: none; }
+.sign-in-code { display: flex; gap: 8px; margin-top: 6px; }
+.sign-in-code .field-input { flex: 1; font-family: var(--font-mono); }
+.sign-in-message { margin-top: 6px; }
+.sign-in-message:empty { display: none; }
+.command-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 6px 8px 6px 11px;
+}
+.command-line code { font-family: var(--font-mono); font-size: 12px; color: var(--text); user-select: all; }
+
 .connection-list { display: flex; flex-direction: column; gap: 8px; }
 .connection-row {
   display: flex; align-items: center; gap: 12px;
@@ -1037,4 +1053,90 @@ textarea.field-input { resize: vertical; line-height: 1.5; }
   .field-grid { grid-template-columns: 1fr; }
   .settings-layout { flex-direction: column; }
   .settings-tabs { flex-direction: row; width: auto; overflow-x: auto; }
+}
+
+/* ── AI edits on both sides ───────────────────────────────────────────────────
+   Green is what the AI adds, red what it removes. While a proposal is under
+   review the additions breathe between green and blue; once applied they settle
+   green → blue → violet → gone, so the eye can find them in the live document. */
+
+.ai-review { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-1); }
+.ai-review-bar {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  padding: 5px 12px; background: var(--bg-2); border-bottom: 1px solid var(--border);
+  font-size: 11.5px;
+}
+.ai-review-title { font-weight: 600; color: var(--text); }
+.ai-review-bar .diff-stat { flex: 1; }
+.ai-review-lines {
+  flex: 1; overflow: auto; padding: 14px 0;
+  font-family: var(--font-mono); font-size: 14px; line-height: 1.65; color: var(--text); tab-size: 2;
+}
+.ai-line { display: flex; padding-right: 16px; }
+.ai-line-sign { flex: 0 0 26px; text-align: center; color: var(--text-faint); user-select: none; }
+.ai-line-text { flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-line.add { background: rgba(46, 160, 67, 0.16); animation: ai-breathe 2.6s ease-in-out infinite; }
+.ai-line.add .ai-line-sign { color: #3fb950; }
+.ai-line.del { background: rgba(248, 81, 73, 0.14); }
+.ai-line.del .ai-line-sign { color: #f85149; }
+.ai-line.del .ai-line-text { text-decoration: line-through; text-decoration-color: rgba(248, 81, 73, 0.7); color: var(--text-muted); }
+
+/* A group wraps consecutive changed blocks; its padding is taken back with
+   negative margins so the text does not move. 1px of vertical padding stops
+   the blocks' own margins collapsing through it, so the tint covers the gaps. */
+#preview-content #nice .ai-group {
+  position: relative; border-radius: 4px; margin: 0 -10px; padding: 1px 10px;
+}
+#preview-content #nice .ai-group::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px;
+}
+#preview-content #nice .ai-group-add { animation: ai-breathe 2.6s ease-in-out infinite; }
+#preview-content #nice .ai-group-add::before { animation: ai-breathe-bar 2.6s ease-in-out infinite; }
+#preview-content #nice .ai-group-del { background-color: rgba(248, 81, 73, 0.10); }
+#preview-content #nice .ai-group-del::before { background: #f85149; }
+#preview-content #nice .ai-group-del > * {
+  opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(248, 81, 73, 0.8);
+}
+#preview-content #nice .ai-group-applied { animation: ai-settle 3.6s ease-out forwards; }
+#preview-content #nice .ai-group-applied::before { animation: ai-settle-bar 3.6s ease-out forwards; }
+
+.ai-editor-marks { position: absolute; overflow: hidden; pointer-events: none; z-index: 2; }
+.ai-editor-marks-track { position: absolute; top: 0; left: 0; right: 0; }
+.ai-line-applied {
+  position: absolute; left: 0; right: 0; border-left: 3px solid transparent;
+  animation: ai-settle-line 3.6s ease-out forwards;
+}
+
+@keyframes ai-breathe {
+  0%, 100% { background-color: rgba(46, 160, 67, 0.15); }
+  50% { background-color: rgba(56, 139, 253, 0.15); }
+}
+@keyframes ai-breathe-bar {
+  0%, 100% { background: #2ea043; }
+  50% { background: #388bfd; }
+}
+@keyframes ai-settle {
+  0% { background-color: rgba(46, 160, 67, 0.42); }
+  30% { background-color: rgba(56, 139, 253, 0.30); }
+  65% { background-color: rgba(163, 113, 247, 0.16); }
+  100% { background-color: rgba(163, 113, 247, 0); }
+}
+@keyframes ai-settle-bar {
+  0% { background: #3fb950; }
+  30% { background: #388bfd; }
+  65% { background: #a371f7; }
+  100% { background: rgba(163, 113, 247, 0); }
+}
+@keyframes ai-settle-line {
+  0% { background-color: rgba(46, 160, 67, 0.30); border-left-color: #3fb950; }
+  30% { background-color: rgba(56, 139, 253, 0.24); border-left-color: #388bfd; }
+  65% { background-color: rgba(163, 113, 247, 0.14); border-left-color: #a371f7; }
+  100% { background-color: rgba(163, 113, 247, 0); border-left-color: rgba(163, 113, 247, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-line.add, #preview-content #nice .ai-group-add, #preview-content #nice .ai-group-add::before { animation: none; }
+  #preview-content #nice .ai-group-add { background-color: rgba(46, 160, 67, 0.15); }
+  #preview-content #nice .ai-group-add::before { background: #2ea043; }
+  #preview-content #nice .ai-group-applied, #preview-content #nice .ai-group-applied::before, .ai-line-applied { animation-duration: 0.01s; }
 }

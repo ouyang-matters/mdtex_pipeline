@@ -1,6 +1,7 @@
 import { el, clear, mount, toast, confirmDialog, relativeTime } from './ui-kit.js';
 import { backend } from './api.js';
 import { app } from './state.js';
+import { t } from './i18n.js';
 
 /**
  * The Markdown / LaTeX tabs.
@@ -138,7 +139,9 @@ let latexCurrent = null;
 
 async function refreshLatex({ regenerate = false } = {}) {
   dom.text.value = '';
-  dom.origin.textContent = regenerate ? 'Generating…' : 'Loading…';
+  // The state is also a data attribute, so nothing has to match the (translated) text.
+  dom.origin.dataset.state = regenerate ? 'generating' : 'loading';
+  dom.origin.textContent = regenerate ? t('latex.origin.generating') : t('latex.origin.loading');
   setLatexBusy(true);
   clear(dom.notes);
 
@@ -147,6 +150,7 @@ async function refreshLatex({ regenerate = false } = {}) {
     result = await backend.workspace.latex(app.currentArticleId, { regenerate });
   } catch (e) {
     latexCurrent = null;
+    dom.origin.dataset.state = 'error';
     dom.origin.textContent = '';
     setLatexBusy(false);
     mount(dom.notes, el('div', { class: 'latex-view-note error' }, e.message));
@@ -170,29 +174,31 @@ function renderLatexFooter(result) {
 
   dom.adopt.disabled = blocked;
   dom.adopt.title = blocked
-    ? 'Resolve the errors above first.'
-    : "Make this LaTeX the article's source. One-way.";
+    ? t('latex.adopt.blocked')
+    : t('latex.adopt.title');
 
   dom.save.classList.toggle('hidden', result.saved && !result.stale);
   dom.save.disabled = blocked || !result.tex;
-  dom.save.textContent = result.stale ? 'Save this version' : 'Save this LaTeX';
+  dom.save.textContent = result.stale ? t('latex.save.version') : t('latex.save.latex');
 
   dom.regen.classList.toggle('hidden', !result.saved);
   dom.discard.classList.toggle('hidden', !result.saved);
 
   clear(dom.origin);
+  dom.origin.dataset.state = result.saved ? (result.stale ? 'saved-stale' : 'saved') : 'generated';
   if (result.saved) {
     mount(dom.origin,
       el('span', { class: result.stale ? 'latex-stale-badge' : 'latex-saved-badge' },
-        result.stale ? 'saved · out of date' : 'saved'),
-      el('span', {}, ` ${result.savedPath} — kept ${relativeTime(result.savedAt)}.`
-        + (result.stale ? ' The Markdown has changed since.' : ' Regenerate to rebuild it.')),
+        result.stale ? t('latex.badge.stale') : t('latex.badge.saved')),
+      el('span', {}, ' ', t(result.stale ? 'latex.origin.savedStale' : 'latex.origin.savedFresh', {
+        path: result.savedPath, when: relativeTime(result.savedAt),
+      })),
     );
   } else {
     mount(dom.origin, el('span', {},
       result.derivedPath
-        ? `Generated from source.md — read-only. Also written to ${result.derivedPath}.`
-        : 'Generated from source.md — read-only.'));
+        ? t('latex.origin.generatedAlso', { path: result.derivedPath })
+        : t('latex.origin.generated')));
   }
 }
 
@@ -205,7 +211,7 @@ async function save() {
   setLatexBusy(true);
   try {
     await backend.workspace.saveLatex(app.currentArticleId, latexCurrent.tex);
-    toast('LaTeX saved. This tab will show it instead of generating a new one.');
+    toast(t('latex.toast.saved'));
     await refreshLatex();
   } catch (e) {
     setLatexBusy(false);
@@ -217,7 +223,7 @@ async function discard() {
   setLatexBusy(true);
   try {
     await backend.workspace.discardLatex(app.currentArticleId);
-    toast('Stopped keeping it. The tab generates from the Markdown again.');
+    toast(t('latex.toast.discarded'));
     await refreshLatex({ regenerate: true });
   } catch (e) {
     setLatexBusy(false);
@@ -238,12 +244,10 @@ async function adoptLatex() {
   if (!article) return;
 
   const confirmed = await confirmDialog({
-    title: 'Use LaTeX as the source?',
-    message: `"${article.title}" will become a LaTeX article. This cannot be undone by switching back — `
-      + 'LaTeX has no Markdown equivalent for what you can write in it.',
-    detail: 'The Markdown is saved to a checkpoint first: `publisher ws checkpoints` lists it, '
-      + '`publisher ws restore` gets it back. Embedded images are written into assets/.',
-    confirmLabel: 'Use as source',
+    title: t('latex.adoptDialog.title'),
+    message: t('latex.adoptDialog.message', { title: article.title }),
+    detail: t('latex.adoptDialog.detail'),
+    confirmLabel: t('latex.adoptDialog.confirm'),
     danger: true,
   });
   if (!confirmed) return;
@@ -251,8 +255,7 @@ async function adoptLatex() {
   dom.adopt.disabled = true;
   try {
     const result = await backend.workspace.adoptLatex(app.currentArticleId);
-    toast(`LaTeX is now the source. The Markdown is in checkpoint "${result.checkpoint.label}".`,
-      { timeout: 5000 });
+    toast(t('latex.toast.adopted', { label: result.checkpoint.label }), { timeout: 5000 });
     await hooks.onSourceAdopted?.(result);
   } catch (e) {
     dom.adopt.disabled = false;
@@ -284,7 +287,8 @@ function renderMarkdownPlaceholder() {
   markdownCurrent = null;
   dom.mdText.value = '';
   clear(dom.mdNotes);
-  dom.mdOrigin.textContent = "This article's source is LaTeX — there is no Markdown source yet.";
+  dom.mdOrigin.dataset.state = 'placeholder';
+  dom.mdOrigin.textContent = t('latex.md.placeholder');
   dom.mdPreview.classList.remove('hidden');
   dom.mdPreview.disabled = false;
   dom.mdAdopt.classList.add('hidden');
@@ -292,13 +296,15 @@ function renderMarkdownPlaceholder() {
 
 async function previewMarkdown() {
   dom.mdPreview.disabled = true;
-  dom.mdOrigin.textContent = 'Converting…';
+  dom.mdOrigin.dataset.state = 'converting';
+  dom.mdOrigin.textContent = t('latex.md.converting');
 
   let result;
   try {
     result = await backend.workspace.markdownFromLatex(app.currentArticleId);
   } catch (e) {
     dom.mdPreview.disabled = false;
+    dom.mdOrigin.dataset.state = 'error';
     dom.mdOrigin.textContent = '';
     toast(e.message, { type: 'error', timeout: 8000 });
     return;
@@ -308,7 +314,8 @@ async function previewMarkdown() {
   dom.mdText.value = result.markdown;
   clear(dom.mdNotes);
   mount(dom.mdNotes, ...result.warnings.map(w => el('div', { class: 'latex-view-note warning' }, w)));
-  dom.mdOrigin.textContent = 'Best-effort preview, generated from the LaTeX just now — not yet the source.';
+  dom.mdOrigin.dataset.state = 'preview';
+  dom.mdOrigin.textContent = t('latex.md.preview');
   dom.mdPreview.classList.add('hidden');
   dom.mdAdopt.classList.remove('hidden');
   dom.mdAdopt.disabled = false;
@@ -320,13 +327,11 @@ async function adoptMarkdown() {
 
   const warningText = markdownCurrent.warnings.length ? `\n\n${markdownCurrent.warnings.join(' ')}` : '';
   const confirmed = await confirmDialog({
-    title: 'Convert LaTeX to Markdown?',
-    message: `"${article.title}" will become a Markdown article. This is a best-effort reversal — `
-      + 'LaTeX with no Markdown equivalent (\\label, \\newcommand, custom environments, TikZ, '
-      + 'bibliographies) is kept as raw LaTeX text rather than dropped.' + warningText,
-    detail: 'The LaTeX is saved to a checkpoint first: `publisher ws checkpoints` lists it, '
-      + '`publisher ws restore` gets it back.',
-    confirmLabel: 'Convert to Markdown',
+    title: t('latex.mdDialog.title'),
+    // The conversion warnings come from the backend and are appended as they are.
+    message: t('latex.mdDialog.message', { title: article.title }) + warningText,
+    detail: t('latex.mdDialog.detail'),
+    confirmLabel: t('latex.mdDialog.confirm'),
     danger: true,
   });
   if (!confirmed) return;
@@ -334,8 +339,7 @@ async function adoptMarkdown() {
   dom.mdAdopt.disabled = true;
   try {
     const result = await backend.workspace.adoptMarkdown(app.currentArticleId);
-    toast(`Converted to Markdown. The LaTeX is in checkpoint "${result.checkpoint.label}".`,
-      { timeout: 5000 });
+    toast(t('latex.toast.converted', { label: result.checkpoint.label }), { timeout: 5000 });
     await hooks.onSourceAdopted?.(result);
   } catch (e) {
     dom.mdAdopt.disabled = false;

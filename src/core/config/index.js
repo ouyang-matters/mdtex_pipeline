@@ -22,6 +22,7 @@ const DEFAULT_PREFERENCES = {
   editor_tab_size: 2,
   preview_auto_scroll: true,
   dark_editor: true,
+  ui_language: 'auto',
 };
 
 const DEFAULT_PLATFORMS = {

@@ -1,4 +1,4 @@
-import { renderMarkdown, resolveCssVariables, validate } from './browser-compiler.js';
+import { renderMarkdown, resolveCssVariables, scopeThemeCss, validate } from './browser-compiler.js';
 import { getSnippetsGrouped, applySnippet, handleAutoClose, BUILTIN_SNIPPETS } from './snippets.js';
 import { el, clear, mount, toast, contextMenu, confirmDialog, promptDialog, modal, field, relativeTime } from './ui-kit.js';
 import { api, backend, connect } from './api.js';
@@ -7,12 +7,14 @@ import { fitDisplayMath, observeMathFit } from './math-fit.js';
 import { importImage, resolvePreviewAssets, rewriteAssetHtml, refreshAssetManifest, noteAsset } from './assets.js';
 import { initLibrary, refreshLibrary, createArticle, createFolder, openProperties, render as renderLibrary } from './library-panel.js';
 import { initAiPanel, refreshAi, openQuickConnect } from './ai-panel.js';
+import { showProposal, clearProposal, isReviewing, flashApplied } from './ai-highlight.js';
 import {
   initBuildPanel, prepareTarget, copyTarget, exportTarget, compilePdf, showLatexSetup, appendBuildLog,
 } from './build-panel.js';
 import { openSettings } from './settings-dialog.js';
 import { initLatexView, syncLatexTabs, isPreviewView, primaryTabLabel } from './latex-view.js';
 import { initPageProgress, beginTask, progressShownCount } from './progress.js';
+import { t, translateDom, getLanguage, setLanguagePreference, LANGUAGES } from './i18n.js';
 import 'katex/dist/katex.min.css';
 
 /**
@@ -35,12 +37,16 @@ let disposeMathObserver = null;
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function boot() {
+  // The language guessed from the last session (localStorage), so the loading
+  // screen already speaks it; the stored preference confirms it below.
+  document.documentElement.lang = LANGUAGES.find(l => l.value === getLanguage())?.htmlLang || 'en';
+  translateDom();
   cacheDom();
 
-  bootProgress(0.1, 'Connecting to the local backend…');
+  bootProgress(0.1, t('app.boot.connecting'));
   const connection = await connect();
   if (!connection.ok) {
-    bootFailed('The local backend is not reachable.');
+    bootFailed(t('app.startup.unreachable'));
     showDisconnected(connection.error);
     return;
   }
@@ -57,7 +63,7 @@ async function boot() {
     .catch(() => null);
 
   try {
-    bootProgress(0.28, 'Loading settings and themes…');
+    bootProgress(0.28, t('app.boot.loadingSettings'));
     const [schema, themes, prefs] = await Promise.all([
       backend.workspace.schema(),
       backend.themes.list(),
@@ -66,6 +72,9 @@ async function boot() {
     app.schema = schema;
     app.themes = themes.themes;
     preferences = prefs.preferences;
+    // Before anything renders dynamic text: if the saved language differs from
+    // the boot guess, the static markup is translated again now.
+    if (setLanguagePreference(preferences.ui_language || 'auto')) translateDom();
     app.platform = prefs.config.default_platform || 'wechat';
   } catch (e) {
     bootFailed(e.message);
@@ -85,9 +94,9 @@ async function boot() {
   buildThemeSelector();
   applyPreferences();
 
-  bootProgress(0.5, 'Reading your workspace…');
+  bootProgress(0.5, t('app.boot.readingWorkspace'));
   await refreshLibrary();
-  bootProgress(0.66, 'Reading your workspace…', `${app.articles.length} article(s)`);
+  bootProgress(0.66, t('app.boot.readingWorkspace'), t('app.boot.articleCount', { n: app.articles.length }));
 
   await refreshAi();
 
@@ -95,7 +104,7 @@ async function boot() {
   const target = app.articles.find(a => a.id === lastId) || app.articles[0];
 
   if (target) {
-    bootProgress(0.82, 'Opening the last article…', target.title);
+    bootProgress(0.82, t('app.boot.openingLast'), target.title);
     // The overlay is still up, so the per-article bar underneath it would be
     // covered anyway; painting first is what makes this last step visible.
     await bootPaint();
@@ -104,7 +113,7 @@ async function boot() {
     showNoArticle();
   }
 
-  bootProgress(1, 'Ready');
+  bootProgress(1, t('app.boot.ready'));
   disposeMathObserver = observeMathFit(dom.previewContent);
   exposeDebugHandle();
   bootDone();
@@ -194,16 +203,14 @@ function showDisconnected(message) {
   const overlay = el('div', { class: 'startup-overlay' },
     el('div', { class: 'startup-card' },
       el('h1', {}, 'MDTeX Studio'),
-      el('p', { class: 'startup-error' }, 'The local backend is not reachable.'),
+      el('p', { class: 'startup-error' }, t('app.startup.unreachable')),
       el('p', { class: 'muted' }, message || ''),
       el('div', { class: 'startup-steps' },
-        el('p', {}, 'Start it from a terminal:'),
+        el('p', {}, t('app.startup.fromTerminal')),
         el('pre', {}, 'publisher start'),
-        el('p', { class: 'muted' },
-          'The same command works on Windows PowerShell, CMD and Linux/macOS shells. '
-          + 'If `publisher` is not found, re-run the installer for your platform.'),
+        el('p', { class: 'muted' }, t('app.startup.hint')),
       ),
-      el('button', { class: 'btn btn-primary', onClick: () => location.reload() }, 'Retry'),
+      el('button', { class: 'btn btn-primary', onClick: () => location.reload() }, t('app.startup.retry')),
     ),
   );
   document.body.append(overlay);
@@ -213,6 +220,8 @@ function showDisconnected(message) {
 
 async function openArticle(id) {
   await flushPendingSave();
+  // A proposal belongs to the article it was made for.
+  clearProposal();
 
   const loading = beginTask();
 
@@ -271,8 +280,8 @@ function showNoArticle() {
   updateHeader();
   clear(dom.previewContent);
   mount(dom.previewContent, el('div', { class: 'preview-empty' },
-    el('p', {}, 'No article open'),
-    el('button', { class: 'btn btn-primary', onClick: () => createArticle() }, 'Create your first article'),
+    el('p', {}, t('app.preview.noArticle')),
+    el('button', { class: 'btn btn-primary', onClick: () => createArticle() }, t('app.preview.createFirst')),
   ));
 }
 
@@ -280,8 +289,8 @@ function updateHeader() {
   const article = app.currentArticle;
 
   clear(dom.articleTitle);
-  dom.articleTitle.append(article ? article.title : 'No article');
-  dom.articleTitle.title = article ? 'Click to open article properties' : '';
+  dom.articleTitle.append(article ? article.title : t('app.header.noArticle'));
+  dom.articleTitle.title = article ? t('app.header.openProperties') : '';
 
   clear(dom.articleMeta);
   if (article) {
@@ -289,7 +298,7 @@ function updateHeader() {
       el('span', { class: `format-chip ${article.sourceFormat}` },
         article.sourceFormat === 'latex' ? 'TeX' : 'MD'),
       article.series ? el('span', { class: 'series-chip' }, article.series) : null,
-      ...(article.tags || []).slice(0, 3).map(t => el('span', { class: 'tag-chip' }, t)),
+      ...(article.tags || []).slice(0, 3).map(tag => el('span', { class: 'tag-chip' }, tag)),
     );
   }
 
@@ -301,7 +310,7 @@ function updateHeader() {
 function updateSaveState() {
   if (!dom.saveState) return;
   if (!app.currentArticle) { dom.saveState.textContent = ''; return; }
-  dom.saveState.textContent = app.dirty ? 'unsaved' : `saved ${relativeTime(app.savedAt)}`;
+  dom.saveState.textContent = app.dirty ? t('app.save.unsaved') : t('app.save.savedAgo', { when: relativeTime(app.savedAt) });
   dom.saveState.classList.toggle('dirty', app.dirty);
 }
 
@@ -313,7 +322,7 @@ async function saveSource({ immediate = false } = {}) {
     app.savedAt = result.savedAt;
     updateSaveState();
   } catch (e) {
-    if (immediate) toast(`Could not save: ${e.message}`, { type: 'error', timeout: 6000 });
+    if (immediate) toast(t('app.save.failed', { message: e.message }), { type: 'error', timeout: 6000 });
   }
 }
 
@@ -395,21 +404,21 @@ function buildEditorToolbar() {
   const lang = currentLanguage();
   const buttons = lang === 'latex'
     ? [
-        { label: 'B', title: 'Bold (Ctrl+B)', snippet: '\\textbf{$SELECTION$$CURSOR$}' },
-        { label: 'I', title: 'Italic (Ctrl+I)', snippet: '\\textit{$SELECTION$$CURSOR$}' },
-        { label: '$', title: 'Inline math (Ctrl+M)', snippet: '$$$SELECTION$$CURSOR$$$' },
-        { label: '$$', title: 'Display math', snippet: '\\[\n$SELECTION$$CURSOR$\n\\]' },
-        { label: '§', title: 'Section', snippet: '\\section{$CURSOR$}' },
-        { label: 'fig', title: 'Figure', snippet: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{$CURSOR$}\n  \\caption{}\n  \\label{fig:}\n\\end{figure}' },
+        { label: 'B', title: t('app.fmt.bold'), snippet: '\\textbf{$SELECTION$$CURSOR$}' },
+        { label: 'I', title: t('app.fmt.italic'), snippet: '\\textit{$SELECTION$$CURSOR$}' },
+        { label: '$', title: t('app.fmt.inlineMath'), snippet: '$$$SELECTION$$CURSOR$$$' },
+        { label: '$$', title: t('app.fmt.displayMath'), snippet: '\\[\n$SELECTION$$CURSOR$\n\\]' },
+        { label: '§', title: t('app.fmt.section'), snippet: '\\section{$CURSOR$}' },
+        { label: 'fig', title: t('app.fmt.figure'), snippet: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{$CURSOR$}\n  \\caption{}\n  \\label{fig:}\n\\end{figure}' },
       ]
     : [
-        { label: 'B', title: 'Bold (Ctrl+B)', snippet: '**$SELECTION$$CURSOR$**' },
-        { label: 'I', title: 'Italic (Ctrl+I)', snippet: '*$SELECTION$$CURSOR$*' },
-        { label: '`', title: 'Inline code', snippet: '`$SELECTION$$CURSOR$`' },
-        { label: '$', title: 'Inline math (Ctrl+M)', snippet: '$$$SELECTION$$CURSOR$$$' },
-        { label: '$$', title: 'Display math', snippet: '\n$$\n$SELECTION$$CURSOR$\n$$\n' },
-        { label: '[]', title: 'Link (Ctrl+K)', snippet: '[$SELECTION$]($CURSOR$)' },
-        { label: '>', title: 'Blockquote', snippet: '> $SELECTION$$CURSOR$' },
+        { label: 'B', title: t('app.fmt.bold'), snippet: '**$SELECTION$$CURSOR$**' },
+        { label: 'I', title: t('app.fmt.italic'), snippet: '*$SELECTION$$CURSOR$*' },
+        { label: '`', title: t('app.fmt.inlineCode'), snippet: '`$SELECTION$$CURSOR$`' },
+        { label: '$', title: t('app.fmt.inlineMath'), snippet: '$$$SELECTION$$CURSOR$$$' },
+        { label: '$$', title: t('app.fmt.displayMath'), snippet: '\n$$\n$SELECTION$$CURSOR$\n$$\n' },
+        { label: '[]', title: t('app.fmt.link'), snippet: '[$SELECTION$]($CURSOR$)' },
+        { label: '>', title: t('app.fmt.blockquote'), snippet: '> $SELECTION$$CURSOR$' },
       ];
 
   clear(dom.editorToolbar);
@@ -458,7 +467,7 @@ function toggleSnippetPalette() {
  */
 async function insertImageFile(file, { caretOffset = null } = {}) {
   if (!app.currentArticleId) {
-    toast('Open an article before inserting images.', { type: 'error' });
+    toast(t('app.image.openFirst'), { type: 'error' });
     return;
   }
 
@@ -473,10 +482,10 @@ async function insertImageFile(file, { caretOffset = null } = {}) {
     // this render — no restart, no reopening the article.
     updatePreview();
     toast(asset.reused
-      ? `Reused the identical image already stored as ${asset.name}.`
-      : `Inserted ${asset.name}.`);
+      ? t('app.image.reused', { name: asset.name })
+      : t('app.image.inserted', { name: asset.name }));
   } catch (e) {
-    toast(`Could not store the image: ${e.message}`, { type: 'error', timeout: 7000 });
+    toast(t('app.image.failed', { message: e.message }), { type: 'error', timeout: 7000 });
   }
 }
 
@@ -490,7 +499,7 @@ function handleDrop(e) {
   // A preview tab is generated and read-only. Inserting into the editor
   // underneath it would change the article with nothing on screen to show it.
   if (isPreviewView() && file.type.startsWith('image/')) {
-    toast(`Switch to the ${primaryTabLabel()} tab to insert an image.`, { type: 'error' });
+    toast(t('app.image.switchTab', { tab: primaryTabLabel() }), { type: 'error' });
     return;
   }
 
@@ -544,7 +553,7 @@ async function importFile(file) {
     const { article } = await backend.workspace.import({ name: file.name, content });
     await refreshLibrary();
     await openArticle(article.id);
-    toast(`Imported “${article.title}”.`);
+    toast(t('app.import.done', { title: article.title }));
   } catch (e) {
     toast(e.message, { type: 'error' });
   }
@@ -569,10 +578,10 @@ async function loadTheme(name) {
 
 function buildThemeSelector() {
   clear(dom.themeSelect);
-  const builtin = app.themes.filter(t => t.source === 'builtin');
-  const user = app.themes.filter(t => t.source === 'user');
+  const builtin = app.themes.filter(theme => theme.source === 'builtin');
+  const user = app.themes.filter(theme => theme.source === 'user');
 
-  for (const [label, items] of [['Built-in', builtin], ['Custom', user]]) {
+  for (const [label, items] of [[t('app.theme.groupBuiltin'), builtin], [t('app.theme.groupCustom'), user]]) {
     if (!items.length) continue;
     const group = el('optgroup', { label });
     for (const theme of items) group.append(el('option', { value: theme.name }, theme.name));
@@ -586,7 +595,7 @@ function updateCssEditor() {
   dom.cssEditor.value = app.themeCss;
   dom.cssEditor.dataset.original = app.themeCss;
   dom.cssEditor.readOnly = false;
-  dom.cssTitle.textContent = `Style: ${app.themeName}${app.themeEditable ? '' : ' (built-in)'}`;
+  dom.cssTitle.textContent = t(app.themeEditable ? 'app.css.title' : 'app.css.titleBuiltin', { name: app.themeName });
   dom.cssUnsaved.classList.add('hidden');
   $('btn-css-save').disabled = !app.themeEditable;
   $('btn-css-rename').disabled = !app.themeEditable;
@@ -597,12 +606,12 @@ async function saveTheme() {
   const css = dom.cssEditor.value;
   if (!app.themeEditable) {
     const name = await promptDialog({
-      title: 'Save as a new theme',
-      label: 'Theme name',
+      title: t('app.theme.saveAsNewTitle'),
+      label: t('app.theme.nameLabel'),
       value: `${app.themeName}-custom`,
-      hint: 'Built-in themes are read-only. Saving creates an editable copy.',
-      confirmLabel: 'Create theme',
-      validate: (v) => (v.trim() ? null : 'A name is required.'),
+      hint: t('app.theme.builtinReadonly'),
+      confirmLabel: t('app.theme.createTheme'),
+      validate: (v) => (v.trim() ? null : t('app.theme.nameRequired')),
     });
     if (name === undefined) return;
     await backend.themes.create({ name, css });
@@ -610,7 +619,7 @@ async function saveTheme() {
     buildThemeSelector();
     await loadTheme(name);
     await setArticleTheme(name);
-    toast(`Theme “${name}” created.`);
+    toast(t('app.theme.created', { name }));
     return;
   }
 
@@ -620,7 +629,7 @@ async function saveTheme() {
   dom.cssUnsaved.classList.add('hidden');
   invalidateTarget('theme-saved');
   updateTargetState();
-  toast('Theme saved.');
+  toast(t('app.theme.saved'));
 }
 
 async function setArticleTheme(name) {
@@ -631,12 +640,33 @@ async function setArticleTheme(name) {
 
 // ── Preview ───────────────────────────────────────────────────────────────────
 
+/**
+ * Put rendered Markdown HTML into the preview and return its #nice root.
+ *
+ * The preview keeps KaTeX HTML: it is fast, selectable, and never leaves the
+ * browser. Publishing output is a different renderer and runs on the backend.
+ * Article-relative assets cannot be loaded by the browser directly, so point
+ * them at the backend *before* the HTML enters the document — otherwise the
+ * browser fires off a request for `assets/…` that is guaranteed to fail. The
+ * rewrite applies to the rendered HTML only; the source is untouched.
+ */
+function paintPreview(rawHtml) {
+  const css = scopeThemeCss(resolveCssVariables(app.themeCss));
+  dom.previewContent.innerHTML = `<style>${css}</style>\n${rewriteAssetHtml(rawHtml)}`;
+  resolvePreviewAssets(dom.previewContent);
+  fitDisplayMath(dom.previewContent);
+  return dom.previewContent.querySelector('#nice');
+}
+
 function updatePreview() {
   const source = app.source;
 
+  // An AI proposal owns the preview until it is applied or discarded.
+  if (isReviewing()) return;
+
   if (!source.trim()) {
     clear(dom.previewContent);
-    dom.previewContent.append(el('div', { class: 'preview-empty' }, el('p', {}, 'Start writing…')));
+    dom.previewContent.append(el('div', { class: 'preview-empty' }, el('p', {}, t('app.preview.startWriting'))));
     dom.diagStats.textContent = '';
     dom.diagIssues.textContent = '';
     return;
@@ -645,35 +675,24 @@ function updatePreview() {
   if (currentLanguage() === 'latex') {
     clear(dom.previewContent);
     dom.previewContent.append(el('div', { id: 'nice', class: 'latex-source-preview' }, source));
-    dom.diagStats.textContent = `LaTeX · ${source.split('\n').length} lines · ${source.length} chars`;
-    dom.diagIssues.textContent = 'Compile a PDF to see the typeset result.';
+    dom.diagStats.textContent = t('app.preview.latexStats', { lines: source.split('\n').length, chars: source.length });
+    dom.diagIssues.textContent = t('app.preview.compileForPdf');
     dom.diagIssues.className = '';
     return;
   }
 
   const rawHtml = renderMarkdown(source);
-  const css = resolveCssVariables(app.themeCss);
-
-  // The preview keeps KaTeX HTML: it is fast, selectable, and never leaves the
-  // browser. Publishing output is a different renderer and runs on the backend.
-  // Article-relative assets cannot be loaded by the browser directly, so point
-  // them at the backend *before* the HTML enters the document — otherwise the
-  // browser fires off a request for `assets/…` that is guaranteed to fail. The
-  // rewrite applies to the rendered HTML only; the source is untouched.
-  dom.previewContent.innerHTML = `<style>${css}</style>\n${rewriteAssetHtml(rawHtml)}`;
-
-  resolvePreviewAssets(dom.previewContent);
-
-  fitDisplayMath(dom.previewContent);
+  paintPreview(rawHtml);
 
   const result = validate(rawHtml, source, app.platform);
-  dom.diagStats.textContent =
-    `${result.stats.paragraphs}P · ${result.stats.headings}H · ${result.stats.mathTotal} math · `
-    + `${result.stats.codeBlocks} code · ${result.stats.images} img · ${result.stats.tables} tbl`;
+  dom.diagStats.textContent = t('app.preview.stats', {
+    paragraphs: result.stats.paragraphs, headings: result.stats.headings, math: result.stats.mathTotal,
+    code: result.stats.codeBlocks, images: result.stats.images, tables: result.stats.tables,
+  });
 
   const issues = [
-    ...result.errors.map(e => `error: ${e}`),
-    ...result.warnings.map(w => `warning: ${w}`),
+    ...result.errors.map(e => t('app.preview.error', { message: e })),
+    ...result.warnings.map(w => t('app.preview.warning', { message: w })),
   ];
   dom.diagIssues.textContent = issues.join(' · ');
   dom.diagIssues.className = result.errors.length ? 'error' : result.warnings.length ? 'warning' : '';
@@ -681,17 +700,22 @@ function updatePreview() {
 
 function updateTargetState() {
   if (!dom.targetState) return;
-  const label = app.platform === 'wechat' ? 'WeChat' : 'Zhihu';
+  const platform = platformLabel();
   if (app.target.busy) {
-    dom.targetState.textContent = `${label}: compiling…`;
+    dom.targetState.textContent = t('app.target.stateCompiling', { platform });
     dom.targetState.className = 'target-state busy';
   } else if (app.target.prepared) {
-    dom.targetState.textContent = `${label}: ready`;
+    dom.targetState.textContent = t('app.target.stateReady', { platform });
     dom.targetState.className = 'target-state ready';
   } else {
-    dom.targetState.textContent = `${label}: not compiled`;
+    dom.targetState.textContent = t('app.target.stateNotCompiled', { platform });
     dom.targetState.className = 'target-state stale';
   }
+}
+
+/** The publishing platform's short name, for labels. */
+function platformLabel() {
+  return t(app.platform === 'wechat' ? 'app.platform.wechatShort' : 'app.platform.zhihu');
 }
 
 // ── PDF preview ───────────────────────────────────────────────────────────────
@@ -705,7 +729,7 @@ function showPdfPreview(pdf) {
 function hidePdfPreview() {
   dom.previewPane.classList.remove('showing-pdf');
   dom.pdfFrame.src = 'about:blank';
-  dom.previewLabel.textContent = app.platform === 'wechat' ? 'WeChat' : 'Zhihu';
+  dom.previewLabel.textContent = platformLabel();
 }
 
 // ── Environment-driven UI ─────────────────────────────────────────────────────
@@ -716,8 +740,8 @@ function updateEnvironmentUi() {
   if (pdfButton) {
     pdfButton.classList.toggle('needs-setup', !latexOk);
     pdfButton.title = latexOk
-      ? `Compile PDF with ${app.env.latex.defaultEngine}`
-      : 'LaTeX is not installed — click to see setup instructions';
+      ? t('app.pdf.compileWith', { engine: app.env.latex.defaultEngine })
+      : t('app.pdf.notInstalled');
   }
 }
 
@@ -771,7 +795,7 @@ function wireEvents() {
 
   dom.platformSelect.addEventListener('change', () => {
     app.platform = dom.platformSelect.value;
-    dom.previewLabel.textContent = app.platform === 'wechat' ? 'WeChat' : 'Zhihu';
+    dom.previewLabel.textContent = platformLabel();
     invalidateTarget('platform-changed');
     updateTargetState();
     updatePreview();
@@ -860,11 +884,11 @@ function wireEvents() {
   $('btn-css-save').addEventListener('click', () => saveTheme());
   $('btn-css-save-as').addEventListener('click', async () => {
     const name = await promptDialog({
-      title: 'Save theme as',
-      label: 'Theme name',
+      title: t('app.theme.saveAsTitle'),
+      label: t('app.theme.nameLabel'),
       value: `${app.themeName}-copy`,
-      confirmLabel: 'Create',
-      validate: (v) => (v.trim() ? null : 'A name is required.'),
+      confirmLabel: t('app.theme.create'),
+      validate: (v) => (v.trim() ? null : t('app.theme.nameRequired')),
     });
     if (name === undefined) return;
     await backend.themes.create({ name, css: dom.cssEditor.value });
@@ -872,12 +896,13 @@ function wireEvents() {
     buildThemeSelector();
     await loadTheme(name);
     await setArticleTheme(name);
-    toast(`Theme “${name}” created.`);
+    toast(t('app.theme.created', { name }));
   });
   $('btn-css-rename').addEventListener('click', async () => {
     const name = await promptDialog({
-      title: 'Rename theme', label: 'Theme name', value: app.themeName, confirmLabel: 'Rename',
-      validate: (v) => (v.trim() ? null : 'A name is required.'),
+      title: t('app.theme.renameTitle'), label: t('app.theme.nameLabel'), value: app.themeName,
+      confirmLabel: t('app.theme.rename'),
+      validate: (v) => (v.trim() ? null : t('app.theme.nameRequired')),
     });
     if (name === undefined || name === app.themeName) return;
     await backend.themes.rename(app.themeName, name);
@@ -885,13 +910,13 @@ function wireEvents() {
     buildThemeSelector();
     await loadTheme(name);
     await setArticleTheme(name);
-    toast('Theme renamed.');
+    toast(t('app.theme.renamed'));
   });
   $('btn-css-delete').addEventListener('click', async () => {
     const ok = await confirmDialog({
-      title: 'Delete theme?',
-      message: `“${app.themeName}” will be removed from disk.`,
-      confirmLabel: 'Delete', danger: true,
+      title: t('app.theme.deleteTitle'),
+      message: t('app.theme.deleteMessage', { name: app.themeName }),
+      confirmLabel: t('app.theme.delete'), danger: true,
     });
     if (!ok) return;
     await backend.themes.remove(app.themeName);
@@ -900,7 +925,7 @@ function wireEvents() {
     await loadTheme('default');
     await setArticleTheme('default');
     updatePreview();
-    toast('Theme deleted.');
+    toast(t('app.theme.deleted'));
   });
   $('btn-css-revert').addEventListener('click', () => {
     dom.cssEditor.value = dom.cssEditor.dataset.original;
@@ -914,7 +939,7 @@ function wireEvents() {
     const mod = e.ctrlKey || e.metaKey;
     if (!mod) return;
 
-    if (e.key === 's') { e.preventDefault(); flushPendingSave().then(() => toast('Saved.')); }
+    if (e.key === 's') { e.preventDefault(); flushPendingSave().then(() => toast(t('app.save.done'))); }
     else if (e.key === 'n' && e.shiftKey) { e.preventDefault(); createArticle(); }
     else if (e.key === 'i' && !e.shiftKey && app.currentArticleId) { e.preventDefault(); openProperties(app.currentArticleId); }
     else if (e.key === 'p' && e.shiftKey) { e.preventDefault(); compilePdf(); }
@@ -945,6 +970,12 @@ function wireEvents() {
   on('env:changed', updateEnvironmentUi);
   on('preferences:changed', (patch) => {
     Object.assign(preferences, patch);
+    // Every panel builds its text when it renders, so a new language is a
+    // reload rather than a partial repaint that leaves the old one behind.
+    if (patch && 'ui_language' in patch && setLanguagePreference(patch.ui_language)) {
+      location.reload();
+      return;
+    }
     applyPreferences();
   });
   on('article:metadata-changed', async () => {
@@ -971,21 +1002,52 @@ function wireEvents() {
     }
   });
   on('article:none', showNoArticle);
+  on('ai:proposal', ({ source, stats, apply, discard }) => {
+    if (currentLanguage() === 'latex') return;   // the preview of a LaTeX article is its source
+    showProposal({
+      editor: dom.editor,
+      oldSource: app.source,
+      newSource: source,
+      stats,
+      paintPreview,
+      onApply: apply,
+      onDiscard: discard,
+    });
+  });
+  on('ai:proposal-cleared', () => {
+    if (!isReviewing()) return;
+    clearProposal();
+    updatePreview();
+  });
   on('ai:applied', async (result) => {
-    if (result.source !== undefined && result.source !== app.source) {
+    clearProposal();
+
+    // State first, one repaint after: the highlight is attached to that
+    // repaint, and a second one would silently replace it.
+    const previous = app.source;
+    const sourceChanged = result.source !== undefined && result.source !== app.source;
+    if (sourceChanged) {
       app.source = result.source;
       dom.editor.value = result.source;
       app.dirty = false;
       app.savedAt = new Date().toISOString();
       updateSaveState();
       invalidateTarget('ai-edit');
-      updatePreview();
     }
-    if (result.themeCss && result.themeName === app.themeName) {
+    if (result.themeCss && result.themeName === app.themeName && result.themeCss !== app.themeCss) {
       app.themeCss = result.themeCss;
       updateCssEditor();
       invalidateTarget('ai-theme-edit');
-      updatePreview();
+    }
+    updatePreview();
+
+    if (sourceChanged && currentLanguage() !== 'latex') {
+      flashApplied({
+        editor: dom.editor,
+        previewRoot: dom.previewContent.querySelector('#nice'),
+        oldSource: previous,
+        newSource: result.source,
+      });
     }
     await refreshLibrary();
     updateTargetState();

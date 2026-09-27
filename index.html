@@ -12,12 +12,15 @@
     is on screen at first paint — before the bundle has parsed, let alone run.
     A spinner that only appears once the application is ready would cover none
     of the wait it exists to explain.
+
+    Static text carries data-i18n keys (see src/ui/i18n.js); the English in the
+    markup is what shows before the bundle has translated it.
   -->
   <div id="boot-overlay" class="boot-overlay">
     <div class="boot-card">
       <div class="boot-title">MDTeX Studio</div>
       <div class="boot-bar"><div id="boot-bar-fill" class="boot-bar-fill"></div></div>
-      <div id="boot-status" class="boot-status">Starting…</div>
+      <div id="boot-status" class="boot-status" data-i18n="app.boot.starting">Starting…</div>
       <div id="boot-detail" class="boot-detail"></div>
     </div>
   </div>
@@ -27,38 +30,48 @@
     <!-- Toolbar -->
     <header class="toolbar">
       <div class="toolbar-group toolbar-left">
-        <button id="btn-toggle-library" class="icon-btn" title="Toggle the article library">☰</button>
+        <button id="btn-toggle-library" class="icon-btn" title="Toggle the article library"
+                data-i18n-title="app.toolbar.toggleLibrary">☰</button>
         <span class="app-title">MDTeX</span>
-        <button id="btn-open" class="btn btn-sm" title="Import a .md or .tex file">Import</button>
+        <button id="btn-open" class="btn btn-sm" title="Import a .md or .tex file"
+                data-i18n="app.toolbar.import" data-i18n-title="app.toolbar.importTitle">Import</button>
         <input type="file" id="file-input" accept=".md,.markdown,.txt,.tex,.ltx" hidden />
         <input type="file" id="image-input" accept="image/*" hidden />
       </div>
 
       <div class="toolbar-group toolbar-center">
-        <button id="article-title" class="article-title" title="Article properties"></button>
+        <button id="article-title" class="article-title" title="Article properties"
+                data-i18n-title="app.toolbar.articleProperties"></button>
         <span id="article-meta" class="article-meta"></span>
         <span id="save-state" class="save-state"></span>
       </div>
 
       <div class="toolbar-group toolbar-right">
-        <label class="toolbar-field">Style
+        <label class="toolbar-field"><span data-i18n="app.toolbar.style">Style</span>
           <select id="select-theme"></select>
         </label>
-        <button id="btn-edit-css" class="btn btn-sm" title="Edit the theme stylesheet">CSS</button>
-        <label class="toolbar-field">Target
+        <button id="btn-edit-css" class="btn btn-sm" title="Edit the theme stylesheet"
+                data-i18n-title="app.toolbar.editCss">CSS</button>
+        <label class="toolbar-field"><span data-i18n="app.toolbar.target">Target</span>
           <select id="select-platform">
-            <option value="wechat" selected>WeChat</option>
-            <option value="zhihu">Zhihu</option>
+            <option value="wechat" selected data-i18n="app.platform.wechat">WeChat</option>
+            <option value="zhihu" data-i18n="app.platform.zhihu">Zhihu</option>
           </select>
         </label>
         <span class="toolbar-divider"></span>
-        <button id="btn-prepare" class="btn btn-sm" title="Compile the platform representation now">Compile</button>
-        <button id="btn-copy-rich" class="btn btn-primary btn-sm" title="Copy the prepared rich text">Copy</button>
-        <button id="btn-copy-html" class="btn btn-sm" title="Copy raw HTML">HTML</button>
-        <button id="btn-export" class="btn btn-sm" title="Export a standalone HTML file">Export</button>
+        <button id="btn-prepare" class="btn btn-sm" title="Compile the platform representation now"
+                data-i18n="app.toolbar.compile" data-i18n-title="app.toolbar.compileTitle">Compile</button>
+        <button id="btn-copy-rich" class="btn btn-primary btn-sm" title="Copy the prepared rich text"
+                data-i18n="app.toolbar.copy" data-i18n-title="app.toolbar.copyTitle">Copy</button>
+        <button id="btn-copy-html" class="btn btn-sm" title="Copy raw HTML"
+                data-i18n-title="app.toolbar.copyHtmlTitle">HTML</button>
+        <button id="btn-export" class="btn btn-sm" title="Export a standalone HTML file"
+                data-i18n="app.toolbar.export" data-i18n-title="app.toolbar.exportTitle">Export</button>
         <span class="toolbar-divider"></span>
-        <button id="btn-toggle-ai" class="btn btn-sm" title="AI assistant">AI</button>
-        <button id="btn-settings" class="icon-btn" title="Settings (Ctrl+,)">⚙</button>
+        <button id="btn-toggle-ai" class="btn btn-sm" title="AI assistant"
+                data-i18n-title="app.toolbar.ai">AI</button>
+        <button id="btn-settings" class="icon-btn" title="Settings (Ctrl+,)"
+                data-i18n-title="app.toolbar.settings">⚙</button>
       </div>
     </header>
 
@@ -69,11 +82,14 @@
       <aside id="library-panel" class="library-panel">
         <div class="library-header">
           <input id="library-search" type="search" placeholder="Search articles…" class="library-search"
-                 aria-label="Search articles" />
+                 aria-label="Search articles"
+                 data-i18n-placeholder="app.library.searchPlaceholder" data-i18n-aria-label="app.library.searchLabel" />
         </div>
         <div class="library-actions">
-          <button id="btn-new-article" class="btn btn-sm" title="New article (Ctrl+Shift+N)">+ Article</button>
-          <button id="btn-new-folder" class="btn btn-sm" title="New folder">+ Folder</button>
+          <button id="btn-new-article" class="btn btn-sm" title="New article (Ctrl+Shift+N)"
+                  data-i18n="app.library.newArticle" data-i18n-title="app.library.newArticleTitle">+ Article</button>
+          <button id="btn-new-folder" class="btn btn-sm" title="New folder"
+                  data-i18n="app.library.newFolder" data-i18n-title="app.library.newFolderTitle">+ Folder</button>
         </div>
         <div id="library-list" class="library-list" role="tree"></div>
       </aside>
@@ -81,47 +97,58 @@
       <!-- Editor -->
       <section class="editor-pane" id="editor-pane">
         <div class="pane-header">
-          <span class="pane-title">Source</span>
+          <span class="pane-title" data-i18n="app.editor.source">Source</span>
           <span id="editor-format-label" class="format-chip">MD</span>
           <div class="source-tabs hidden" id="source-tabs" role="tablist">
             <button id="tab-source" class="source-tab active" role="tab"
-                    title="The article's source">Markdown</button>
+                    title="The article's source" data-i18n-title="app.editor.tabSourceTitle">Markdown</button>
             <button id="tab-latex" class="source-tab" role="tab"
-                    title="The LaTeX this Markdown becomes">LaTeX</button>
+                    title="The LaTeX this Markdown becomes" data-i18n-title="app.editor.tabLatexTitle">LaTeX</button>
           </div>
           <div class="editor-toolbar" id="editor-toolbar"></div>
-          <button id="btn-insert-image" class="btn btn-xs" title="Insert an image">Image</button>
-          <button id="btn-snippets" class="btn btn-xs" title="Insert a snippet">Insert</button>
-          <button id="btn-compile-pdf" class="btn btn-xs" title="Compile PDF (Ctrl+Shift+P)">PDF</button>
+          <button id="btn-insert-image" class="btn btn-xs" title="Insert an image"
+                  data-i18n="app.editor.image" data-i18n-title="app.editor.imageTitle">Image</button>
+          <button id="btn-snippets" class="btn btn-xs" title="Insert a snippet"
+                  data-i18n="app.editor.insert" data-i18n-title="app.editor.insertTitle">Insert</button>
+          <button id="btn-compile-pdf" class="btn btn-xs" title="Compile PDF (Ctrl+Shift+P)"
+                  data-i18n-title="app.editor.pdfTitle">PDF</button>
         </div>
         <textarea id="editor" spellcheck="false"
-                  placeholder="Write Markdown or LaTeX here. Drag images onto the editor to insert them."></textarea>
+                  placeholder="Write Markdown or LaTeX here. Drag images onto the editor to insert them."
+                  data-i18n-placeholder="app.editor.placeholder"></textarea>
         <div id="latex-view" class="latex-view hidden">
           <div id="latex-view-notes" class="latex-view-notes"></div>
           <textarea id="latex-source" spellcheck="false" readonly
-                    aria-label="Generated LaTeX source"></textarea>
+                    aria-label="Generated LaTeX source" data-i18n-aria-label="app.latex.sourceLabel"></textarea>
           <div class="latex-view-footer">
             <span id="latex-view-origin" class="latex-view-origin"></span>
             <button id="btn-regen-latex" class="btn btn-xs hidden"
-                    title="Generate again from the current Markdown">Regenerate</button>
+                    title="Generate again from the current Markdown"
+                    data-i18n="app.latex.regenerate" data-i18n-title="app.latex.regenerateTitle">Regenerate</button>
             <button id="btn-discard-latex" class="btn btn-xs hidden"
-                    title="Stop keeping this copy and generate each time">Stop keeping</button>
+                    title="Stop keeping this copy and generate each time"
+                    data-i18n="app.latex.stopKeeping" data-i18n-title="app.latex.stopKeepingTitle">Stop keeping</button>
             <button id="btn-save-latex" class="btn btn-sm btn-primary"
-                    title="Keep this LaTeX. Opening the tab again shows it instead of generating a new one.">Save this LaTeX</button>
+                    title="Keep this LaTeX. Opening the tab again shows it instead of generating a new one."
+                    data-i18n="app.latex.save" data-i18n-title="app.latex.saveTitle">Save this LaTeX</button>
             <button id="btn-adopt-latex" class="btn btn-xs"
-                    title="Make this LaTeX the article's source. One-way.">Use as source…</button>
+                    title="Make this LaTeX the article's source. One-way."
+                    data-i18n="app.latex.adopt" data-i18n-title="app.latex.adoptTitle">Use as source…</button>
           </div>
         </div>
         <div id="markdown-view" class="latex-view hidden">
           <div id="markdown-view-notes" class="latex-view-notes"></div>
           <textarea id="markdown-source" spellcheck="false" readonly
-                    aria-label="Markdown recovered from the LaTeX source"></textarea>
+                    aria-label="Markdown recovered from the LaTeX source"
+                    data-i18n-aria-label="app.markdown.sourceLabel"></textarea>
           <div class="latex-view-footer">
             <span id="markdown-view-origin" class="latex-view-origin"></span>
             <button id="btn-preview-markdown" class="btn btn-xs"
-                    title="Show what converting to Markdown would produce">Preview conversion…</button>
+                    title="Show what converting to Markdown would produce"
+                    data-i18n="app.markdown.preview" data-i18n-title="app.markdown.previewTitle">Preview conversion…</button>
             <button id="btn-adopt-markdown" class="btn btn-xs hidden"
-                    title="Make this Markdown the article's source. One-way.">Convert to Markdown…</button>
+                    title="Make this Markdown the article's source. One-way."
+                    data-i18n="app.markdown.adopt" data-i18n-title="app.markdown.adoptTitle">Convert to Markdown…</button>
           </div>
         </div>
         <div id="snippet-palette" class="snippet-palette hidden"></div>
@@ -130,16 +157,17 @@
       <!-- Preview -->
       <section class="preview-pane" id="preview-pane">
         <div class="pane-header">
-          <span class="pane-title">Preview</span>
-          <span id="preview-platform-label" class="platform-label">WeChat</span>
-          <span id="target-state" class="target-state stale">not compiled</span>
-          <button id="btn-close-pdf" class="btn btn-xs pdf-only" title="Back to the live preview">Close PDF</button>
+          <span class="pane-title" data-i18n="app.preview.title">Preview</span>
+          <span id="preview-platform-label" class="platform-label" data-i18n="app.platform.wechatShort">WeChat</span>
+          <span id="target-state" class="target-state stale" data-i18n="app.target.notCompiled">not compiled</span>
+          <button id="btn-close-pdf" class="btn btn-xs pdf-only" title="Back to the live preview"
+                  data-i18n="app.preview.closePdf" data-i18n-title="app.preview.closePdfTitle">Close PDF</button>
         </div>
         <div id="preview-container" class="preview-container">
           <div id="preview-content"></div>
         </div>
         <div id="pdf-preview" class="pdf-preview">
-          <iframe id="pdf-frame" title="PDF preview" src="about:blank"></iframe>
+          <iframe id="pdf-frame" title="PDF preview" data-i18n-title="app.preview.pdfFrame" src="about:blank"></iframe>
         </div>
       </section>
     </main>
@@ -147,25 +175,26 @@
     <!-- Bottom panel -->
     <div id="bottom-panel" class="bottom-panel hidden">
       <div class="bottom-panel-tabs">
-        <button class="bottom-tab active" data-tab="css">Style</button>
-        <button class="bottom-tab" data-tab="ai">AI Assistant</button>
-        <button class="bottom-tab" data-tab="build">Build Output</button>
-        <button id="btn-close-bottom" class="icon-btn" title="Close panel">×</button>
+        <button class="bottom-tab active" data-tab="css" data-i18n="app.panel.style">Style</button>
+        <button class="bottom-tab" data-tab="ai" data-i18n="app.panel.ai">AI Assistant</button>
+        <button class="bottom-tab" data-tab="build" data-i18n="app.panel.build">Build Output</button>
+        <button id="btn-close-bottom" class="icon-btn" title="Close panel" data-i18n-title="app.panel.close">×</button>
       </div>
 
       <div class="bottom-tab-content active" data-tab="css">
         <div class="css-editor-header">
-          <span id="css-editor-title">Style</span>
-          <span id="css-unsaved-indicator" class="unsaved-indicator hidden">unsaved</span>
+          <span id="css-editor-title" data-i18n="app.panel.style">Style</span>
+          <span id="css-unsaved-indicator" class="unsaved-indicator hidden" data-i18n="app.css.unsaved">unsaved</span>
           <div class="css-editor-actions">
-            <button id="btn-css-save" class="btn btn-xs">Save</button>
-            <button id="btn-css-save-as" class="btn btn-xs">Save as…</button>
-            <button id="btn-css-rename" class="btn btn-xs">Rename…</button>
-            <button id="btn-css-delete" class="btn btn-xs">Delete</button>
-            <button id="btn-css-revert" class="btn btn-xs">Revert</button>
+            <button id="btn-css-save" class="btn btn-xs" data-i18n="app.css.save">Save</button>
+            <button id="btn-css-save-as" class="btn btn-xs" data-i18n="app.css.saveAs">Save as…</button>
+            <button id="btn-css-rename" class="btn btn-xs" data-i18n="app.css.rename">Rename…</button>
+            <button id="btn-css-delete" class="btn btn-xs" data-i18n="app.css.delete">Delete</button>
+            <button id="btn-css-revert" class="btn btn-xs" data-i18n="app.css.revert">Revert</button>
           </div>
         </div>
-        <textarea id="css-editor" spellcheck="false" placeholder="/* Styles are scoped under #nice */"></textarea>
+        <textarea id="css-editor" spellcheck="false" placeholder="/* Styles are scoped under #nice */"
+                  data-i18n-placeholder="app.css.placeholder"></textarea>
       </div>
 
       <div class="bottom-tab-content" data-tab="ai">

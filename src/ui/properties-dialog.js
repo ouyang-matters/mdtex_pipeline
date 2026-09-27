@@ -1,6 +1,25 @@
 import { modal, field, el, toast, relativeTime, confirmDialog, mount } from './ui-kit.js';
 import { backend } from './api.js';
 import { app } from './state.js';
+import { t } from './i18n.js';
+
+/**
+ * The displayed name of a stored article status. The stored value stays
+ * `draft`/`review`/`published`/`archived`; only its label follows the language.
+ * An unknown status is shown as stored rather than as a raw key.
+ */
+export function statusLabel(status) {
+  const key = `library.status.${status}`;
+  const text = t(key);
+  return text === key ? status : text;
+}
+
+/** The displayed name of a publishing target, falling back to the backend's label. */
+function targetLabel(target) {
+  const key = `props.target.${target.value}`;
+  const text = t(key);
+  return text === key ? target.label : text;
+}
 
 /**
  * Article properties.
@@ -22,7 +41,7 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
   const article = data.article;
   const schema = app.schema || await backend.workspace.schema();
   const folderOptions = [
-    { value: '', label: '/ (workspace root)' },
+    { value: '', label: t('library.workspaceRoot') },
     ...app.folders.map(f => ({ value: f.path, label: `/${f.path}` })),
   ];
 
@@ -30,127 +49,128 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
   let saved = null;
 
   await modal({
-    title: 'Article properties',
+    title: t('props.title'),
     subtitle: article.title,
     width: 720,
     className: 'dialog-properties',
     render: (ctx) => {
       // ── Identity (read-only) ──
       fields.id = field({
-        label: 'Article ID', type: 'readonly', value: article.id,
-        badge: 'stable',
-        hint: 'Identifies this article for build caches, checkpoints and publish state. '
-          + 'It never changes — renaming or moving the article is safe.',
+        label: t('props.id'), type: 'readonly', value: article.id,
+        badge: t('props.stable'),
+        hint: t('props.idHint'),
         wide: true,
       });
       fields.dirName = field({
-        label: 'Folder on disk', type: 'readonly', value: article.dirName || '—',
-        badge: 'stable',
-        hint: 'The directory name is part of the article\'s identity and is not renamed with the title.',
+        label: t('props.dirName'), type: 'readonly', value: article.dirName || '—',
+        badge: t('props.stable'),
+        hint: t('props.dirNameHint'),
       });
       fields.createdAt = field({
-        label: 'Created', type: 'readonly',
+        label: t('props.createdAt'), type: 'readonly',
         value: article.createdAt ? new Date(article.createdAt).toLocaleString() : '—',
-        badge: 'stable',
+        badge: t('props.stable'),
       });
 
       // ── Presentation ──
-      fields.title = field({ label: 'Title', value: article.title, wide: true });
-      fields.subtitle = field({ label: 'Subtitle', value: article.subtitle, wide: true });
-      fields.author = field({ label: 'Author', value: article.author });
+      fields.title = field({ label: t('props.titleField'), value: article.title, wide: true });
+      fields.subtitle = field({ label: t('props.subtitle'), value: article.subtitle, wide: true });
+      fields.author = field({ label: t('props.author'), value: article.author });
       fields.language = field({
-        label: 'Language', type: 'select', value: article.language,
+        label: t('props.language'), type: 'select', value: article.language,
         options: schema.languages,
       });
       fields.summary = field({
-        label: 'Summary', type: 'textarea', value: article.summary, rows: 2, wide: true,
-        hint: 'Used as the excerpt when handing off to the blog pipeline.',
+        label: t('props.summary'), type: 'textarea', value: article.summary, rows: 2, wide: true,
+        hint: t('props.summaryHint'),
       });
       fields.tags = field({
-        label: 'Tags', value: (article.tags || []).join(', '),
-        placeholder: 'bayesian, notes',
-        hint: app.tags.length ? `In use: ${app.tags.slice(0, 8).map(t => t.tag).join(', ')}` : 'Comma separated.',
+        label: t('props.tags'), value: (article.tags || []).join(', '),
+        placeholder: t('props.tagsPlaceholder'),
+        hint: app.tags.length
+          ? t('props.tagsInUse', { tags: app.tags.slice(0, 8).map(entry => entry.tag).join(', ') })
+          : t('props.tagsHint'),
         wide: true,
       });
       fields.series = field({
-        label: 'Series / column', value: article.series || '',
-        placeholder: app.series.length ? app.series[0].series : 'e.g. Inference Notes',
+        label: t('props.series'), value: article.series || '',
+        placeholder: app.series.length ? app.series[0].series : t('props.seriesPlaceholder'),
       });
       fields.seriesIndex = field({
-        label: 'Position in series', type: 'number', value: article.seriesIndex ?? '',
+        label: t('props.seriesIndex'), type: 'number', value: article.seriesIndex ?? '',
       });
       fields.status = field({
-        label: 'Status', type: 'select', value: article.status,
-        options: schema.statuses.map(s => ({ value: s, label: s[0].toUpperCase() + s.slice(1) })),
+        label: t('props.status'), type: 'select', value: article.status,
+        options: schema.statuses.map(s => ({ value: s, label: statusLabel(s) })),
       });
       fields.folder = field({
-        label: 'Folder', type: 'select', value: data.article.folder ?? '',
+        label: t('props.folder'), type: 'select', value: data.article.folder ?? '',
         options: folderOptions,
-        hint: 'Moving an article keeps its ID, assets and history.',
+        hint: t('props.folderHint'),
       });
       fields.sourceFormat = field({
-        label: 'Source format', type: 'select', value: article.sourceFormat,
+        label: t('props.sourceFormat'), type: 'select', value: article.sourceFormat,
         options: schema.sourceFormats.map(f => ({ value: f.value, label: `${f.label} (${f.file})` })),
-        hint: 'Switching format renames the source file. The text is kept verbatim — '
-          + 'it is not converted. Use the Markdown/LaTeX tabs in the editor to convert between them.',
+        hint: t('props.sourceFormatHint'),
       });
       fields.targets = field({
-        label: 'Publishing targets', type: 'checkbox-group',
-        value: article.targets, options: schema.targets,
+        label: t('props.targets'), type: 'checkbox-group',
+        value: article.targets,
+        options: schema.targets.map(target => ({ ...target, label: targetLabel(target) })),
         wide: true,
       });
       fields.theme = field({
-        label: 'WeChat theme', type: 'select', value: article.theme,
+        label: t('props.theme'), type: 'select', value: article.theme,
         options: schema.themes,
       });
       fields.pdfTemplate = field({
-        label: 'PDF template', type: 'select', value: article.pdfTemplate,
+        label: t('props.pdfTemplate'), type: 'select', value: article.pdfTemplate,
         options: schema.pdfTemplates,
       });
       fields.pdfEngine = field({
-        label: 'PDF engine', type: 'select', value: article.pdfEngine,
+        label: t('props.pdfEngine'), type: 'select', value: article.pdfEngine,
         options: schema.pdfEngines,
         hint: app.env?.latex?.available
-          ? `Installed: ${Object.keys(app.env.latex.engines).join(', ')}`
-          : 'No LaTeX installation detected.',
+          ? t('props.enginesInstalled', { engines: Object.keys(app.env.latex.engines).join(', ') })
+          : t('props.noLatex'),
       });
 
       // Only offered when the machine has fonts to offer. An empty select that
       // says "default" would imply a choice exists where none does.
       const cjkFonts = schema.cjkFonts || [];
       fields.cjkFont = field({
-        label: 'CJK font', type: 'select', value: article.cjkFont || '',
+        label: t('props.cjkFont'), type: 'select', value: article.cjkFont || '',
         options: [
-          { value: '', label: cjkFonts.length ? 'Choose automatically' : 'No CJK font installed' },
+          { value: '', label: cjkFonts.length ? t('props.cjkAuto') : t('props.cjkNone') },
           ...cjkFonts.map(f => ({ value: f, label: f })),
         ],
-        hint: cjkFonts.length
-          ? 'Used for Chinese, Japanese and Korean text in PDFs.'
-          : 'Install a CJK font (fonts-noto-cjk) to typeset CJK in PDFs.',
+        hint: cjkFonts.length ? t('props.cjkHint') : t('props.cjkMissingHint'),
       });
 
+      const time = relativeTime(article.updatedAt);
       const updated = el('p', { class: 'dialog-detail' },
-        `Last modified ${relativeTime(article.updatedAt)}`
-        + (data.source ? ` · ${data.source.split('\n').length} lines` : ''));
+        data.source
+          ? t('props.lastModifiedLines', { time, n: data.source.split('\n').length })
+          : t('props.lastModified', { time }));
 
       return [
-        section('Identity', 'These values are fixed and shown for reference.', [
+        section(t('props.section.identity'), t('props.section.identityHint'), [
           fields.id.node, fields.dirName.node, fields.createdAt.node,
         ], 'identity'),
 
-        section('Article', null, [
+        section(t('props.section.article'), null, [
           fields.title.node, fields.subtitle.node,
           fields.author.node, fields.language.node,
           fields.summary.node,
         ]),
 
-        section('Organisation', null, [
+        section(t('props.section.organisation'), null, [
           fields.folder.node, fields.status.node,
           fields.tags.node,
           fields.series.node, fields.seriesIndex.node,
         ]),
 
-        section('Publishing', null, [
+        section(t('props.section.publishing'), null, [
           fields.targets.node,
           fields.theme.node, fields.pdfTemplate.node, fields.pdfEngine.node,
           fields.cjkFont.node,
@@ -161,14 +181,14 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
       ];
     },
     actions: [
-      { label: 'Cancel', value: undefined },
+      { label: t('props.cancel'), value: undefined },
       {
-        label: 'Save changes',
+        label: t('props.save'),
         variant: 'primary',
         onClick: async (ctx) => {
           const title = fields.title.get().trim();
           if (!title) {
-            fields.title.setError('A title is required.');
+            fields.title.setError(t('props.titleRequired'));
             return false;
           }
           fields.title.setError(null);
@@ -176,11 +196,10 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
           const nextFormat = fields.sourceFormat.get();
           if (nextFormat !== article.sourceFormat) {
             const ok = await confirmDialog({
-              title: 'Change source format?',
-              message: `The source file will be renamed to ${nextFormat === 'latex' ? 'main.tex' : 'source.md'}.`,
-              detail: 'The text is kept exactly as it is — MDTeX does not convert it. '
-                + 'Ask the AI panel to convert the content if that is what you want.',
-              confirmLabel: 'Rename file',
+              title: t('props.formatTitle'),
+              message: t('props.formatMessage', { file: nextFormat === 'latex' ? 'main.tex' : 'source.md' }),
+              detail: t('props.formatDetail'),
+              confirmLabel: t('props.formatConfirm'),
             });
             if (!ok) {
               fields.sourceFormat.set(article.sourceFormat);
@@ -215,7 +234,7 @@ export async function openArticleProperties(articleId, { onSaved } = {}) {
             }
 
             saved = result.article;
-            toast('Article properties saved.');
+            toast(t('props.saved'));
             ctx.close(saved);
           } catch (e) {
             toast(e.message, { type: 'error', timeout: 5000 });

@@ -2,6 +2,7 @@ import { el, clear, modal, field, toast, confirmDialog, formatBytes, mount } fro
 import { backend } from './api.js';
 import { app, emit } from './state.js';
 import { openConnectionManager, openQuickConnect, refreshAi } from './ai-panel.js';
+import { t, LANGUAGES } from './i18n.js';
 
 /**
  * Settings.
@@ -18,12 +19,12 @@ export async function openSettings({ tab = 'general' } = {}) {
   app.env = env;
 
   const tabs = [
-    { id: 'general', label: 'General' },
-    { id: 'editor', label: 'Editor' },
-    { id: 'publishing', label: 'Publishing' },
-    { id: 'ai', label: 'AI' },
+    { id: 'general', label: t('settings.tab.general') },
+    { id: 'editor', label: t('settings.tab.editor') },
+    { id: 'publishing', label: t('settings.tab.publishing') },
+    { id: 'ai', label: t('settings.tab.ai') },
     { id: 'latex', label: 'LaTeX' },
-    { id: 'storage', label: 'Storage' },
+    { id: 'storage', label: t('settings.tab.storage') },
   ];
 
   let activeTab = tab;
@@ -36,22 +37,22 @@ export async function openSettings({ tab = 'general' } = {}) {
   };
 
   await modal({
-    title: 'Settings',
+    title: t('settings.title'),
     width: 760,
     className: 'dialog-settings',
     render: () => {
       const tabBar = el('div', { class: 'settings-tabs' });
-      for (const t of tabs) {
+      for (const tabSpec of tabs) {
         tabBar.append(el('button', {
-          class: `settings-tab${t.id === activeTab ? ' active' : ''}`,
+          class: `settings-tab${tabSpec.id === activeTab ? ' active' : ''}`,
           type: 'button',
           onClick: (e) => {
-            activeTab = t.id;
+            activeTab = tabSpec.id;
             tabBar.querySelectorAll('.settings-tab').forEach(n => n.classList.remove('active'));
             e.currentTarget.classList.add('active');
             renderPanel();
           },
-        }, t.label));
+        }, tabSpec.label));
       }
 
       panelNode = el('div', { class: 'settings-panel' });
@@ -60,9 +61,9 @@ export async function openSettings({ tab = 'general' } = {}) {
       return el('div', { class: 'settings-layout' }, tabBar, panelNode);
     },
     actions: [
-      { label: 'Close', value: undefined },
+      { label: t('settings.close'), value: undefined },
       {
-        label: 'Save',
+        label: t('settings.save'),
         variant: 'primary',
         onClick: async (ctx) => {
           const prefsPatch = {};
@@ -80,7 +81,7 @@ export async function openSettings({ tab = 'general' } = {}) {
             if (Object.keys(prefsPatch).length) await backend.savePreferences(prefsPatch);
             if (Object.keys(configPatch).length) await backend.saveConfig(configPatch);
             emit('preferences:changed', prefsPatch);
-            toast('Settings saved.');
+            toast(t('settings.saved'));
             ctx.close(true);
           } catch (e) {
             toast(e.message, { type: 'error' });
@@ -96,41 +97,56 @@ export async function openSettings({ tab = 'general' } = {}) {
 function buildTab(id, { preferences, config, env, fields }) {
   switch (id) {
     case 'general':
+      // Each language is named in itself, so it can be found whatever
+      // language the interface is currently in.
+      fields['pref.ui_language'] = field({
+        label: t('settings.language.label'), type: 'select',
+        value: preferences.ui_language || 'auto',
+        options: [
+          { value: 'auto', label: t('settings.language.auto') },
+          ...LANGUAGES.map(l => ({ value: l.value, label: l.label })),
+        ],
+        hint: t('settings.language.hint'),
+      });
       fields['config.default_platform'] = field({
-        label: 'Default publishing target', type: 'select',
+        label: t('settings.general.defaultPlatform'), type: 'select',
         value: config.default_platform,
-        options: [{ value: 'wechat', label: 'WeChat' }, { value: 'zhihu', label: 'Zhihu' }],
+        options: [
+          { value: 'wechat', label: t('settings.platform.wechat') },
+          { value: 'zhihu', label: t('settings.platform.zhihu') },
+        ],
       });
       fields['config.default_theme'] = field({
-        label: 'Default theme', type: 'select',
+        label: t('settings.general.defaultTheme'), type: 'select',
         value: config.default_theme,
-        options: app.themes.map(t => ({ value: t.name, label: t.name })),
+        options: app.themes.map(theme => ({ value: theme.name, label: theme.name })),
       });
       return el('div', { class: 'field-grid' },
+        fields['pref.ui_language'].node,
         fields['config.default_platform'].node,
         fields['config.default_theme'].node,
-        info('Application', [
-          ['Version', env ? `${app.version || ''}` : ''],
-          ['Platform', `${env.platform}`],
-          ['App root', env.paths.appRoot],
+        info(t('settings.info.application'), [
+          [t('settings.info.version'), env ? `${app.version || ''}` : ''],
+          [t('settings.info.platform'), `${env.platform}`],
+          [t('settings.info.appRoot'), env.paths.appRoot],
         ]),
       );
 
     case 'editor':
       fields['pref.editor_font_size'] = field({
-        label: 'Editor font size', type: 'number', value: preferences.editor_font_size,
+        label: t('settings.editor.fontSize'), type: 'number', value: preferences.editor_font_size,
       });
       fields['pref.editor_tab_size'] = field({
-        label: 'Tab size', type: 'number', value: preferences.editor_tab_size,
+        label: t('settings.editor.tabSize'), type: 'number', value: preferences.editor_tab_size,
       });
       fields['pref.preview_auto_scroll'] = field({
-        label: 'Sync preview scrolling with the editor', type: 'checkbox',
+        label: t('settings.editor.syncScroll'), type: 'checkbox',
         value: preferences.preview_auto_scroll,
       });
       fields['pref.auto_save'] = field({
-        label: 'Save the article automatically as you type', type: 'checkbox',
+        label: t('settings.editor.autoSave'), type: 'checkbox',
         value: preferences.auto_save !== false,
-        hint: 'Saves to disk about a second after you stop typing.',
+        hint: t('settings.editor.autoSaveHint'),
       });
       return el('div', { class: 'field-grid' },
         fields['pref.editor_font_size'].node,
@@ -141,27 +157,26 @@ function buildTab(id, { preferences, config, env, fields }) {
 
     case 'publishing':
       fields['pref.auto_prepare_target'] = field({
-        label: 'Prepare platform output in the background', type: 'checkbox',
+        label: t('settings.publishing.autoPrepare'), type: 'checkbox',
         value: preferences.auto_prepare_target !== false,
-        hint: 'Compiles WeChat output shortly after you stop editing, so Copy is instant. '
-          + 'The work runs on the local backend and never blocks the editor.',
+        hint: t('settings.publishing.autoPrepareHint'),
         wide: true,
       });
       fields['pref.math_output'] = field({
-        label: 'Formula output', type: 'select',
+        label: t('settings.publishing.mathOutput'), type: 'select',
         value: preferences.math_output || 'svg',
         options: [
-          { value: 'svg', label: 'Inline SVG (recommended for WeChat)' },
-          { value: 'png', label: 'PNG images (maximum compatibility)' },
+          { value: 'svg', label: t('settings.publishing.mathSvg') },
+          { value: 'png', label: t('settings.publishing.mathPng') },
         ],
       });
       return el('div', { class: 'field-grid' },
         fields['pref.auto_prepare_target'].node,
         fields['pref.math_output'].node,
-        info('Publishing targets', [
-          ['Platforms', (env.platforms || []).join(', ')],
-          ['PDF templates', (env.pdfTemplates || []).map(t => t.id).join(', ')],
-          ['Blog pipeline', env.blogpipe?.available ? `blogpipe ${env.blogpipe.version}` : 'not installed'],
+        info(t('settings.info.publishingTargets'), [
+          [t('settings.info.platforms'), (env.platforms || []).join(', ')],
+          [t('settings.info.pdfTemplates'), (env.pdfTemplates || []).map(tpl => tpl.id).join(', ')],
+          [t('settings.info.blogPipeline'), env.blogpipe?.available ? `blogpipe ${env.blogpipe.version}` : t('settings.info.notInstalled')],
         ]),
       );
 
@@ -171,24 +186,22 @@ function buildTab(id, { preferences, config, env, fields }) {
       wrap.append(
         el('p', { class: 'settings-lead' },
           active
-            ? `Active connection: ${active.name} (${active.typeLabel}).`
-            : 'No AI connection is configured yet.'),
+            ? t('settings.ai.active', { name: active.name, type: active.typeLabel })
+            : t('settings.ai.none')),
         el('div', { class: 'settings-actions' },
           el('button', {
             class: 'btn btn-primary btn-sm', type: 'button',
             onClick: () => openQuickConnect(),
-          }, 'Add a connection'),
+          }, t('settings.ai.add')),
           el('button', {
             class: 'btn btn-sm', type: 'button',
             onClick: () => openConnectionManager(),
-          }, 'Manage connections'),
+          }, t('settings.ai.manage')),
         ),
-        info('Detected locally', [
-          ['Claude Code CLI', env.claudeCode?.available ? env.claudeCode.path : 'not found'],
+        info(t('settings.info.detectedLocally'), [
+          ['Claude Code CLI', env.claudeCode?.available ? env.claudeCode.path : t('settings.info.notFound')],
         ]),
-        el('p', { class: 'settings-note' },
-          'API keys and ClaudeClaw tokens are stored in the local secret store with owner-only '
-          + 'permissions. MDTeX shows only a fingerprint after saving and never logs the value.'),
+        el('p', { class: 'settings-note' }, t('settings.ai.secretNote')),
       );
       return wrap;
     }
@@ -199,8 +212,8 @@ function buildTab(id, { preferences, config, env, fields }) {
 
       wrap.append(el('p', { class: 'settings-lead' },
         latex.available
-          ? `${latex.distribution} detected. Default engine: ${latex.defaultEngine}.`
-          : `No LaTeX installation found (missing ${latex.missing.join(', ')}).`));
+          ? t('settings.latex.detected', { distribution: latex.distribution, engine: latex.defaultEngine })
+          : t('settings.latex.missing', { missing: latex.missing.join(', ') })));
 
       const rows = [];
       if (latex.latexmk) rows.push(['latexmk', `${latex.latexmk.path}`]);
@@ -210,7 +223,7 @@ function buildTab(id, { preferences, config, env, fields }) {
       for (const [name, tool] of Object.entries(latex.tools || {})) {
         if (tool) rows.push([name, tool.path]);
       }
-      wrap.append(info('Detected tools', rows.length ? rows : [['—', 'nothing found']]));
+      wrap.append(info(t('settings.info.detectedTools'), rows.length ? rows : [['—', t('settings.info.nothingFound')]]));
 
       for (const note of latex.notes || []) {
         wrap.append(el('p', { class: 'settings-note warn' }, note));
@@ -234,49 +247,46 @@ function buildTab(id, { preferences, config, env, fields }) {
             app.env = fresh;
             emit('env:changed', fresh);
             toast(fresh.latex.available
-              ? `LaTeX found: ${fresh.latex.distribution}`
-              : 'Still no LaTeX installation found.',
+              ? t('settings.latex.found', { distribution: fresh.latex.distribution })
+              : t('settings.latex.stillMissing'),
             { type: fresh.latex.available ? 'success' : 'error' });
             e.currentTarget.disabled = false;
           },
-        }, 'Re-detect'),
+        }, t('settings.latex.redetect')),
       ));
 
       wrap.append(el('p', { class: 'settings-note' },
-        `${latex.searchedDirCount} directories are searched, covering PATH plus the standard `
-        + 'TeX Live and MiKTeX locations for this platform.'));
+        t('settings.latex.searched', { count: latex.searchedDirCount })));
 
       return wrap;
     }
 
     case 'storage': {
       const wrap = el('div', { class: 'settings-section' });
-      wrap.append(info('Locations', [
-        ['Workspace', env.paths.workspace],
-        ['Config', env.paths.configDir],
-        ['User themes', env.paths.userThemes],
-        ['Cache', env.paths.cacheDir],
+      wrap.append(info(t('settings.info.locations'), [
+        [t('settings.info.workspace'), env.paths.workspace],
+        [t('settings.info.config'), env.paths.configDir],
+        [t('settings.info.userThemes'), env.paths.userThemes],
+        [t('settings.info.cache'), env.paths.cacheDir],
       ]));
       wrap.append(el('div', { class: 'settings-actions' },
         el('button', {
           class: 'btn btn-sm', type: 'button',
           onClick: async () => {
             const ok = await confirmDialog({
-              title: 'Clear the compiled-output cache?',
-              message: 'Prepared WeChat and Zhihu output will be discarded.',
-              detail: 'Formula rendering caches are kept, so the next compilation is still fast.',
-              confirmLabel: 'Clear cache',
+              title: t('settings.storage.clearTitle'),
+              message: t('settings.storage.clearMessage'),
+              detail: t('settings.storage.clearDetail'),
+              confirmLabel: t('settings.storage.clearConfirm'),
             });
             if (!ok) return;
             const { removed } = await backend.build.clearCache();
             emit('target:invalidate', 'cache-cleared');
-            toast(`Cleared ${removed} cached file(s).`);
+            toast(t('settings.storage.cleared', { count: removed }));
           },
-        }, 'Clear compiled-output cache'),
+        }, t('settings.storage.clearButton')),
       ));
-      wrap.append(el('p', { class: 'settings-note' },
-        'Articles, themes and settings live on disk and are shared with the `publisher` command line. '
-        + 'Nothing important is kept in browser storage.'));
+      wrap.append(el('p', { class: 'settings-note' }, t('settings.storage.note')));
       return wrap;
     }
 

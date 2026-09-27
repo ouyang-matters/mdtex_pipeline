@@ -7,6 +7,8 @@
  * modal implementation, one context menu, one toast, one confirmation.
  */
 
+import { t, getLanguage, LANGUAGES } from './i18n.js';
+
 // ── Element helpers ───────────────────────────────────────────────────────────
 
 export function el(tag, props = {}, ...children) {
@@ -152,7 +154,7 @@ export function modal({
         subtitle ? el('p', { class: 'dialog-subtitle' }, subtitle) : null,
       ),
       dismissable ? el('button', {
-        class: 'dialog-close', title: 'Close (Esc)', onClick: () => close(undefined),
+        class: 'dialog-close', title: t('kit.close'), onClick: () => close(undefined),
       }, '×') : null,
     );
 
@@ -187,8 +189,8 @@ export async function confirmDialog({
   title,
   message,
   detail = null,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel = t('kit.confirm'),
+  cancelLabel = t('kit.cancel'),
   danger = false,
 }) {
   const result = await modal({
@@ -199,9 +201,11 @@ export async function confirmDialog({
       el('p', { class: 'dialog-message' }, message),
       detail ? el('p', { class: 'dialog-detail' }, detail) : null,
     ],
+    // The classes let anything that drives the dialog find a button without
+    // matching its (translated) label.
     actions: [
-      { label: cancelLabel, value: false },
-      { label: confirmLabel, value: true, variant: danger ? 'danger' : 'primary' },
+      { label: cancelLabel, value: false, class: 'dialog-cancel' },
+      { label: confirmLabel, value: true, variant: danger ? 'danger' : 'primary', class: 'dialog-confirm' },
     ],
   });
   return result === true;
@@ -210,11 +214,11 @@ export async function confirmDialog({
 /** Single-value text prompt with validation. Resolves the string, or undefined. */
 export async function promptDialog({
   title,
-  label = 'Name',
+  label = t('kit.name'),
   value = '',
   placeholder = '',
   hint = null,
-  confirmLabel = 'Save',
+  confirmLabel = t('kit.save'),
   validate = null,
   multiline = false,
 }) {
@@ -260,9 +264,10 @@ export async function promptDialog({
       );
     },
     actions: [
-      { label: 'Cancel', value: undefined },
+      { label: t('kit.cancel'), value: undefined, class: 'dialog-cancel' },
       {
         label: confirmLabel,
+        class: 'dialog-confirm',
         variant: 'primary',
         ref: (b) => { submitButton = b; },
         onClick: (ctx) => {
@@ -276,7 +281,7 @@ export async function promptDialog({
 }
 
 /** Single-choice list dialog. Resolves the chosen value, or undefined. */
-export async function chooseDialog({ title, subtitle = null, options, value = null, confirmLabel = 'Select' }) {
+export async function chooseDialog({ title, subtitle = null, options, value = null, confirmLabel = t('kit.select') }) {
   let selected = value ?? options[0]?.value;
 
   return modal({
@@ -304,8 +309,8 @@ export async function chooseDialog({ title, subtitle = null, options, value = nu
       return list;
     },
     actions: [
-      { label: 'Cancel', value: undefined },
-      { label: confirmLabel, variant: 'primary', onClick: (ctx) => { ctx.close(selected); return false; } },
+      { label: t('kit.cancel'), value: undefined, class: 'dialog-cancel' },
+      { label: confirmLabel, variant: 'primary', class: 'dialog-confirm', onClick: (ctx) => { ctx.close(selected); return false; } },
     ],
   });
 }
@@ -515,28 +520,39 @@ export function closeContextMenu() {
 
 // ── Misc ──────────────────────────────────────────────────────────────────────
 
+/** The BCP 47 tag of the interface language, for Intl formatters. */
+function locale() {
+  return LANGUAGES.find(l => l.value === getLanguage())?.htmlLang || 'en';
+}
+
+/**
+ * How long ago, compactly — it sits in a narrow library list. The units are
+ * explicit messages rather than Intl.RelativeTimeFormat, whose abbreviated
+ * forms differ between browsers ("3m ago", "3 min. ago", "-3 min").
+ */
 export function relativeTime(iso) {
   if (!iso) return '';
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return '';
   const seconds = Math.round((Date.now() - then) / 1000);
 
-  if (seconds < 45) return 'just now';
-  if (seconds < 90) return 'a minute ago';
+  if (seconds < 45) return t('kit.time.justNow');
+  if (seconds < 90) return t('kit.time.minute');
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 60) return t('kit.time.minutes', { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return t('kit.time.hours', { n: hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days} d ago`;
-  return new Date(iso).toLocaleDateString();
+  if (days < 7) return t('kit.time.days', { n: days });
+  return new Intl.DateTimeFormat(locale()).format(new Date(iso));
 }
 
 export function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024) return t('kit.bytes.b', { n: bytes });
+  const oneDecimal = new Intl.NumberFormat(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+  if (bytes < 1024 * 1024) return t('kit.bytes.kb', { n: oneDecimal.format(bytes / 1024) });
+  return t('kit.bytes.mb', { n: oneDecimal.format(bytes / 1024 / 1024) });
 }
 
 export function spinner(label = '') {

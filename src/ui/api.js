@@ -7,6 +7,8 @@
  * spawning, LaTeX) on the backend where it belongs.
  */
 
+import { t } from './i18n.js';
+
 const BOOT = typeof window !== 'undefined' ? (window.__MDTEX__ || {}) : {};
 
 export const api = {
@@ -44,7 +46,7 @@ async function request(method, path, body, options = {}) {
   } catch (e) {
     api.connected = false;
     api.lastError = e.message;
-    throw new ApiError('The MDTeX backend is not reachable. Is `publisher start` still running?', 0, e);
+    throw new ApiError(t('app.api.unreachable'), 0, e);
   }
 
   api.connected = true;
@@ -56,7 +58,7 @@ async function request(method, path, body, options = {}) {
   }
 
   if (!response.ok) {
-    throw new ApiError(payload?.error || `Request failed (${response.status})`, response.status, payload?.details);
+    throw new ApiError(payload?.error || t('app.api.requestFailed', { status: response.status }), response.status, payload?.details);
   }
   return payload;
 }
@@ -102,7 +104,7 @@ export function followJob(jobId, { onProgress, onLog, onStatus } = {}) {
         const { job } = await get(`/jobs/${encodeURIComponent(jobId)}`);
         if (job.status === 'succeeded') resolvePromise(job.result);
         else if (job.status === 'cancelled') rejectPromise(new CancelledError());
-        else rejectPromise(new ApiError(job.error || 'The job failed.', 500));
+        else rejectPromise(new ApiError(job.error || t('app.api.jobFailed'), 500));
       } catch (e) {
         rejectPromise(e);
       }
@@ -119,12 +121,12 @@ export function followJob(jobId, { onProgress, onLog, onStatus } = {}) {
           source.close();
           if (job.status === 'succeeded') resolvePromise(job.result);
           else if (job.status === 'cancelled') rejectPromise(new CancelledError());
-          else rejectPromise(new ApiError(job.error || 'The job failed.', 500));
+          else rejectPromise(new ApiError(job.error || t('app.api.jobFailed'), 500));
         }
       } catch {
         settled = true;
         source.close();
-        rejectPromise(new ApiError('Lost contact with the MDTeX backend.', 0));
+        rejectPromise(new ApiError(t('app.api.lostContact'), 0));
       }
     };
   });
@@ -139,7 +141,7 @@ export function followJob(jobId, { onProgress, onLog, onStatus } = {}) {
 
 export class CancelledError extends Error {
   constructor() {
-    super('Cancelled.');
+    super(t('app.api.cancelled'));
     this.name = 'CancelledError';
     this.cancelled = true;
   }
@@ -240,6 +242,11 @@ export const backend = {
     remove: (id) => del(`/ai/backends/${encodeURIComponent(id)}`),
     activate: (id) => post(`/ai/backends/${encodeURIComponent(id || 'none')}/activate`),
     test: (data) => post('/ai/test', data),
+    signIn: {
+      start: (data = {}) => post('/ai/claude-sign-in', data),
+      submitCode: (id, code) => post(`/ai/claude-sign-in/${encodeURIComponent(id)}/code`, { code }),
+      cancel: (id) => del(`/ai/claude-sign-in/${encodeURIComponent(id)}`),
+    },
     run: (data) => post('/ai/run', data),
     apply: (runId, label) => post(`/ai/run/${encodeURIComponent(runId)}/apply`, { label }),
     discard: (runId) => post(`/ai/run/${encodeURIComponent(runId)}/discard`),

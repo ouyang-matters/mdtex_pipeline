@@ -49,6 +49,11 @@ export async function launchChrome({ headless = true, port = 0 } = {}) {
     '--disable-backgrounding-occluded-windows',
     '--disable-gpu',
     '--no-sandbox',
+    // The interface follows the browser's language when none is chosen. These
+    // harnesses check behaviour and find some controls by their English text,
+    // so they run in English whatever the machine's locale is.
+    '--lang=en-US',
+    '--accept-lang=en-US,en',
     'about:blank',
   ];
   if (headless) args.unshift('--headless=new');

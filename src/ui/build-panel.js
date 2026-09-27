@@ -1,6 +1,7 @@
 import { el, clear, mount, toast, modal, formatBytes, relativeTime, confirmDialog } from './ui-kit.js';
 import { backend, followJob, CancelledError, api } from './api.js';
 import { app, emit, invalidateTarget } from './state.js';
+import { t } from './i18n.js';
 
 /**
  * Build panel: WeChat/Zhihu preparation, PDF compilation and the PDF preview.
@@ -14,6 +15,11 @@ let nodes = {};
 let activeJob = null;
 let logLines = [];
 
+/** The visible name of the current platform (the value itself stays internal). */
+function platformLabel() {
+  return app.platform === 'wechat' ? t('settings.platform.wechat') : t('settings.platform.zhihu');
+}
+
 export function initBuildPanel({ root }) {
   nodes.root = root;
   render();
@@ -24,14 +30,14 @@ export function render() {
   clear(nodes.root);
 
   nodes.toolbar = el('div', { class: 'build-toolbar' },
-    el('button', { class: 'btn btn-sm', onClick: () => prepareTarget({ force: true }) }, 'Recompile target'),
-    el('button', { class: 'btn btn-sm', onClick: () => compilePdf() }, 'Compile PDF'),
-    el('button', { class: 'btn btn-sm', onClick: () => { logLines = []; renderLog(); } }, 'Clear'),
+    el('button', { class: 'btn btn-sm', onClick: () => prepareTarget({ force: true }) }, t('build.recompileTarget')),
+    el('button', { class: 'btn btn-sm', onClick: () => compilePdf() }, t('build.compilePdf')),
+    el('button', { class: 'btn btn-sm', onClick: () => { logLines = []; renderLog(); } }, t('build.clear')),
     el('div', { class: 'build-spacer' }),
     nodes.cancelButton = el('button', {
       class: 'btn btn-sm btn-danger-ghost hidden',
       onClick: () => activeJob?.cancel(),
-    }, 'Cancel build'),
+    }, t('build.cancel')),
   );
 
   nodes.status = el('div', { class: 'build-status' });
@@ -47,7 +53,7 @@ function renderLog() {
   if (!nodes.log) return;
   nodes.log.textContent = logLines.length
     ? logLines.join('\n')
-    : 'Build output appears here. Nothing has been built yet.';
+    : t('build.logEmpty');
   nodes.log.scrollTop = nodes.log.scrollHeight;
 }
 
@@ -77,14 +83,18 @@ function renderStatus(text = null, { busy = false, progress = null } = {}) {
   const target = app.target;
   nodes.status.append(el('span', { class: 'build-status-text' },
     target.prepared
-      ? `${app.platform === 'wechat' ? 'WeChat' : 'Zhihu'} output ready · ${formatBytes(target.bytes)} · prepared ${relativeTime(target.preparedAt)}`
-      : 'No target output prepared yet.'));
+      ? t('build.targetReady', {
+        platform: platformLabel(),
+        size: formatBytes(target.bytes),
+        when: relativeTime(target.preparedAt),
+      })
+      : t('build.noTarget')));
 
   if (app.pdf.path) {
     nodes.status.append(el('button', {
       class: 'link-btn',
       onClick: () => openPdfPreview(),
-    }, 'Open PDF preview'));
+    }, t('build.openPdfPreview')));
   }
 }
 
@@ -104,23 +114,23 @@ function renderIssues(errors = [], warnings = []) {
           (error.file ? `${basename(error.file)}${error.line ? `:${error.line}` : ''} — ` : '') + error.message);
 
     mount(nodes.issues, el('div', { class: 'issue issue-error' },
-      el('span', { class: 'issue-badge' }, 'error'),
+      el('span', { class: 'issue-badge' }, t('build.badge.error')),
       text,
       error.line ? el('button', {
         class: 'link-btn',
         onClick: () => emit('editor:goto-line', error.line),
-      }, 'Go to line') : null,
+      }, t('build.goToLine')) : null,
     ));
   }
 
   for (const warning of warnings.slice(0, 40)) {
     nodes.issues.append(el('div', { class: 'issue issue-warning' },
-      el('span', { class: 'issue-badge' }, 'warning'),
+      el('span', { class: 'issue-badge' }, t('build.badge.warning')),
       el('span', { class: 'issue-text' }, warning.message || warning),
     ));
   }
   if (warnings.length > 40) {
-    nodes.issues.append(el('div', { class: 'issue issue-muted' }, `… and ${warnings.length - 40} more warning(s)`));
+    nodes.issues.append(el('div', { class: 'issue issue-muted' }, t('build.moreWarnings', { count: warnings.length - 40 })));
   }
 }
 
@@ -139,7 +149,7 @@ function basename(p) {
 export async function prepareTarget({ force = false, silent = false } = {}) {
   if (app.target.busy) return null;
   if (!app.source.trim()) {
-    if (!silent) toast('There is nothing to compile yet.', { type: 'error' });
+    if (!silent) toast(t('build.nothingToCompile'), { type: 'error' });
     return null;
   }
 
@@ -175,12 +185,12 @@ export async function prepareTarget({ force = false, silent = false } = {}) {
         (response.validation?.errors || []).map(m => ({ message: m })),
         (response.validation?.warnings || []).map(m => ({ message: m })),
       );
-      if (!silent) toast('Reused the cached compilation — nothing changed since last time.');
+      if (!silent) toast(t('build.reusedCache'));
       return app.target;
     }
 
     nodes.cancelButton?.classList.remove('hidden');
-    log(`— Preparing ${app.platform} output —`);
+    log(t('build.log.preparing', { platform: platformLabel() }));
 
     activeJob = followJob(response.jobId, {
       onProgress: (event) => {
@@ -205,11 +215,19 @@ export async function prepareTarget({ force = false, silent = false } = {}) {
       busy: false,
     };
 
-    log(`Prepared ${formatBytes(result.bytes)} in ${result.durationMs} ms `
-      + `(${result.formulas.total} formulas, ${result.formulas.cached} from cache).`);
+    log(t('build.log.prepared', {
+      size: formatBytes(result.bytes),
+      ms: result.durationMs,
+      total: result.formulas.total,
+      cached: result.formulas.cached,
+    }));
     if (result.timings) {
-      log(`  render ${result.timings.render ?? '?'} ms · formulas ${result.timings.formulas ?? '?'} ms · `
-        + `inline ${result.timings.inline ?? '?'} ms · validate ${result.timings.validate ?? '?'} ms`);
+      log(t('build.log.timings', {
+        render: result.timings.render ?? '?',
+        formulas: result.timings.formulas ?? '?',
+        inline: result.timings.inline ?? '?',
+        validate: result.timings.validate ?? '?',
+      }));
     }
 
     await loadPreparedBytes(result.key);
@@ -230,8 +248,8 @@ export async function prepareTarget({ force = false, silent = false } = {}) {
 
     if (!silent) {
       toast(result.validation.valid
-        ? 'Ready to copy.'
-        : `Compiled with ${result.validation.errors.length} error(s) — see Build Output.`,
+        ? t('build.readyToCopy')
+        : t('build.compiledWithErrors', { count: result.validation.errors.length }),
       { type: result.validation.valid ? 'success' : 'error' });
     }
 
@@ -239,12 +257,12 @@ export async function prepareTarget({ force = false, silent = false } = {}) {
   } catch (e) {
     app.target.busy = false;
     if (e instanceof CancelledError) {
-      log('Cancelled.');
-      renderStatus('Cancelled.');
-      if (!silent) toast('Compilation cancelled.');
+      log(t('build.cancelled'));
+      renderStatus(t('build.cancelled'));
+      if (!silent) toast(t('build.compileCancelled'));
     } else {
-      log(`Error: ${e.message}`);
-      renderStatus(`Failed: ${e.message}`);
+      log(t('build.log.error', { message: e.message }));
+      renderStatus(t('build.failed', { message: e.message }));
       if (!silent) toast(e.message, { type: 'error', timeout: 6000 });
     }
     return null;
@@ -306,7 +324,7 @@ export async function copyTarget({ asPlainHtml = false } = {}) {
   try {
     if (asPlainHtml) {
       await navigator.clipboard.writeText(html);
-      toast('HTML copied to the clipboard.');
+      toast(t('build.copiedHtml'));
       return true;
     }
 
@@ -314,15 +332,15 @@ export async function copyTarget({ asPlainHtml = false } = {}) {
       'text/html': new Blob([html], { type: 'text/html' }),
       'text/plain': new Blob([text], { type: 'text/plain' }),
     })]);
-    toast(`Copied for ${app.platform === 'wechat' ? 'WeChat' : 'Zhihu'} · ${formatBytes(html.length)}`);
+    toast(t('build.copiedFor', { platform: platformLabel(), size: formatBytes(html.length) }));
     return true;
   } catch (e) {
     try {
       await navigator.clipboard.writeText(html);
-      toast('Copied as plain HTML (rich-text clipboard was refused).');
+      toast(t('build.copiedPlain'));
       return true;
     } catch {
-      toast(`Clipboard write failed: ${e.message}`, { type: 'error', timeout: 6000 });
+      toast(t('build.clipboardFailed', { message: e.message }), { type: 'error', timeout: 6000 });
       return false;
     }
   }
@@ -336,7 +354,7 @@ export async function exportTarget() {
   }
   if (app.target.html == null) await loadPreparedBytes(app.target.key);
   if (app.target.html == null) {
-    toast('Nothing prepared to export.', { type: 'error' });
+    toast(t('build.nothingToExport'), { type: 'error' });
     return;
   }
 
@@ -356,7 +374,7 @@ export async function exportTarget() {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
-  toast('Exported.');
+  toast(t('build.exported'));
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
@@ -368,8 +386,8 @@ export async function compilePdf({ openPreview = true } = {}) {
 
   emit('panel:open', 'build');
   logLines = [];
-  log('— Compiling PDF —');
-  renderStatus('Starting the LaTeX build…', { busy: true });
+  log(t('build.log.compilingPdf'));
+  renderStatus(t('build.startingLatex'), { busy: true });
   nodes.cancelButton?.classList.remove('hidden');
 
   try {
@@ -409,26 +427,27 @@ export async function compilePdf({ openPreview = true } = {}) {
     renderIssues(result.errors, result.warnings);
 
     if (result.success) {
-      log(`PDF written: ${result.pdfPath} (${formatBytes(result.pdfBytes)})`);
-      renderStatus(`PDF ready · ${formatBytes(result.pdfBytes)} · ${result.engine}`);
-      toast('PDF compiled.');
+      log(t('build.log.pdfWritten', { path: result.pdfPath, size: formatBytes(result.pdfBytes) }));
+      renderStatus(t('build.pdfReady', { size: formatBytes(result.pdfBytes), engine: result.engine }));
+      toast(t('build.pdfCompiled'));
       emit('pdf:ready', app.pdf);
       if (openPreview) openPdfPreview();
     } else {
-      log('PDF compilation failed.');
-      renderStatus(`Failed: ${result.errors[0]?.message || 'see the log'}`);
-      toast(`PDF failed: ${result.errors[0]?.message || 'see Build Output'}`, { type: 'error', timeout: 7000 });
+      log(t('build.log.pdfFailed'));
+      renderStatus(t('build.failed', { message: result.errors[0]?.message || t('build.seeLog') }));
+      toast(t('build.pdfFailed', { message: result.errors[0]?.message || t('build.seeBuildOutput') }),
+        { type: 'error', timeout: 7000 });
     }
 
     return result;
   } catch (e) {
     if (e instanceof CancelledError) {
-      log('Cancelled.');
-      renderStatus('Cancelled.');
-      toast('PDF compilation cancelled.');
+      log(t('build.cancelled'));
+      renderStatus(t('build.cancelled'));
+      toast(t('build.pdfCancelled'));
     } else {
-      log(`Error: ${e.message}`);
-      renderStatus(`Failed: ${e.message}`);
+      log(t('build.log.error', { message: e.message }));
+      renderStatus(t('build.failed', { message: e.message }));
       toast(e.message, { type: 'error', timeout: 6000 });
     }
     return null;
@@ -440,7 +459,7 @@ export async function compilePdf({ openPreview = true } = {}) {
 
 export function openPdfPreview() {
   if (!app.pdf.url) {
-    toast('Compile a PDF first.', { type: 'error' });
+    toast(t('build.compilePdfFirst'), { type: 'error' });
     return;
   }
   emit('preview:show-pdf', app.pdf);
@@ -457,16 +476,16 @@ export async function showLatexSetup() {
   const latex = app.env?.latex;
 
   await modal({
-    title: 'LaTeX is not set up yet',
-    subtitle: 'PDF compilation needs a local TeX distribution.',
+    title: t('build.setup.title'),
+    subtitle: t('build.setup.subtitle'),
     width: 620,
     render: () => {
       const body = [];
 
       body.push(el('p', { class: 'dialog-message' },
         latex?.missing?.length
-          ? `MDTeX could not find: ${latex.missing.join(', ')}.`
-          : 'MDTeX could not find a working LaTeX installation.'));
+          ? t('build.setup.missing', { missing: latex.missing.join(', ') })
+          : t('build.setup.noInstall')));
 
       if (latex?.hint) {
         body.push(el('p', { class: 'dialog-detail' }, latex.hint.summary));
@@ -482,9 +501,7 @@ export async function showLatexSetup() {
 
       if (latex?.searchedDirCount) {
         body.push(el('p', { class: 'dialog-detail muted' },
-          `${latex.searchedDirCount} directories were searched, including the standard `
-          + 'TeX Live and MiKTeX locations for this platform. Run `publisher doctor --verbose` '
-          + 'to see the full list.'));
+          t('build.setup.searched', { count: latex.searchedDirCount })));
       }
 
       for (const note of latex?.notes || []) {
@@ -494,9 +511,9 @@ export async function showLatexSetup() {
       return body.filter(Boolean);
     },
     actions: [
-      { label: 'Close', value: undefined },
+      { label: t('settings.close'), value: undefined },
       {
-        label: 'Check again',
+        label: t('build.checkAgain'),
         variant: 'primary',
         onClick: async (ctx) => {
           const env = await backend.env(true);
@@ -504,10 +521,10 @@ export async function showLatexSetup() {
           emit('env:changed', env);
           if (env.latex.available) {
             ctx.close(true);
-            toast(`LaTeX found: ${env.latex.distribution}, ${env.latex.defaultEngine}.`);
+            toast(t('build.latexFound', { distribution: env.latex.distribution, engine: env.latex.defaultEngine }));
             compilePdf();
           } else {
-            toast('Still not found.', { type: 'error' });
+            toast(t('build.stillNotFound'), { type: 'error' });
           }
           return false;
         },
