@@ -9,6 +9,7 @@
  *   node scripts/e2e.js [--headed] [--keep]
  */
 
+import './lib/sandbox-user-dirs.js';   // first: fresh user directories before anything reads them
 import { mkdtempSync, rmSync, readFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';

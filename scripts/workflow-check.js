@@ -14,6 +14,7 @@
  *   node scripts/workflow-check.js [--headed]
  */
 
+import './lib/sandbox-user-dirs.js';   // first: fresh user directories before anything reads them
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';

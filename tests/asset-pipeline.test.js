@@ -37,9 +37,10 @@ const latexAvailable = (await detectLatexEnvironment()).available;
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'mdtex-asset-e2e-'));
   workspace = join(root, 'workspace');
-  process.env.XDG_CONFIG_HOME = join(root, 'config');
-  process.env.XDG_DATA_HOME = join(root, 'data');
-  process.env.XDG_CACHE_HOME = join(root, 'cache');
+  // MDTEX_*_HOME rather than XDG_*: they apply on every platform.
+  process.env.MDTEX_CONFIG_HOME = join(root, 'config');
+  process.env.MDTEX_DATA_HOME = join(root, 'data');
+  process.env.MDTEX_CACHE_HOME = join(root, 'cache');
 
   const { startServer } = await import('../src/server/index.js');
   server = await startServer({
@@ -51,9 +52,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await server?.stop();
   rmSync(root, { recursive: true, force: true });
-  delete process.env.XDG_CONFIG_HOME;
-  delete process.env.XDG_DATA_HOME;
-  delete process.env.XDG_CACHE_HOME;
 });
 
 async function call(method, path, body) {

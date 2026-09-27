@@ -82,4 +82,8 @@ export default defineConfig({
     port: 3000,
     open: false,
   },
+  test: {
+    // Every test file starts with its user directories in a temporary sandbox.
+    setupFiles: ['tests/setup/sandbox-user-dirs.js'],
+  },
 });

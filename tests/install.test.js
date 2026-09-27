@@ -1,40 +1,41 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { tmpdir } from 'os';
 
-// Override XDG dirs for testing
+// Each test gets its own directories. MDTEX_*_HOME rather than XDG_*: they
+// apply on every platform, where XDG_* is ignored on Windows. The XDG layout
+// itself is covered, platform-independently, in data-safety.test.js.
 const TEST_DIR = join(tmpdir(), `publisher-test-${process.pid}`);
 const TEST_CONFIG = join(TEST_DIR, 'config');
 const TEST_DATA = join(TEST_DIR, 'data');
 const TEST_CACHE = join(TEST_DIR, 'cache');
 
 beforeEach(() => {
-  process.env.XDG_CONFIG_HOME = TEST_CONFIG;
-  process.env.XDG_DATA_HOME = TEST_DATA;
-  process.env.XDG_CACHE_HOME = TEST_CACHE;
+  process.env.MDTEX_CONFIG_HOME = TEST_CONFIG;
+  process.env.MDTEX_DATA_HOME = TEST_DATA;
+  process.env.MDTEX_CACHE_HOME = TEST_CACHE;
   mkdirSync(TEST_DIR, { recursive: true });
 });
 
 afterEach(() => {
+  // The variables stay pointed at the (now removed) sandbox; deleting them
+  // would let the next access fall through to the real user directories.
   rmSync(TEST_DIR, { recursive: true, force: true });
-  delete process.env.XDG_CONFIG_HOME;
-  delete process.env.XDG_DATA_HOME;
-  delete process.env.XDG_CACHE_HOME;
 });
 
 describe('Paths', () => {
-  it('should use XDG directories when set', async () => {
+  it('should use the directories it is given', async () => {
     const { paths } = await import('../src/core/paths.js');
-    expect(paths.configDir).toBe(join(TEST_CONFIG, 'publisher'));
-    expect(paths.dataDir).toBe(join(TEST_DATA, 'publisher'));
-    expect(paths.cacheDir).toBe(join(TEST_CACHE, 'publisher'));
+    expect(paths.configDir).toBe(TEST_CONFIG);
+    expect(paths.dataDir).toBe(TEST_DATA);
+    expect(paths.cacheDir).toBe(TEST_CACHE);
   });
 
   it('should have separate builtin and user theme paths', async () => {
     const { paths } = await import('../src/core/paths.js');
-    expect(paths.builtinThemes).toContain('themes/builtin');
-    expect(paths.userThemes).toContain(join(TEST_DATA, 'publisher', 'themes'));
+    expect(paths.builtinThemes).toContain(join('themes', 'builtin'));
+    expect(paths.userThemes).toContain(join(TEST_DATA, 'themes'));
     expect(paths.builtinThemes).not.toBe(paths.userThemes);
   });
 
@@ -312,7 +313,7 @@ describe('Backups', () => {
 
     // Backup
     const backupDir = createBackup('restore-test');
-    const backupName = backupDir.split('/').pop();
+    const backupName = basename(backupDir);
 
     // Modify config
     config.default_theme = 'modified';
