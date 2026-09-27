@@ -178,6 +178,7 @@ export async function runAiRequest({
   return {
     ok: result.ok,
     error: result.error || null,
+    remedy: result.remedy || null,
     text: result.text || '',
     turns: result.turns || 0,
     usage: result.usage || null,

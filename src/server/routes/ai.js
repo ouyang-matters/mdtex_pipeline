@@ -16,6 +16,9 @@ import { detectLatexEnvironment } from '../../core/latex/environment.js';
 import { compileArticleToPdf } from '../../core/pdf/compiler.js';
 import { Compiler } from '../../core/compiler/index.js';
 import { BlogPipelineIntegration } from '../../workspace/blogpipe.js';
+import { findClaudeCli } from '../../ai/backends/local-claude.js';
+import { ClaudeSignIn } from '../../ai/backends/claude-login.js';
+import { paths } from '../../core/paths.js';
 
 /**
  * AI connection management and agent runs.
@@ -190,6 +193,46 @@ export function aiRoutes(ctx) {
       }, { label: 'Test AI connection' });
 
       sendJson(res, 202, { jobId: job.id });
+    },
+
+    // ── Claude Code sign-in ───────────────────────────────────────────────────
+    //
+    // One attempt at a time: starting again abandons the previous one, so a
+    // forgotten dialog never leaves a CLI waiting on stdin.
+
+    'POST /api/ai/claude-sign-in': async (req, res) => {
+      const body = await readJson(req);
+      let cli = null;
+      if (body.id) {
+        const profile = getProfile(body.id);
+        if (!profile) throw notFound('No such AI connection.');
+        cli = backendFor(profile).resolveCli?.() || null;
+      }
+      cli = cli || findClaudeCli();
+      if (!cli) throw notFound('The `claude` command was not found on this machine.');
+
+      ctx.claudeSignIn?.attempt.cancel();
+      const attempt = new ClaudeSignIn({ cli, cwd: paths.appRoot });
+      const id = randomUUID();
+      ctx.claudeSignIn = { id, attempt };
+      sendJson(res, 200, { id, ...(await attempt.start()) });
+    },
+
+    'POST /api/ai/claude-sign-in/:id/code': async (req, res, { params }) => {
+      const body = await readJson(req);
+      const current = ctx.claudeSignIn;
+      if (!current || current.id !== params.id) throw conflict('This sign-in is no longer active; start again.');
+      const result = await current.attempt.submitCode(body.code);
+      sendJson(res, 200, { id: current.id, ...result });
+    },
+
+    'DELETE /api/ai/claude-sign-in/:id': async (req, res, { params }) => {
+      const current = ctx.claudeSignIn;
+      if (current?.id === params.id) {
+        current.attempt.cancel();
+        ctx.claudeSignIn = null;
+      }
+      sendJson(res, 200, { cancelled: true });
     },
 
     // ── Runs ─────────────────────────────────────────────────────────────────

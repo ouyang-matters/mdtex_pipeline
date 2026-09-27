@@ -66,6 +66,38 @@ export function findClaudeCli() {
   return resolveExecutable('claude', { extraDirs: extraClaudeDirs() });
 }
 
+/** What the CLI says when it has no usable sign-in, in its various wordings. */
+const AUTH_FAILURE = /failed to authenticate|not logged in|please run \/login|invalid api key|oauth (access )?token|authentication_error|invalid bearer token/i;
+
+/**
+ * Read the outcome of a `claude --print --output-format json` round trip.
+ *
+ * The exit code alone is not the answer: the CLI can exit 0 and still report
+ * `is_error: true` — an expired sign-in does exactly that — so a failed call
+ * must never be read as a connection. An authentication failure is told apart
+ * from other failures because it has a remedy the user can act on: signing in.
+ *
+ * @returns {{ ok: boolean, authFailure: boolean, reply: string, detail: string }}
+ */
+export function classifyProbe({ code, stdout = '', stderr = '', timedOut = false, spawnError = null } = {}) {
+  let parsed = null;
+  try { parsed = JSON.parse(String(stdout).trim()); } catch { /* not JSON */ }
+
+  const text = parsed && typeof parsed === 'object'
+    ? String(parsed.result ?? parsed.text ?? '')
+    : String(stdout).trim();
+  const failed = Boolean(spawnError) || timedOut || code !== 0 || parsed?.is_error === true;
+
+  if (!failed) return { ok: true, authFailure: false, reply: text, detail: '' };
+
+  const detail = (parsed && text) || (String(stderr) || String(stdout)).trim().split('\n').slice(-3).join(' ');
+  const status = Number(parsed?.api_error_status);
+  const authFailure = !timedOut && !spawnError
+    && (status === 401 || status === 403 || AUTH_FAILURE.test(`${detail}\n${stderr}`));
+
+  return { ok: false, authFailure, reply: '', detail: timedOut ? 'The test call timed out.' : detail };
+}
+
 export class LocalClaudeCodeBackend extends AiBackend {
   constructor(profile = {}) {
     super({ ...profile, type: BACKEND_TYPES.LOCAL_CLAUDE });
@@ -123,20 +155,27 @@ export class LocalClaudeCodeBackend extends AiBackend {
       input: 'Reply with the single word: ready',
     });
 
-    if (probe.code !== 0) {
-      const detail = (probe.stderr || probe.stdout || '').trim().split('\n').slice(-3).join(' ');
+    const outcome = classifyProbe(probe);
+
+    if (outcome.authFailure) {
       return {
         ok: false,
-        error: `Claude Code is installed (${version}) but the test call failed. ${detail || 'Run `claude` once in a terminal to sign in.'}`,
+        error: `Claude Code is installed (${version}) but is not signed in, or its sign-in has expired.`,
+        detail: outcome.detail,
+        remedy: 'sign-in-claude-code',
         version,
       };
     }
 
-    let reply = probe.stdout.trim();
-    try {
-      const parsed = JSON.parse(reply);
-      reply = parsed.result || parsed.text || reply;
-    } catch { /* text output */ }
+    if (!outcome.ok) {
+      return {
+        ok: false,
+        error: `Claude Code is installed (${version}) but the test call failed. ${outcome.detail}`.trim(),
+        version,
+      };
+    }
+
+    const reply = outcome.reply;
 
     return {
       ok: true,
@@ -204,6 +243,7 @@ export class LocalClaudeCodeBackend extends AiBackend {
     let finalText = '';
     let turns = 0;
     let buffer = '';
+    let resultEvent = null;
 
     const result = await runCommand(cli, args, {
       cwd: paths.appRoot,
@@ -237,6 +277,7 @@ export class LocalClaudeCodeBackend extends AiBackend {
               }
             }
           } else if (event.type === 'result') {
+            resultEvent = event;
             if (event.result) finalText = event.result;
           }
         }
@@ -246,9 +287,33 @@ export class LocalClaudeCodeBackend extends AiBackend {
     if (result.aborted) return { ok: false, error: 'Cancelled.', turns, text: finalText };
     if (result.spawnError) return { ok: false, error: `Could not run ${cli}: ${result.spawnError.message}`, turns, text: finalText };
     if (result.timedOut) return { ok: false, error: 'Claude Code timed out.', turns, text: finalText };
-    if (result.code !== 0) {
-      const detail = (result.stderr || '').trim().split('\n').slice(-3).join(' ');
-      return { ok: false, error: detail || `Claude Code exited with code ${result.code}.`, turns, text: finalText };
+
+    // The final line may arrive without a trailing newline.
+    if (buffer.trim()) {
+      try {
+        const event = JSON.parse(buffer);
+        if (event.type === 'result') resultEvent = event;
+      } catch { /* not an event */ }
+    }
+
+    // Judged like the connection test: a result that says is_error is a failure
+    // whatever the exit code, and a sign-in failure says how to fix it.
+    const outcome = classifyProbe({
+      code: result.code,
+      stdout: resultEvent ? JSON.stringify(resultEvent) : '',
+      stderr: result.stderr,
+    });
+    if (outcome.authFailure) {
+      return {
+        ok: false,
+        error: 'Claude Code is not signed in, or its sign-in has expired.',
+        remedy: 'sign-in-claude-code',
+        turns,
+        text: '',
+      };
+    }
+    if (!outcome.ok) {
+      return { ok: false, error: outcome.detail || `Claude Code exited with code ${result.code}.`, turns, text: finalText };
     }
 
     return { ok: true, text: finalText, turns };

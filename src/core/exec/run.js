@@ -36,6 +36,45 @@ export function buildCmdShimArgs(file, args) {
 }
 
 /**
+ * Start an executable without a shell, applying the .cmd/.bat shim rule below.
+ *
+ * The one place a process is started, so a long-lived child (an interactive
+ * sign-in, say) follows exactly the same quoting as a short `runCommand`.
+ * Throws if the spawn itself fails.
+ */
+export function spawnNative(file, args = [], { cwd = process.cwd(), env = process.env } = {}) {
+  const isCmdShim = IS_WINDOWS && /\.(cmd|bat)$/i.test(file);
+  return spawn(isCmdShim ? (process.env.ComSpec || 'cmd.exe') : file,
+    isCmdShim ? buildCmdShimArgs(file, args) : args, {
+      cwd,
+      env,
+      windowsHide: true,
+      // Never `shell: true`: the quoting above is explicit and auditable,
+      // and a shell would re-interpret arguments we already quoted.
+      shell: false,
+      // The cmd.exe command line is already quoted; stop Node redoing it.
+      windowsVerbatimArguments: isCmdShim,
+    });
+}
+
+/**
+ * Stop a child and everything it started.
+ *
+ * On Windows a plain SIGTERM does not reliably reach a .cmd shim's grandchild,
+ * so the process tree is ended with taskkill instead.
+ */
+export function killTree(child) {
+  try {
+    if (IS_WINDOWS) {
+      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+    } else {
+      child.kill('SIGTERM');
+      setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 3000).unref?.();
+    }
+  } catch { /* already gone */ }
+}
+
+/**
  * Run an executable and collect its output.
  *
  * Uses spawn without a shell so arguments containing spaces, quotes or
@@ -70,23 +109,10 @@ export function runCommand(file, args = [], options = {}) {
     maxBuffer = 32 * 1024 * 1024,
   } = options;
 
-  const isCmdShim = IS_WINDOWS && /\.(cmd|bat)$/i.test(file);
-  const spawnFile = isCmdShim ? (process.env.ComSpec || 'cmd.exe') : file;
-  const spawnArgs = isCmdShim ? buildCmdShimArgs(file, args) : args;
-
   return new Promise((resolvePromise) => {
     let child;
     try {
-      child = spawn(spawnFile, spawnArgs, {
-        cwd,
-        env,
-        windowsHide: true,
-        // Never `shell: true`: the quoting above is explicit and auditable,
-        // and a shell would re-interpret arguments we already quoted.
-        shell: false,
-        // The cmd.exe command line is already quoted; stop Node redoing it.
-        windowsVerbatimArguments: isCmdShim,
-      });
+      child = spawnNative(file, args, { cwd, env });
     } catch (e) {
       resolvePromise({
         code: null, signal: null, stdout: '', stderr: String(e.message || e),
@@ -115,18 +141,7 @@ export function runCommand(file, args = [], options = {}) {
       ? setTimeout(() => { timedOut = true; kill(); }, timeout)
       : null;
 
-    function kill() {
-      try {
-        // On Windows a plain SIGTERM does not reliably reach a .cmd shim's
-        // grandchild, so fall back to taskkill on the process tree.
-        if (process.platform === 'win32') {
-          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-        } else {
-          child.kill('SIGTERM');
-          setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 3000).unref?.();
-        }
-      } catch { /* already gone */ }
-    }
+    const kill = () => killTree(child);
 
     const onAbort = () => { aborted = true; kill(); };
     if (signal) {
