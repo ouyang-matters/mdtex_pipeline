@@ -10,6 +10,14 @@ Chrome 146). All of `npx vitest run` (437 tests), `node scripts/e2e.js`
 `publisher doctor` pass; `node scripts/bench-wechat.js` produced the numbers
 below.
 
+0.2.0 was verified on 2026-09-27 on Windows 11 (MiKTeX, Node 24.19.0,
+Chrome): `node scripts/e2e.js` passes; `npx vitest run` passes except for
+environment probes that exceed their 5-second timeout on that machine (LaTeX and
+font detection under parallel load) and one legacy-migration test that compares
+a path with mixed separators. `node scripts/workflow-check.js` fails the same
+three steps there as 0.1.0 does on that machine: a path check that expects `/`,
+and the LaTeX-project and CJK steps under MiKTeX.
+
 ---
 
 ## Feature status
@@ -27,7 +35,7 @@ by `scripts/e2e.js`.
 | **Keep a generated LaTeX** | `Save this LaTeX` in the LaTeX tab. Opening the tab again shows the saved text rather than generating a new one. Stored in `latex/main.tex`; marked out of date, not silently replaced, when the Markdown changes. |
 | **Make LaTeX the source** | `Use as source` in the LaTeX tab. One-way: writes `main.tex`, removes `source.md`, and checkpoints the Markdown first. Refused outright if any image is unresolved. |
 | **Convert LaTeX back to Markdown** | `Markdown` tab on a LaTeX article. Generates nothing until you ask — `Preview conversion…` shows a best-effort reversal of the closed grammar `markdownToLatexBody` itself emits; `\label`, `\newcommand`, custom environments, TikZ and bibliographies have no Markdown spelling and are kept as raw LaTeX text, listed above the preview. `Convert to Markdown…` writes `source.md`, removes `main.tex`, and checkpoints the LaTeX first. |
-| **Chinese / Japanese / Korean PDFs** | Fonts are detected on this machine and named in the preamble, per script and per engine. A build that could not draw a character fails instead of producing a blank page — including for hand-written LaTeX projects. Pin a font in Properties → CJK font. |
+| **Chinese / Japanese / Korean PDFs** | Fonts are detected on this machine and named in the preamble, per script and per engine. A build that could not draw a character fails instead of producing a blank page — including for hand-written LaTeX projects. Properties → CJK font is stored but not yet passed to the build, so the detected font is always used. |
 | **LaTeX project → PDF** | Compiles the real project with `latexmk`: multi-file `\input`, local `.sty`/`.cls`, `.bib` bibliographies, figures, cross-references and repeated passes. |
 | **Compile for WeChat / Zhihu** | `Compile` button, or automatically in the background after you stop typing. Progress is reported stage by stage and can be cancelled. |
 | **Copy for WeChat / Zhihu** | Writes the already-prepared bytes. Never triggers a compile when the output is current. |
@@ -47,6 +55,14 @@ by `scripts/e2e.js`.
 | **Switch AI backend** | From the AI panel header. Takes effect immediately — no restart. |
 | **LaTeX setup state** | When LaTeX is missing, the PDF button opens a setup card with platform-specific install instructions and a Check again button, instead of pretending the feature is available. |
 | **Checkpoints** | Every AI edit is checkpointed; checkpoints can be listed and restored. |
+
+### New in 0.2.0 — driven in a real browser, not yet in `scripts/e2e.js`
+
+| Feature | Notes |
+| --- | --- |
+| **Interface language** | English, Chinese (Simplified) and French. Settings → General → Interface language; *Automatic* follows the browser. Changing it reloads the interface. Messages that come from the backend (errors, AI scopes, LaTeX logs) stay in English. `tests/i18n.test.js` holds every language to the same keys and placeholders. |
+| **Sign in to Claude Code from the app** | When the local CLI is installed but its sign-in is missing or has expired, the AI panel says so and offers to sign in: MDTeX runs `claude auth login`, the browser opens Claude's page, and the code it shows is pasted back into the panel. The same command is shown for a terminal. A test call that exits 0 but reports `is_error` is no longer read as a working connection. |
+| **AI edits on both sides** | While a proposal is under review the source pane shows a line diff and the preview shows one merged document, additions in green and removals in red, both scrolled to the change. After Apply the changed lines and blocks fade from green through blue and violet. `prefers-reduced-motion` turns the animation off. |
 
 ### Works from the command line as well as the UI
 
