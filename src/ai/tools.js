@@ -329,7 +329,11 @@ export class ToolExecutor {
       return { error: `old_text appears ${occurrences} times. Include more surrounding context so the match is unique.` };
     }
 
-    this.source = this.source.replace(old_text, new_text);
+    // Spliced by position, never String.replace: its replacement string is a
+    // pattern, in which `$$` means a single `$` — every display equation the
+    // model wrote would lose a dollar sign on the way in.
+    const at = this.source.indexOf(old_text);
+    this.source = this.source.slice(0, at) + new_text + this.source.slice(at + old_text.length);
     const stats = diffStats(this.originalSource, this.source);
     return { ok: true, reason: reason || null, lines_added: stats.added, lines_removed: stats.removed };
   }
