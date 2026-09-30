@@ -56,6 +56,18 @@ by `scripts/e2e.js`.
 | **LaTeX setup state** | When LaTeX is missing, the PDF button opens a setup card with platform-specific install instructions and a Check again button, instead of pretending the feature is available. |
 | **Checkpoints** | Every AI edit is checkpointed; checkpoints can be listed and restored. |
 
+### New in 0.3.0
+
+| Feature | Notes |
+| --- | --- |
+| **Releases install themselves** | The check on start looks for the newest `vX.Y.Z` release tag, not any commit on `main`. A release found by one launch is installed by the next, before the server starts, through the same safety sequence as `publisher update` (data check, clean checkout, census, backup, fast-forward to the tagged commit, census again), and the new version is started in its place. `publisher update --auto-install off` reports without installing. 0.2.0 still needs one manual `publisher update`: it can see the new release, but predates installing one. See [UPDATING.md](UPDATING.md). Covered by `tests/update-release.test.js` against real git remotes, including one whose remote is not called `origin` and one with unreleased commits after the newest tag. |
+| **Zhihu gets real formulas** | Formulas are emitted as Zhihu's own formula nodes (`<img eeimg data-tex>`), which its editor adopts as native, editable formulas — its paste handler strips SVG and reads the TeX from `data-tex`. The article's root container is dropped so Draft.js keeps headings and paragraphs as separate blocks; formulas in table cells become Unicode text (`A⁻¹(y)`, `r · (1,0,−1)`), because Zhihu tables hold text only. Verified by pasting into a live Zhihu draft. |
+| **Zhihu figures** | Zhihu imports an image in pasted rich text by URL, so embedded figures failed. Copy for Zhihu now leaves a placeholder (`〔图 N〕`) where each figure was and opens a list with one *Copy figure N* button per figure, which puts the figure on the clipboard as a PNG to paste over its placeholder. Driven in the running app on a 13-figure article: the figure arrived on the Windows clipboard at its full size. The final paste into Zhihu is the manual step. |
+| **Smaller WeChat bodies** | WeChat keeps no `<use>`, so every glyph is written out at every occurrence, and a 6.1 MB body failed WeChat's save-time self-check (the draft could not be saved after an edit). Glyph paths are now written relative, with translates folded in and bare groups removed — pixel-identical, checked by rasterising both — and recorded geometry is dropped from the pasted body: the same article is 4.5 MB. The WeChat validator warns above 5 MB. |
+| **WeChat lists** | A list item that starts with a formula no longer splits into the formula on one line and its sentence on the next. |
+| **Plain-text copy and formula counts** | The `text/plain` flavour kept everything after the first display formula and no longer eats text after a `<`; a one-line `$$…$$` is counted once, so it no longer fails validation with a spurious formula-count mismatch. |
+| **Series themes built in** | `lie-notes` (blue) and `ra-notes` (orange), in the colours of `series_lie.sty` and `series_ra.sty`. A user theme of the same name still wins. |
+
 ### New in 0.2.0 — driven in a real browser, not yet in `scripts/e2e.js`
 
 | Feature | Notes |
@@ -94,7 +106,7 @@ by `scripts/e2e.js`.
 | --- | --- |
 | WeChat image CDN upload | Images are embedded or referenced locally; the WeChat validator warns that they need manual upload. The uploader interface exists (`src/core/images/index.js`), the WeChat API client does not. |
 | Blog Pipeline publish button | The backend detects the `blogpipe` CLI and the AI layer can run read-only status checks. There is no publish button in the UI: deployment is `blogpipe`'s job and MDTeX does not reimplement it. |
-| Zhihu-specific preview chrome | The preview pane styles Zhihu output with the WeChat theme. Math is emitted as Zhihu's native formula nodes (its editor strips SVG). Verified 2026-09-28 by pasting compiled output into a live zhuanlan.zhihu.com draft: headings, paragraphs and inline, display, `aligned` and matrix formulas all land as native formulas and survive a reload. The paste was a synthetic `paste` event carrying the same `text/html` the Copy button writes, not an OS clipboard round-trip. **Figures do not survive Copy → paste into Zhihu**: embedded `data:` images fail Zhihu's URL import. They have to be pasted into the editor as image files (Zhihu then uploads them); nothing in MDTeX does that yet. Formulas in table cells come through as Unicode text, because Zhihu tables hold text only. |
+| Zhihu-specific preview chrome | The preview pane styles Zhihu output with the WeChat theme. What Zhihu receives is described under *New in 0.3.0*. |
 | PDF ↔ source position sync | SyncTeX data is generated during the build but nothing consumes it yet. |
 | Collaborative editing | Out of scope. |
 

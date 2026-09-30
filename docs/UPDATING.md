@@ -1,42 +1,78 @@
 # Updating
 
-MDTeX updates by pulling the git checkout it runs from. `publisher update` does
-that safely; `publisher start` only tells you when there is something to pull.
+MDTeX updates by moving the git checkout it runs from to the newest
+**release** — a `vX.Y.Z` tag on the remote. From 0.3.0 on this happens by
+itself: a release found by one launch is installed at the next, before the
+server starts. `publisher update` does the same thing on demand.
 
 ---
 
-## The check on start
+## Releases, not commits
 
-`publisher start` asks the remote whether its branch has moved on, after the
-server is up and the browser is opening. It never delays the launch, and it
-never modifies the checkout: the question is asked with `git ls-remote`, which
-reads the remote's refs and writes nothing locally — no fetch, no ref update,
-no objects.
+An installation is offered releases only. Commits pushed to `main` between
+releases are work in progress; they are never offered and never installed.
+The newest `vX.Y.Z` tag is compared with the `version` in the checkout's own
+`package.json`, so "newer" means a higher release number, not merely a
+different commit.
 
-The cost of that restraint is precision. Without the remote's objects the check
-can see that the commit differs, not how far behind you are or what changed, so
-it reports "a newer version is available" and never a commit count that nobody
-verified.
+A remote that has no release tags at all is followed by branch head instead,
+which is how 0.2.0 and earlier judged it.
+
+## Coming from 0.2.0
+
+0.2.0 predates automatic installation. It still notices the new release — its
+check on start compares the branch head, which has moved — and prints:
 
 ```text
-┌───────────────────────────────────────────────────┐
 │ A newer version is available                      │
-│ installed  a431c7f  →  9f2c1de  on origin/main    │
-│                                                   │
+│ installed  da5c310  →  …        on origin/main    │
 │ Update with  publisher update                     │
-│ Turn this check off:  publisher update --auto off │
-└───────────────────────────────────────────────────┘
 ```
 
-Only that outcome is printed. Being up to date is the expected case and says
-nothing worth interrupting for, and a check that could not run says nothing
-either — "the remote could not be reached" is not news to someone who is
-offline.
+Run `publisher update` once (or re-run `install.ps1` / `install.sh`, which
+also pulls). From then on, releases install themselves.
 
-The answer is remembered for 24 hours in `~/.config/publisher/update-check.json`,
-so a launch does not always make a network request. The cache records which
-commit it was about, so after an update the previous answer is discarded rather
-than repeated.
+## The check on start
+
+`publisher start` asks the remote for its release tags after the server is up
+and the browser is opening. It never delays the launch, and it never modifies
+the checkout: the question is asked with `git ls-remote`, which reads the
+remote's refs and writes nothing locally — no fetch, no ref update, no objects.
+
+The answer is remembered for 24 hours in `update-check.json` in the config
+directory, together with the version and commit it was about, so after an
+update the previous answer is discarded rather than repeated.
+
+## Automatic installation
+
+When the remembered answer says a newer release exists, the **next**
+`publisher start` installs it before anything is served:
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│ Updating MDTeX  0.3.0  →  0.3.1                                  │
+│ Turn automatic installation off:  publisher update --auto-install off │
+└──────────────────────────────────────────────────────────────────┘
+  Backing up user data...
+  Fetching v0.3.1...
+  ...
+  ✓ Updated to 0.3.1. Starting it…
+```
+
+It runs exactly the procedure of `publisher update` below — the data-safety
+check, the clean-checkout check, the census and backup before, the census
+after — and then starts the new version in its own place. Only the remembered
+answer is used, never a fresh network request, so a launch never waits on the
+network; the background check of that launch refreshes it for the next one.
+
+If the update cannot run safely it is not forced. The reason is printed and
+the installed version starts as it is:
+
+```text
+  Not updated: the application source has uncommitted changes.
+  The checkout has local changes; `publisher update --force` updates anyway.
+  Starting 0.3.0.
+```
 
 ### Asking explicitly
 
@@ -52,13 +88,15 @@ this command.
 ### Turning it off
 
 ```bash
-publisher update --auto off      # stop checking on start
-publisher update --auto on       # start again
-publisher start --no-update-check   # skip it once, without changing the setting
+publisher update --auto-install off   # report new releases, don't install them
+publisher update --auto off           # stop checking on start at all
+publisher update --auto on            # start again
+publisher start --no-update-check     # skip it once, without changing the setting
 ```
 
-The setting is `update_check` in `~/.config/publisher/config.json`. With it off,
-no network request is made at launch at all.
+The settings are `update_auto` and `update_check` in `config.json` in the
+config directory. With `update_check` off, no network request is made at
+launch at all, and nothing is installed.
 
 ---
 
@@ -92,7 +130,9 @@ This command:
 4. Takes a census of every protected location, to compare against afterwards
 5. Checks for uncommitted changes in the app source (aborts if dirty)
 6. Backs up user config, themes, and presets
-7. Runs `git pull --ff-only` **in the application checkout only**
+7. Fast-forwards **the application checkout only** to the newest release tag
+   (`git merge --ff-only` to the tagged commit; `git pull --ff-only` where the
+   remote has no release tags)
 8. Runs `npm install`
 9. Runs config schema migrations — merging new settings, never replacing values
 10. Rebuilds the UI
@@ -139,7 +179,7 @@ points at the pre-update backup.
 
 ## What Gets Updated
 
-- Application source code (via git pull)
+- Application source code (fast-forwarded to the release)
 - npm dependencies
 - Built-in themes (in `themes/builtin/`)
 - Web UI build
