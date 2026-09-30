@@ -1,4 +1,5 @@
 import { AssetKind, contentTypeFor } from './resolver.js';
+import { decodeHtmlEntities } from '../html-entities.js';
 
 /**
  * Asset handling for platform output (WeChat, Zhihu, exported HTML).
@@ -120,14 +121,6 @@ function replaceSrc(tag, value) {
   return tag.replace(/(\ssrc\s*=\s*)'[^']*'/i, `$1"${escaped}"`);
 }
 
-function decodeHtmlEntities(value) {
-  return String(value)
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
 
 function truncate(value, max) {
   const text = String(value);

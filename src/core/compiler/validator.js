@@ -25,7 +25,9 @@ export function validate(html, source, {
 
   // Count math from source
   const displayMath = (source.match(/\$\$([\s\S]+?)\$\$/g) || []).length;
-  const allDollar = (source.match(/\$([^$\n]+?)\$/g) || []).length;
+  // Inline math is counted with display math removed; otherwise the inside of
+  // a one-line `$$…$$` also reads as `$…$` and every such equation counts twice.
+  const allDollar = (source.replace(/\$\$[\s\S]+?\$\$/g, '').match(/\$([^$\n]+?)\$/g) || []).length;
   stats.mathDisplay = displayMath;
   stats.mathInline = allDollar;
   stats.mathTotal = displayMath + allDollar;
