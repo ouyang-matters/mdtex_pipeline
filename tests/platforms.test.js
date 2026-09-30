@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WeChatAdapter } from '../src/platforms/wechat/index.js';
+import { WeChatAdapter, wrapListItemContent } from '../src/platforms/wechat/index.js';
 import { ZhihuAdapter } from '../src/platforms/zhihu/index.js';
 
 describe('WeChat Adapter', () => {
@@ -106,5 +106,21 @@ describe('Platform adapters should not lose content', () => {
     expect(result).toContain('Paragraph with');
     expect(result).toContain('bold');
     expect(result).toContain('code block');
+  });
+});
+
+describe('WeChat list items', () => {
+  it('wraps an item that starts with an inline formula, so WeChat cannot split it', () => {
+    const html = '<ul><li><span data-latex="x"><svg><path d="M0"/></svg></span> 是测度空间</li></ul>';
+    expect(wrapListItemContent(html)).toBe('<ul><li><section><span data-latex="x"><svg><path d="M0"/></svg></span> 是测度空间</section></li></ul>');
+  });
+
+  it('closes the wrapper before a nested list and leaves block content alone', () => {
+    const html = '<ol><li>a <b>b</b><ul><li>c</li></ul></li><li><p>d</p></li><li></li></ol>';
+    expect(wrapListItemContent(html)).toBe('<ol><li><section>a <b>b</b></section><ul><li><section>c</section></li></ul></li><li><p>d</p></li><li></li></ol>');
+  });
+
+  it('is applied by the WeChat adapter', () => {
+    expect(new WeChatAdapter().sanitize('<ul><li>x</li></ul>')).toBe('<ul><li><section>x</section></li></ul>');
   });
 });

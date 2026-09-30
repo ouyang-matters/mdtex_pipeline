@@ -14,6 +14,53 @@ import { PlatformAdapter } from '../base.js';
  * - Max content width ~100vw mobile
  * - KaTeX HTML may partially work but SVG/images are safer
  */
+const BLOCK_START = /^<(p|section|div|ul|ol|table|pre|blockquote|h[1-6])\b/i;
+
+/**
+ * Give every list item's inline content its own <section>.
+ *
+ * WeChat's editor wraps an item's inline run in a <section> on paste, but an
+ * item that *starts* with an inline formula keeps that formula outside and
+ * wraps only what follows — so "• (X, M, μ) 是测度空间" renders as the formula
+ * on one line and the prose on the next. Arriving already wrapped, the item
+ * has nothing left to split.
+ *
+ * The wrapper closes before any block inside the item (a nested list, a
+ * display equation), which stays a sibling as it was.
+ */
+export function wrapListItemContent(html) {
+  const out = [];
+  const frames = []; // one per open <li>: is its <section> still open?
+  const tag = /<\/?[a-zA-Z][^>]*>/g;
+  let last = 0;
+  let m;
+  while ((m = tag.exec(html)) !== null) {
+    const token = m[0];
+    out.push(html.slice(last, m.index));
+    last = m.index + token.length;
+
+    if (/^<li\b/i.test(token)) {
+      const rest = html.slice(last).trimStart();
+      const wrap = !BLOCK_START.test(rest) && !/^<\/li>/i.test(rest);
+      out.push(token, wrap ? '<section>' : '');
+      frames.push(wrap);
+      continue;
+    }
+    if (/^<\/li>/i.test(token)) {
+      if (frames.pop()) out.push('</section>');
+      out.push(token);
+      continue;
+    }
+    if (frames.length && frames[frames.length - 1] && BLOCK_START.test(token)) {
+      out.push('</section>');
+      frames[frames.length - 1] = false;
+    }
+    out.push(token);
+  }
+  out.push(html.slice(last));
+  return out.join('');
+}
+
 export class WeChatAdapter extends PlatformAdapter {
   constructor() {
     super('wechat');
@@ -65,6 +112,8 @@ export class WeChatAdapter extends PlatformAdapter {
     // Strip xmlns:xlink if present (WeChat may not handle it)
     result = result.replace(/\s+xmlns:xlink="[^"]*"/gi, '');
 
+    result = wrapListItemContent(result);
+
     return result;
   }
 
@@ -93,9 +142,9 @@ export class WeChatAdapter extends PlatformAdapter {
     return { valid: errors.length === 0, warnings, errors };
   }
 
-  getMathOutput() {
-    // WeChat strips complex DOM structures. SVG data URIs are the safest.
-    return 'svg';
+  getMathOutput(requested) {
+    // WeChat keeps inline SVG made only of <path>; PNG is the user's fallback.
+    return requested || 'svg';
   }
 
   getCssOverrides() {
