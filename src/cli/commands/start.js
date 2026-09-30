@@ -5,8 +5,9 @@ import { paths, getVersionSync, getGitCommitSync } from '../../core/paths.js';
 import { startServer } from '../../server/index.js';
 import { readRuntimeFile, isRuntimeAlive } from '../../server/runtime.js';
 import { getConfig } from '../../core/config/index.js';
-import { checkForUpdate, describeReason } from '../../core/update/check.js';
-import { box, rows, bold, dim, grey, cyan, green, yellow, ARROW } from '../format.js';
+import { checkForUpdate, describeReason, readUpdateState, compareVersions } from '../../core/update/check.js';
+import { performUpdate } from '../../core/update/apply.js';
+import { box, rows, bold, dim, grey, cyan, green, yellow, ARROW, TICK } from '../format.js';
 
 /**
  * `publisher start` — launch MDTeX.
@@ -28,7 +29,20 @@ export async function startCommand(options = {}) {
   }
 
   const existing = readRuntimeFile();
-  if (existing && isRuntimeAlive(existing) && !options.force) {
+  const alreadyRunning = existing && isRuntimeAlive(existing) && !options.force;
+
+  // Install a release the previous launch found, before anything is served.
+  // Only the remembered answer is consulted — no network — so a launch never
+  // waits on one; the background check below refreshes it for next time.
+  if (!alreadyRunning && options.updateCheck !== false && process.env.MDTEX_UPDATED !== '1') {
+    const config = getConfig();
+    if (config.update_check !== false && config.update_auto !== false) {
+      const restarted = await autoUpdate();
+      if (restarted) return;
+    }
+  }
+
+  if (alreadyRunning) {
     console.log(`MDTeX is already running: ${existing.url}`);
     console.log('Opening the existing session. Use --force to start a second instance.');
     if (options.open !== false) openBrowser(existing.url);
@@ -85,6 +99,59 @@ export async function startCommand(options = {}) {
 }
 
 /**
+ * If the last check found a newer release, install it and hand over to it.
+ *
+ * Returns true when the new version has been started in this process's place
+ * (the caller must then do nothing more), false when MDTeX should start as it
+ * is — up to date, nothing known, or an update that could not run. A refusal
+ * is reported and never stops the launch.
+ */
+async function autoUpdate() {
+  const known = readUpdateState();
+  const current = getVersionSync();
+  if (!known?.checked || !known.available || known.mode !== 'release') return false;
+  // The answer must be about this installation; after any update it is stale.
+  if (known.localVersion !== current || compareVersions(known.latestVersion, current) <= 0) return false;
+
+  console.log('');
+  console.log(box([
+    `${yellow('Updating MDTeX')}  ${current}${grey(`  ${ARROW}  `)}${green(known.latestVersion)}`,
+    grey('Turn automatic installation off:  publisher update --auto-install off'),
+  ], { colour: yellow }));
+  console.log('');
+
+  const result = await performUpdate({
+    target: known.target,
+    remoteName: known.remoteName || 'origin',
+    log: (line) => console.log(grey(`  ${line}`)),
+  });
+
+  if (!result.ok) {
+    console.log('');
+    console.log(yellow(`  Not updated: ${result.reason}.`));
+    if (result.stage === 'dirty') console.log(grey('  The checkout has local changes; `publisher update --force` updates anyway.'));
+    if (result.backupDir) console.log(grey(`  Backup of your data: ${result.backupDir}`));
+    console.log(grey(`  Starting ${current}.`));
+    console.log('');
+    return false;
+  }
+
+  console.log('');
+  console.log(green(`  ${TICK} Updated to ${result.newVersion}. Starting it…`));
+  console.log('');
+
+  // The new code is on disk but this process still runs the old one: start
+  // the new version in its place, with the same arguments, and exit with it.
+  const child = spawn(process.execPath, process.argv.slice(1), {
+    stdio: 'inherit',
+    env: { ...process.env, MDTEX_UPDATED: '1' },
+  });
+  child.on('exit', (code) => process.exit(code ?? 0));
+  await new Promise(() => {});
+  return true;
+}
+
+/**
  * Print the update notice, if there is one to print.
  *
  * Only "there is a newer version" is worth interrupting for. Being up to date
@@ -97,11 +164,17 @@ async function reportUpdate() {
   const result = await checkForUpdate();
   if (!result.checked || !result.available) return;
 
+  const release = result.mode === 'release';
+  const auto = release && getConfig().update_auto !== false;
   console.log(box([
     `${yellow('A newer version is available')}`,
-    `${grey('installed')}  ${result.local?.slice(0, 7)}${grey(`  ${ARROW}  `)}${green(result.remote.slice(0, 7))}  ${grey(`on ${result.remoteName}/${result.branch}`)}`,
+    release
+      ? `${grey('installed')}  ${result.localVersion}${grey(`  ${ARROW}  `)}${green(result.latestVersion)}`
+      : `${grey('installed')}  ${result.local?.slice(0, 7)}${grey(`  ${ARROW}  `)}${green(result.remote.slice(0, 7))}  ${grey(`on ${result.remoteName}/${result.branch}`)}`,
     '',
-    `Update with  ${bold('publisher update')}`,
+    auto
+      ? `It will be installed the next time MDTeX starts, or now with  ${bold('publisher update')}`
+      : `Update with  ${bold('publisher update')}`,
     grey('Turn this check off:  publisher update --auto off'),
   ], { colour: yellow }));
   console.log('');

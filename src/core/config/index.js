@@ -10,10 +10,13 @@ const DEFAULT_CONFIG = {
   default_theme: 'default',
   default_platform: 'wechat',
   output_dir: './dist',
-  // Whether `publisher start` asks the remote if there is a newer commit. The
+  // Whether `publisher start` asks the remote if there is a newer release. The
   // check never modifies the checkout and never blocks the launch; turning it
   // off stops the network request entirely.
   update_check: true,
+  // Whether a release found by that check is installed at the next start,
+  // before the server comes up. Off: the check only reports it.
+  update_auto: true,
 };
 
 const DEFAULT_PREFERENCES = {

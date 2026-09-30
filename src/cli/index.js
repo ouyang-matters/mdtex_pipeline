@@ -18,6 +18,7 @@ import { ArticleLibrary } from '../workspace/library.js';
 import { listCheckpoints, readCheckpoint, restoreCheckpoint } from '../workspace/checkpoints.js';
 import { startCommand } from './commands/start.js';
 import { checkForUpdate, describeReason } from '../core/update/check.js';
+import { performUpdate } from '../core/update/apply.js';
 import { box, rows, bold, grey, green, yellow, cyan, TICK, ARROW } from './format.js';
 import { buildCommand, printValidation } from './commands/build.js';
 import { doctorCommand } from './commands/doctor.js';
@@ -328,11 +329,16 @@ program
   .option('--force', 'Force update even with dirty checkout')
   .option('--check', 'Only report whether a newer version exists; change nothing')
   .option('--auto <state>', 'Turn the automatic check on start on or off (on|off)')
+  .option('--auto-install <state>', 'Install a new release automatically on start (on|off)')
   .action(async (opts) => {
     // Both of these answer a question about updating rather than performing
     // one, so they run before any of the machinery below and return.
     if (opts.auto !== undefined) {
       setAutoUpdateCheck(opts.auto);
+      return;
+    }
+    if (opts.autoInstall !== undefined) {
+      setAutoInstall(opts.autoInstall);
       return;
     }
     if (opts.check) {
@@ -343,148 +349,63 @@ program
     const oldVersion = getVersionSync();
     console.log(`Publisher ${oldVersion}\n`);
 
-    // 0. Refuse to update if any user data sits where an update would replace it.
-    //    This runs before git is touched: once `git pull` has started there is
-    //    no safe way to discover that articles were in the checkout.
-    const safety = checkUpdateSafety();
-    if (!safety.safe) {
-      console.error('Error: user data is stored where an update would destroy it.\n');
-      for (const v of safety.violations) {
-        console.error(`  ${v.reason}`);
-        console.error(`    ${v.entry.label}: ${v.entry.path}`);
+    // Update to the newest release when the remote publishes them; a remote
+    // without release tags is followed by branch head, as before.
+    const check = await checkForUpdate({ force: true });
+    const target = check.checked && check.mode === 'release' ? check.target : null;
+    if (check.checked && check.mode === 'release' && !check.available && !opts.force) {
+      console.log(`${green(TICK)} Already on the latest release (${check.localVersion}).`);
+      return;
+    }
+
+    const result = await performUpdate({
+      target,
+      remoteName: check.remoteName || 'origin',
+      force: Boolean(opts.force),
+    });
+
+    if (!result.ok && result.stage !== 'done') {
+      console.error(`\nError: ${result.reason}.`);
+      if (result.stage === 'safety') {
+        for (const v of result.violations) {
+          console.error(`  ${v.reason}`);
+          console.error(`    ${v.entry.label}: ${v.entry.path}`);
+        }
+        console.error('\nRun `publisher doctor` for the migration steps. Nothing was changed.');
+      } else if (result.stage === 'dirty') {
+        console.error(`\n${result.status}\n\nUse --force to update anyway, or commit/stash your changes first.`);
+      } else if (result.stage === 'checkout') {
+        console.error('If installed from archive, re-clone and run install.sh / install.ps1.');
+      } else if (result.detail) {
+        console.error(result.detail);
       }
-      console.error('\nRun `publisher doctor` for the migration steps. Nothing was changed.');
+      if (result.backupDir) console.error(`\nBackup of your data: ${result.backupDir}`);
       process.exit(1);
     }
 
-    // 1. Check for git repo
-    if (!existsSync(join(paths.appRoot, '.git'))) {
-      console.error('Error: Not a git checkout. Cannot update.');
-      console.error('If installed from archive, re-clone and run install.sh.');
-      process.exit(1);
+    if (result.selftest && !result.selftest.passed) {
+      console.error('\nWarning: Some self-tests failed. Backup available at:');
+      console.error(`  ${result.backupDir}`);
     }
 
-    // 2. Check for dirty checkout
-    try {
-      const status = execSync('git status --porcelain', { cwd: paths.appRoot, encoding: 'utf-8' }).trim();
-      if (status && !opts.force) {
-        console.error('Error: Application source has uncommitted changes:\n');
-        console.error(status);
-        console.error('\nUse --force to update anyway, or commit/stash your changes first.');
-        process.exit(1);
-      }
-      if (status && opts.force) {
-        console.log('Warning: Proceeding despite dirty checkout (--force)\n');
-      }
-    } catch {
-      console.error('Error: git not available');
-      process.exit(1);
-    }
-
-    // 3. Ensure user dirs exist. Only ever creates what is missing.
-    ensureUserDirs();
-
-    // 3a. Move anything still in a legacy location out of harm's way *before*
-    //     git runs. Copies only — the original is left in place.
-    const migration = migrateLegacyData();
-    if (migration.sources.length) {
-      console.log('\nMigrating data out of legacy locations...');
-      console.log(formatMigrationReport(migration));
-    }
-
-    // 3b. Census of the user's data, to prove afterwards that it survived.
-    const before = inventory();
-
-    // 4. Back up user data
-    console.log('\nBacking up user data...');
-    const backupDir = createBackup('pre-update');
-    console.log(`  Backup: ${backupDir}`);
-
-    // 5. Count user themes before
-    const userThemesBefore = existsSync(paths.userThemes) ? readdirSync(paths.userThemes).filter(f => f.endsWith('.css')).length : 0;
-
-    // 6. Fetch and pull
-    console.log('\nFetching updates...');
-    try {
-      execSync('git pull --ff-only', { cwd: paths.appRoot, encoding: 'utf-8', stdio: 'pipe' });
-    } catch (e) {
-      console.error('Error: git pull failed. Resolve conflicts manually.');
-      console.error(e.stderr || e.message);
-      process.exit(1);
-    }
-
-    // 7. Update dependencies
-    console.log('Updating dependencies...');
-    try {
-      execSync('npm install', { cwd: paths.appRoot, encoding: 'utf-8', stdio: 'pipe' });
-    } catch (e) {
-      console.error('Error: npm install failed');
-      console.error(e.stderr || e.message);
-      process.exit(1);
-    }
-
-    // 8. Run config migrations
-    console.log('Running config migrations...');
-    const configMigration = migrateConfig();
-    if (configMigration.migrated) {
-      console.log(`  Config migrated: v${configMigration.fromVersion} -> v${configMigration.toVersion}`);
-      for (const c of configMigration.changes) console.log(`    ${c}`);
-    } else {
-      console.log('  No migration needed.');
-    }
-
-    // 9. Rebuild UI
-    console.log('Rebuilding UI...');
-    try {
-      execSync('npx vite build', { cwd: paths.appRoot, encoding: 'utf-8', stdio: 'pipe' });
-    } catch (e) {
-      console.error('Error: UI build failed');
-      console.error(e.stderr || e.message);
-      process.exit(1);
-    }
-
-    // 10. Run self-tests
-    console.log('Running self-tests...');
-    try {
-      const { runSelftest } = await import('../../scripts/selftest.js');
-      const { passed, results } = await runSelftest();
-      for (const r of results) {
-        console.log(`  ${r.passed ? '✓' : '✗'} ${r.label}`);
-      }
-      if (!passed) {
-        console.error('\nWarning: Some self-tests failed. Backup available at:');
-        console.error(`  ${backupDir}`);
-      }
-    } catch (e) {
-      console.error(`  Self-test error: ${e.message}`);
-    }
-
-    // 11. Prove the user's data survived, rather than asserting it did.
-    const after = inventory();
-    const comparison = compareInventories(before, after);
-
-    const newVersion = getVersionSync();
-    console.log(`\nPublisher ${oldVersion} -> ${newVersion}\n`);
-
+    console.log(`\nPublisher ${result.oldVersion} -> ${result.newVersion}\n`);
     for (const entry of protectedEntries()) {
-      const count = after.entries[entry.id];
+      const count = result.after.entries[entry.id];
       if (!count?.exists) continue;
       console.log(`  ${entry.label.padEnd(22)} ${String(count.files).padStart(6)} file(s)  ${formatBytes(count.bytes)}`);
     }
 
-    if (comparison.intact) {
+    if (result.intact) {
       console.log('\n✓ User data intact: nothing was removed or replaced.');
     } else {
       console.error('\n✗ User data changed during the update:');
-      for (const loss of comparison.losses) {
-        console.error(`    ${loss.id}: ${loss.reason}`);
-      }
-      console.error(`\n  Restore from the pre-update backup: ${backupDir}`);
+      for (const loss of result.losses) console.error(`    ${loss.id}: ${loss.reason}`);
+      console.error(`\n  Restore from the pre-update backup: ${result.backupDir}`);
       process.exitCode = 1;
     }
 
     console.log('✓ Application updated');
-    if (configMigration.migrated) console.log('✓ Configuration migrated, existing values preserved');
+    if (result.configMigration?.migrated) console.log('✓ Configuration migrated, existing values preserved');
     console.log('✓ UI rebuilt');
   });
 
@@ -831,6 +752,26 @@ function setAutoUpdateCheck(state) {
     ? `  ${green(TICK)} ${bold('publisher start')} will check for a newer version.`
     : `  ${green(TICK)} ${bold('publisher start')} will not check for updates.`);
   console.log(grey(`    Setting: update_check = ${enabled} in ${paths.configFile}`));
+  console.log('');
+}
+
+/** `publisher update --auto-install on|off` — persist whether start installs releases. */
+function setAutoInstall(state) {
+  const value = String(state).toLowerCase();
+  if (!['on', 'off', 'true', 'false'].includes(value)) {
+    console.error(`Expected "on" or "off", got "${state}".`);
+    process.exitCode = 1;
+    return;
+  }
+  const enabled = value === 'on' || value === 'true';
+  const config = getConfig();
+  saveConfigFile(paths.configFile, { ...config, update_auto: enabled });
+
+  console.log('');
+  console.log(enabled
+    ? `  ${green(TICK)} A new release will be installed the next time MDTeX starts.`
+    : `  ${green(TICK)} New releases will be reported, not installed. Install with ${bold('publisher update')}.`);
+  console.log(grey(`    Setting: update_auto = ${enabled} in ${paths.configFile}`));
   console.log('');
 }
 
