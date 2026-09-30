@@ -14,7 +14,9 @@ import { PlatformAdapter } from '../base.js';
  * - Max content width ~100vw mobile
  * - KaTeX HTML may partially work but SVG/images are safer
  */
-const BLOCK_START = /^<(p|section|div|ul|ol|table|pre|blockquote|h[1-6])\b/i;
+export const WECHAT_SAFE_BODY_BYTES = 5_000_000;
+
+const BLOCK_START =/^<(p|section|div|ul|ol|table|pre|blockquote|h[1-6])\b/i;
 
 /**
  * Give every list item's inline content its own <section>.
@@ -112,6 +114,12 @@ export class WeChatAdapter extends PlatformAdapter {
     // Strip xmlns:xlink if present (WeChat may not handle it)
     result = result.replace(/\s+xmlns:xlink="[^"]*"/gi, '');
 
+    // The recorded geometry exists for math/normalize-sizing.js, which has run
+    // by now. On the clipboard it is only weight: WeChat uploads the body twice
+    // per save, and a large article sits near its limit. The inline/display
+    // marker itself stays — it is what says which rules an element obeys.
+    result = result.replace(/\s+data-mdtex-(?:w|h|va)="[^"]*"/gi, '');
+
     result = wrapListItemContent(result);
 
     return result;
@@ -120,6 +128,18 @@ export class WeChatAdapter extends PlatformAdapter {
   validate(html) {
     const warnings = [];
     const errors = [];
+
+    // Every save uploads the body to WeChat's self-check, JSON-escaped (~1.4×).
+    // Measured 2026-09-30: a 6.1 MB body failed that upload intermittently,
+    // a 5.9 MB one passed. Above this, an edit may become unsaveable.
+    const bytes = Buffer.byteLength(html, 'utf8');
+    if (bytes > WECHAT_SAFE_BODY_BYTES) {
+      warnings.push(
+        `WeChat: the article is ${(bytes / 1e6).toFixed(1)} MB. WeChat checks the whole body on every save, `
+        + `and bodies near 6 MB fail that check intermittently — the draft then cannot be saved after an edit. `
+        + `Consider splitting the article in two.`,
+      );
+    }
 
     if (/<style[\s>]/i.test(html)) {
       warnings.push('WeChat: <style> tags will be stripped by the editor');

@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { paths, ensureDir } from '../paths.js';
 
-const RENDERER_VERSION = '2';
+const RENDERER_VERSION = '3';
 
 /**
  * Compute a deterministic cache key for a formula.

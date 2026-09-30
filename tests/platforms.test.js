@@ -124,3 +124,17 @@ describe('WeChat list items', () => {
     expect(new WeChatAdapter().sanitize('<ul><li>x</li></ul>')).toBe('<ul><li><section>x</section></li></ul>');
   });
 });
+
+describe('WeChat body size', () => {
+  it('warns when an article is large enough for WeChat\'s save check to fail', () => {
+    const adapter = new WeChatAdapter();
+    expect(adapter.validate('<p>x</p>').warnings.join(' ')).not.toMatch(/MB/);
+    const big = '<p>' + 'x'.repeat(5_100_000) + '</p>';
+    expect(adapter.validate(big).warnings.join(' ')).toMatch(/5\.1 MB/);
+  });
+
+  it('drops recorded formula geometry but keeps the inline/display marker', () => {
+    const out = new WeChatAdapter().sanitize('<span data-latex="x" data-mdtex-math="inline" data-mdtex-w="1em" data-mdtex-h="1em" data-mdtex-va="0em">x</span>');
+    expect(out).toBe('<span data-latex="x" data-mdtex-math="inline">x</span>');
+  });
+});

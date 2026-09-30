@@ -4,6 +4,7 @@ import { SVG } from 'mathjax-full/js/output/svg.js';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
 import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
+import { compactSvg } from './svg-compact.js';
 
 let _instance = null;
 
@@ -41,7 +42,7 @@ function getMathJax() {
  *
  * Returns { svg, widthEx, heightEx, verticalAlignEx, viewBox, error }
  */
-export function renderLatexToSvg(latex, displayMode = false) {
+export function renderLatexToSvg(latex, displayMode = false, { compact = true } = {}) {
   const { adaptor, doc } = getMathJax();
 
   try {
@@ -81,6 +82,10 @@ export function renderLatexToSvg(latex, displayMode = false) {
     svg = svg.replace(/\s*data-mml-node="[^"]*"/g, '');
     svg = svg.replace(/\s*data-c="[^"]*"/g, '');
     svg = svg.replace(/\s*data-mjx-texclass="[^"]*"/g, '');
+
+    // Every glyph is repeated in full at every occurrence (WeChat keeps no
+    // <use>), so each copy is written as compactly as it renders identically.
+    if (compact) svg = compactSvg(svg);
 
     if (!svg || svg.length < 50) {
       return { svg: null, widthEx: 0, heightEx: 0, verticalAlignEx: 0, viewBox: '', error: 'Empty SVG output' };
