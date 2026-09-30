@@ -94,7 +94,7 @@ by `scripts/e2e.js`.
 | --- | --- |
 | WeChat image CDN upload | Images are embedded or referenced locally; the WeChat validator warns that they need manual upload. The uploader interface exists (`src/core/images/index.js`), the WeChat API client does not. |
 | Blog Pipeline publish button | The backend detects the `blogpipe` CLI and the AI layer can run read-only status checks. There is no publish button in the UI: deployment is `blogpipe`'s job and MDTeX does not reimplement it. |
-| Zhihu-specific preview chrome | Zhihu compiles and copies correctly, but the preview pane styles it with the WeChat theme. |
+| Zhihu-specific preview chrome | The preview pane styles Zhihu output with the WeChat theme. Math is emitted as Zhihu's native formula nodes (its editor strips SVG). Verified 2026-09-28 by pasting compiled output into a live zhuanlan.zhihu.com draft: headings, paragraphs and inline, display, `aligned` and matrix formulas all land as native formulas and survive a reload. The paste was a synthetic `paste` event carrying the same `text/html` the Copy button writes, not an OS clipboard round-trip. **Figures do not survive Copy → paste into Zhihu**: embedded `data:` images fail Zhihu's URL import. They have to be pasted into the editor as image files (Zhihu then uploads them); nothing in MDTeX does that yet. Formulas in table cells come through as Unicode text, because Zhihu tables hold text only. |
 | PDF ↔ source position sync | SyncTeX data is generated during the build but nothing consumes it yet. |
 | Collaborative editing | Out of scope. |
 

@@ -37,10 +37,13 @@ export class PlatformAdapter {
   }
 
   /**
-   * Get the preferred math output mode for this platform.
-   * Override in adapters. Values: 'svg', 'png', 'auto'.
+   * The math output mode this platform will actually receive.
+   *
+   * `requested` is the user's preference. A platform whose editor accepts only
+   * one form of math overrides this and ignores the request, so no preference
+   * can produce output that the editor strips on paste.
    */
-  getMathOutput() {
-    return 'svg';
+  getMathOutput(requested) {
+    return requested || 'svg';
   }
 }

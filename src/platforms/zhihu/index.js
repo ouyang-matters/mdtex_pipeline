@@ -6,7 +6,8 @@ import { PlatformAdapter } from '../base.js';
  * Zhihu editor constraints:
  * - Supports a subset of HTML
  * - Has its own CSS that may conflict
- * - Supports LaTeX via its own renderer (but we provide pre-rendered)
+ * - Math must be its own `<img eeimg>` formula node: the editor drops inline
+ *   <svg> and data: images on paste, so pre-rendered math arrives blank
  * - Links are allowed but may get nofollow
  * - Images can be external URLs
  * - Tables supported but with limited styling
@@ -55,6 +56,12 @@ export class ZhihuAdapter extends PlatformAdapter {
     // But remove IDs
     result = result.replace(/\s+id="[^"]*"/gi, '');
 
+    // The article's root container goes. Zhihu's Draft.js editor maps one
+    // pasted <div> to one block, so a wrapped article lands as a single
+    // paragraph with every heading flattened into it. Its styling would be
+    // discarded on paste anyway.
+    result = result.replace(/^\s*<div\b[^>]*>([\s\S]*)<\/div>\s*$/i, '$1');
+
     return result;
   }
 
@@ -76,6 +83,10 @@ export class ZhihuAdapter extends PlatformAdapter {
     }
 
     return { valid: errors.length === 0, warnings, errors };
+  }
+
+  getMathOutput() {
+    return 'zhihu';
   }
 
   getCssOverrides() {

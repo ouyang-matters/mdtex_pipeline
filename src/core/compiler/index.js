@@ -136,8 +136,9 @@ export class Compiler {
     const adapter = adapters[platform] ? adapters[platform]() : null;
 
     // Step 6: Determine math output mode
-    const effectiveMathOutput = mathOutput
-      || (adapter ? adapter.getMathOutput() : MathOutput.SVG);
+    const effectiveMathOutput = adapter
+      ? adapter.getMathOutput(mathOutput)
+      : (mathOutput || MathOutput.SVG);
 
     // Step 7: Replace KaTeX math with publishing assets
     const mathResult = await mark('formulas', 'Rendering formulas…', () =>

@@ -269,4 +269,45 @@ describe('Full Pipeline Formula Preservation', () => {
     expect(result.html).toContain('data-latex=');
     expect(result.html).not.toContain('<eq>');
   });
+
+  it('gives Zhihu its native formula nodes, whatever math output was requested', async () => {
+    const source = "Inline $\\gamma'(t)$ and display:\n\n$$\\begin{aligned}\na &= b % note\n\\\\ c &< d\n\\end{aligned}$$";
+    const compiler = new Compiler();
+    for (const mathOutput of [undefined, 'svg', 'png']) {
+      const result = await compiler.compile(source, { theme: 'default', platform: 'zhihu', mathOutput });
+      expect(result.mathOutput).toBe('zhihu');
+      expect(result.validation.valid).toBe(true);
+      // The Zhihu editor strips both of these on paste.
+      expect(result.html).not.toContain('<svg');
+      expect(result.html).not.toContain('data:image');
+
+      const formulas = [...result.html.matchAll(/<img[^>]*eeimg="1"[^>]*>/g)].map(m => m[0]);
+      expect(formulas).toHaveLength(2);
+      const alts = formulas.map(f => f.match(/alt="([^"]*)"/)[1]);
+      expect(alts[0]).toBe("\\gamma'(t)");
+      // Display math: one line, comment removed, trailing \\ marks it as a block.
+      expect(alts[1]).toBe('\\begin{aligned} a &amp;= b \\\\ c &amp;&lt; d \\end{aligned}\\\\');
+      const src = formulas[1].match(/src="([^"]*)"/)[1];
+      expect(decodeURIComponent(src.split('tex=')[1])).toBe('\\begin{aligned} a &= b \\\\ c &< d \\end{aligned}\\\\');
+      // Zhihu's paste handler reads the TeX from data-tex; alt alone arrives as raw text.
+      expect(formulas.map(f => f.match(/data-tex="([^"]*)"/)[1])).toEqual(alts);
+    }
+  });
+
+  it('pastes into Zhihu as blocks, not one wrapped paragraph', async () => {
+    const compiler = new Compiler();
+    const result = await compiler.compile('# Title\n\nText $x$.\n\n$$y = 1$$', { theme: 'default', platform: 'zhihu' });
+    // Draft.js turns a pasted root <div> into a single block.
+    expect(result.html.trim()).toMatch(/^<h1\b/);
+    expect(result.html).not.toMatch(/<div\b/);
+    expect(result.validation.valid).toBe(true);
+  });
+
+  it('keeps WeChat on the requested pre-rendered math', async () => {
+    const compiler = new Compiler();
+    const result = await compiler.compile('Inline $x^2$', { theme: 'default', platform: 'wechat', mathOutput: 'svg' });
+    expect(result.mathOutput).toBe('svg');
+    expect(result.html).toContain('<svg');
+    expect(result.html).not.toContain('eeimg');
+  });
 });

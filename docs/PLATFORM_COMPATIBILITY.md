@@ -61,7 +61,14 @@ Documented differences between WeChat Official Account and Zhihu editors.
 - Most HTML elements similar to WeChat
 - External image URLs (Zhihu will cache/proxy them)
 - Links with `target="_blank"`
-- Native LaTeX support (Zhihu has its own LaTeX renderer)
+- Formula nodes carrying `data-tex="<tex>"`, which the editor adopts as native,
+  editable formulas (TeX ending in `\\` = display). The attribute is what counts:
+  an `<img eeimg>` with only `alt` arrives as raw TeX text. We emit
+  `<img eeimg="1" data-tex="…" alt="…" src="https://www.zhihu.com/equation?tex=…">`
+  so the same node also renders anywhere that ignores `data-tex`.
+- Block structure, one Draft.js block per top-level element. A root `<div>`
+  wrapping the article collapses it into a single block (headings lost), so the
+  Zhihu target emits no root container.
 
 ### What Gets Stripped
 
@@ -70,6 +77,23 @@ Documented differences between WeChat Official Account and Zhihu editors.
 - `id` attributes
 - `on*` event handlers
 - `<iframe>` tags
+- Inline `<svg>` — pre-rendered math arrives blank, so the Zhihu target always
+  emits native formula nodes, whatever the math-output preference
+- Formulas inside table cells: Zhihu tables hold plain text only, so a pasted
+  formula arrives as raw TeX. The Zhihu target writes table-cell formulas as
+  Unicode text instead (`A⁻¹(y)`, `r · (1,0,−1)`); see `math/tex-to-text.js`.
+
+### Images (verified 2026-09-28)
+
+- `<img src="data:…">` in pasted HTML: Zhihu tries to import it by URL and the
+  import fails ("图片导入失败"). Embedded figures do **not** survive a rich-text paste.
+- An image pasted as a *file* (clipboard image, like a screenshot) is uploaded to
+  `pic-private.zhihu.com` and becomes a native figure. Uploads fail now and then
+  ("上传失败"); a failed upload has only a `blob:` URL and is not saved with the draft,
+  so it must be re-pasted.
+- Autosave is driven by `requestAnimationFrame`, which Chrome suspends in a
+  background tab: an edit made while the tab is hidden stays local until the tab is
+  shown or the page unloads.
 
 ### Differences from WeChat
 
@@ -83,7 +107,8 @@ Documented differences between WeChat Official Account and Zhihu editors.
 | `<details>`/`<summary>` | Not supported | Not supported |
 | `<video>` | Not supported | Limited support |
 | Code blocks | Inline styles only | Better native support |
-| SVG | Limited support | Limited support |
+| Math | Inline SVG (`<path>` only) | Native `eeimg` formula nodes |
+| SVG | Limited support | Stripped on paste |
 | `<section>` vs `<div>` | `<section>` preferred | `<div>` fine |
 
 ### Recommended Approach

@@ -1,6 +1,8 @@
 import { renderLatexToSvg, renderLatexToDataUri } from './publish-renderer.js';
 import { svgToPngDataUri } from './svg-to-png.js';
 import { FormulaCache } from './formula-cache.js';
+import { decodeHtmlEntities } from '../html-entities.js';
+import { texToText } from './tex-to-text.js';
 import {
   EX_TO_EM, geometryAttrs, inlineSvgStyle, inlineWrapperStyle, inlineImageStyle, displaySvgStyle,
 } from './sizing.js';
@@ -12,6 +14,9 @@ export const MathOutput = {
   SVG: 'svg',    // Inline SVG (primary, best WeChat compat)
   PNG: 'png',    // PNG <img> fallback
   AUTO: 'auto',  // SVG preferred
+  // Zhihu's own formula node. Its editor drops <svg> and data: images on
+  // paste, but turns `<img eeimg>` into a native, editable formula.
+  ZHIHU: 'zhihu',
 };
 
 const DISPLAY_PATTERN = /<section>\s*<eqn>([\s\S]*?)<\/eqn>\s*<\/section>/g;
@@ -52,6 +57,7 @@ export async function replaceKatexWithImages(html, options = {}) {
   ].sort((a, b) => a.index - b.index);
 
   stats.total = matches.length;
+  const tables = mathOutput === MathOutput.ZHIHU ? tableRanges(html) : [];
   onProgress?.({ done: 0, total: matches.length });
 
   const replacements = new Array(matches.length).fill(null);
@@ -66,6 +72,19 @@ export async function replaceKatexWithImages(html, options = {}) {
       errors.push(`Could not extract LaTeX from math element at position ${m.index}`);
       stats.errors++;
       done++;
+      continue;
+    }
+
+    if (mathOutput === MathOutput.ZHIHU) {
+      // Zhihu renders the formula itself; there is no asset to produce.
+      // Its table cells hold text only — a formula pasted there arrives as
+      // raw TeX — so a formula in a table is written out as Unicode text.
+      replacements[i] = inTable(tables, m.index)
+        ? buildTextFormula(latex)
+        : buildZhihuFormula(latex, m.displayMode);
+      if (m.displayMode) stats.displayRendered++; else stats.inlineRendered++;
+      done++;
+      onProgress?.({ done, total: matches.length });
       continue;
     }
 
@@ -275,6 +294,50 @@ function buildPngFallback(asset, escapedLatex, displayMode) {
     + `style="${inlineImageStyle(widthEm, heightEm, valignEm)}" />`;
 }
 
+/**
+ * Zhihu's native formula: the form its editor itself produces, and the only
+ * math its paste handler keeps. A formula whose TeX ends in `\\` is typeset
+ * as a centred display block — that is Zhihu's convention, not ours.
+ *
+ * The paste handler reads the TeX from `data-tex`; with only `alt` it keeps
+ * the alt as plain text, so the formula arrives as raw TeX. `src` is for
+ * everywhere else (our preview, a plain rich-text paste), where Zhihu's
+ * equation endpoint renders the same TeX as an image.
+ */
+function buildZhihuFormula(latex, displayMode) {
+  // One line, so a `%` comment must go first or it would swallow what follows.
+  let tex = latex.replace(/(^|[^\\])%.*$/gm, '$1').replace(/\s*\n\s*/g, ' ').trim();
+  if (displayMode && !/\\\\$/.test(tex)) tex += '\\\\';
+  const escaped = escapeAttr(tex);
+  // Zhihu discards this style when it adopts the node; it is here so a theme's
+  // `#nice img { display:block }` cannot put inline math on its own line in
+  // the preview.
+  const style = displayMode
+    ? 'display:inline-block;margin:0 auto;max-width:100%;'
+    : 'display:inline;margin:0;vertical-align:middle;max-width:none;';
+  const img = `<img src="https://www.zhihu.com/equation?tex=${encodeURIComponent(tex)}" `
+    + `alt="${escaped}" data-tex="${escaped}" class="ee_img tr_noresize" eeimg="1" `
+    + `data-latex="${escapeAttr(latex)}" data-display="${displayMode}" style="${style}">`;
+  return displayMode ? `<p style="text-align:center;">${img}</p>` : img;
+}
+
+function buildTextFormula(latex) {
+  const escaped = escapeAttr(latex);
+  return `<span data-latex="${escaped}" data-display="false">${escapeAttr(texToText(latex))}</span>`;
+}
+
+function tableRanges(html) {
+  const ranges = [];
+  const re = /<table\b[\s\S]*?<\/table>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) ranges.push([m.index, m.index + m[0].length]);
+  return ranges;
+}
+
+function inTable(ranges, index) {
+  return ranges.some(([start, end]) => index > start && index < end);
+}
+
 function escapeAttr(str) {
   return str
     .replace(/&/g, '&amp;')
@@ -283,11 +346,3 @@ function escapeAttr(str) {
     .replace(/>/g, '&gt;');
 }
 
-function decodeHtmlEntities(str) {
-  return str
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
