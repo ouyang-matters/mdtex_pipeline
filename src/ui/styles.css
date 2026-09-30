@@ -1140,3 +1140,12 @@ textarea.field-input { resize: vertical; line-height: 1.5; }
   #preview-content #nice .ai-group-add::before { background: #2ea043; }
   #preview-content #nice .ai-group-applied, #preview-content #nice .ai-group-applied::before, .ai-line-applied { animation-duration: 0.01s; }
 }
+
+/* ── Zhihu figures: one row per figure, copied on its own ─────────────────── */
+.zhihu-figures { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow-y: auto; }
+.zhihu-figure-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius); }
+.zhihu-figure-thumb { width: 72px; height: 48px; object-fit: contain; background: #fff; border-radius: 4px; flex-shrink: 0; }
+.zhihu-figure-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.zhihu-figure-alt { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zhihu-figure-row .btn-done { opacity: 0.6; }
+.zhihu-figure-row .btn-done::before { content: '✓ '; }

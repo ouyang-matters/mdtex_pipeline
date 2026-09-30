@@ -2,6 +2,7 @@ import { el, clear, mount, toast, modal, formatBytes, relativeTime, confirmDialo
 import { backend, followJob, CancelledError, api } from './api.js';
 import { app, emit, invalidateTarget } from './state.js';
 import { t } from './i18n.js';
+import { splitFigures, figureToPng } from './zhihu-figures.js';
 
 /**
  * Build panel: WeChat/Zhihu preparation, PDF compilation and the PDF preview.
@@ -318,8 +319,16 @@ export async function copyTarget({ asPlainHtml = false } = {}) {
     if (!prepared || app.target.html == null) return false;
   }
 
-  const html = app.target.html;
+  let html = app.target.html;
   const text = app.target.plainText || '';
+
+  // Zhihu refuses embedded figures in pasted rich text but uploads an image
+  // pasted as a file: the article goes over with a placeholder per figure,
+  // and each figure is copied on its own afterwards.
+  let figures = [];
+  if (app.platform === 'zhihu' && !asPlainHtml) {
+    ({ html, figures } = splitFigures(html, (n) => t('build.zhihuFigures.placeholder', { n })));
+  }
 
   try {
     if (asPlainHtml) {
@@ -333,6 +342,7 @@ export async function copyTarget({ asPlainHtml = false } = {}) {
       'text/plain': new Blob([text], { type: 'text/plain' }),
     })]);
     toast(t('build.copiedFor', { platform: platformLabel(), size: formatBytes(html.length) }));
+    if (figures.length) showZhihuFigures(figures);
     return true;
   } catch (e) {
     try {
@@ -344,6 +354,45 @@ export async function copyTarget({ asPlainHtml = false } = {}) {
       return false;
     }
   }
+}
+
+/**
+ * One button per figure, each putting that figure on the clipboard as a PNG.
+ *
+ * Stays open while the user goes back and forth to Zhihu: paste the article,
+ * then for each figure copy it here, select its placeholder there, paste.
+ */
+function showZhihuFigures(figures) {
+  modal({
+    title: t('build.zhihuFigures.title', { count: figures.length }),
+    subtitle: t('build.zhihuFigures.howTo'),
+    width: 520,
+    render: () => el('div', { class: 'zhihu-figures' },
+      ...figures.map(figure => {
+        const button = el('button', {
+          class: 'btn btn-sm',
+          onClick: async () => {
+            try {
+              // The PNG is produced inside the click, as a promise the
+              // clipboard resolves itself: the browser only allows a write
+              // that starts within the user's gesture.
+              await navigator.clipboard.write([new ClipboardItem({ 'image/png': figureToPng(figure.src) })]);
+              button.classList.add('btn-done');
+              toast(t('build.zhihuFigures.copied', { placeholder: figure.placeholder }));
+            } catch (e) {
+              toast(t('build.clipboardFailed', { message: e.message }), { type: 'error', timeout: 6000 });
+            }
+          },
+        }, t('build.zhihuFigures.copy', { n: figure.n }));
+        return el('div', { class: 'zhihu-figure-row' },
+          el('img', { class: 'zhihu-figure-thumb', src: figure.src, alt: figure.alt }),
+          el('div', { class: 'zhihu-figure-meta' },
+            el('strong', {}, figure.placeholder),
+            figure.alt ? el('span', { class: 'zhihu-figure-alt' }, figure.alt) : null),
+          button);
+      })),
+    actions: [{ label: t('build.zhihuFigures.done'), variant: 'primary', value: true }],
+  });
 }
 
 export async function exportTarget() {
