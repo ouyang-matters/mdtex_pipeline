@@ -126,6 +126,46 @@ describe('performUpdate', () => {
     expect(readFileSync(join(clone, 'package.json'), 'utf-8')).toContain('"mine"');
   });
 
+  it('does not count npm\'s rewrite of the lockfile as a local change', async () => {
+    // Every real installation had this: `npm install` pruned a stale tree from
+    // the committed package-lock.json, so the checkout always looked modified
+    // and every update refused. Here the release also changes the lockfile, so
+    // the rewrite has to be put back before git can move it.
+    const work = join(root, 'lock-work');
+    const bare = join(root, 'lock.git');
+    git(root, 'init', '-q', '--bare', '-b', 'main', bare);
+    git(root, 'init', '-q', '-b', 'main', work);
+    git(work, 'config', 'user.email', 'test@example.com');
+    git(work, 'config', 'user.name', 'Test');
+    git(work, 'remote', 'add', 'origin', bare);
+    writeVersion(work, '0.2.0');
+    writeFileSync(join(work, 'package-lock.json'), '{"lockfileVersion":3,"stale":true}\n');
+    git(work, 'add', '.'); git(work, 'commit', '-qm', '0.2.0'); git(work, 'tag', 'v0.2.0');
+    git(work, 'push', '-q', 'origin', 'main', '--tags');
+    const clone = join(root, 'lock-installed');
+    git(root, 'clone', '-q', bare, clone);
+    writeVersion(work, '0.3.0');
+    writeFileSync(join(work, 'package-lock.json'), '{"lockfileVersion":3,"version":"0.3.0"}\n');
+    git(work, 'commit', '-qam', '0.3.0'); git(work, 'tag', '-a', 'v0.3.0', '-m', '0.3.0');
+    git(work, 'push', '-q', 'origin', 'main', '--tags');
+
+    writeFileSync(join(clone, 'package-lock.json'), '{"lockfileVersion":3}\n'); // what npm install left behind
+
+    const result = await performUpdate({ appRoot: clone, target: 'v0.3.0', run: quietRun(clone), selftest: false, log: () => {} });
+    expect({ ok: result.ok, stage: result.stage, detail: result.detail }).toMatchObject({ ok: true, stage: 'done' });
+    expect(result.newVersion).toBe('0.3.0');
+    expect(readFileSync(join(clone, 'package-lock.json'), 'utf-8')).toContain('"version":"0.3.0"');
+  });
+
+  it('still refuses a lockfile change mixed with the user\'s own edits', async () => {
+    const { clone } = setup();
+    writeFileSync(join(clone, 'mine.js'), 'x\n');
+    git(clone, 'add', 'mine.js');
+    const result = await performUpdate({ appRoot: clone, target: 'v0.3.0', run: quietRun(clone), selftest: false, log: () => {} });
+    expect(result).toMatchObject({ ok: false, stage: 'dirty' });
+    expect(result.status).toContain('mine.js');
+  });
+
   it('refuses a target that is not a release tag', async () => {
     const { clone } = setup();
     const result = await performUpdate({

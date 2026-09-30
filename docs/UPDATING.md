@@ -29,8 +29,21 @@ check on start compares the branch head, which has moved — and prints:
 │ Update with  publisher update                     │
 ```
 
-Run `publisher update` once (or re-run `install.ps1` / `install.sh`, which
-also pulls). From then on, releases install themselves.
+Update it once by hand, with either of:
+
+```bash
+publisher update --force      # the only local change is npm's lockfile rewrite
+.\install.ps1                  # or ./install.sh — pulls, installs, rebuilds
+```
+
+`--force` is needed because 0.2.0 counts `package-lock.json` as a local change:
+`npm install` prunes a stale dependency tree from the committed lockfile on
+every installation, so every 0.2.0 checkout looks modified and plain
+`publisher update` refuses. 0.3.0 treats the lockfile as the installer's
+product: it is ignored by the local-changes check and put back before the
+fast-forward. This release leaves `package-lock.json` byte-identical to 0.2.0's,
+so the pull succeeds with npm's rewrite still in place. From then on, releases
+install themselves.
 
 ## The check on start
 

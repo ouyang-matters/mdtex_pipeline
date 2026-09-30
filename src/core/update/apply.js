@@ -58,13 +58,20 @@ export async function performUpdate({
   // 2. Local changes to the application are the user's work; never move under them.
   let status;
   try {
-    status = git('status', '--porcelain').trim();
+    // trimEnd only: the first two columns of a porcelain line are its status.
+    status = git('status', '--porcelain').trimEnd();
   } catch {
     return refuse('checkout', 'git is not available');
   }
-  if (status && !force) {
-    return refuse('dirty', 'the application source has uncommitted changes', { status });
+  // package-lock.json is the installer's product, not the user's work: npm
+  // rewrites it on every install (it pruned a stale jsdom tree from 0.2.0's),
+  // which made every installation look modified and refuse to update.
+  const changes = status.split('\n').filter(Boolean);
+  const own = changes.filter(line => !isGeneratedChange(line));
+  if (own.length && !force) {
+    return refuse('dirty', 'the application source has uncommitted changes', { status: own.join('\n') });
   }
+  const lockRewritten = changes.some(isGeneratedChange);
 
   // 3. Make what is missing, move anything in a legacy location out of harm's
   //    way (copies only), and count what the user has.
@@ -86,6 +93,9 @@ export async function performUpdate({
   // 5. Move the code — fast-forward only, so history the user has is never rewritten.
   log(target ? `Fetching ${target}...` : 'Fetching updates...');
   try {
+    // Put npm's rewrite back to the committed file, so git can move it; the
+    // npm install below writes it again for this machine.
+    if (lockRewritten) git('checkout', '--', 'package-lock.json');
     if (target) {
       if (!/^v\d+\.\d+\.\d+$/.test(target)) throw new Error(`not a release tag: ${target}`);
       git('fetch', '--no-tags', remoteName, `refs/tags/${target}:refs/tags/${target}`);
@@ -156,6 +166,11 @@ export async function performUpdate({
     selftest: selftestResult,
     userThemes: { before: userThemesBefore, after: userThemesAfter },
   };
+}
+
+/** A `git status --porcelain` line that npm, not the user, produced. */
+function isGeneratedChange(line) {
+  return /^ M package-lock\.json$/.test(line);
 }
 
 /** The version now on disk — the running process still has the old one in memory. */
