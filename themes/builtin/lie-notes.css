@@ -1,0 +1,122 @@
+/* Lie Notes — after the typography of the original "Lie Groups and Lie
+   Algebras" PDF: serif text, sans-serif headings over hairline rules, and the
+   key statements set in a light blue frame.
+   Colours are CSS variables (prefixed, so they never collide with anything
+   else on the page); MDTeX resolves them before inlining. */
+
+/* Blue is the series colour: the same lie-blue / lie-sky / lie-tint that
+   series_lie.sty gives the PDFs and covers. Body text stays near-black. */
+:root {
+  --ln-ink: #1b4f9e;
+  --ln-text: #262b33;
+  --ln-accent: #5b8fd4;
+  --ln-soft: #f1f5fc;
+  --ln-frame: #a8c4e8;
+  --ln-rule: #a8c4e8;
+  --ln-muted: #6b7384;
+}
+
+#nice {
+  font-family: "Times New Roman", "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  font-size: 16px;
+  color: var(--ln-text);
+  /* No page colour: the article sits on whatever the platform draws. */
+  background: transparent;
+  line-height: 1.85;
+  padding: 20px 18px;
+  max-width: 100%;
+  overflow-x: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+#nice h1, #nice h2, #nice h3, #nice h4 {
+  font-family: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ln-ink);
+}
+
+#nice h1 {
+  font-size: 1.7em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0.4em 0 1.2em 0;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--ln-rule);
+}
+
+#nice h2 {
+  font-size: 1.3em;
+  font-weight: bold;
+  margin: 2.2em 0 0.9em 0;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--ln-rule);
+}
+
+#nice h3 {
+  font-size: 1.08em;
+  font-weight: bold;
+  margin: 1.6em 0 0.6em 0;
+}
+
+#nice h4, #nice h5, #nice h6 { font-size: 1em; font-weight: bold; margin: 1em 0 0.4em 0; }
+
+#nice p { margin: 0.8em 0; line-height: 1.85; text-align: justify; }
+
+#nice strong { font-weight: bold; color: var(--ln-ink); }
+#nice em { font-style: italic; }
+
+#nice a { color: var(--ln-accent); text-decoration: none; border-bottom: 1px solid var(--ln-frame); }
+
+#nice ul { margin: 0.6em 0; padding-left: 1.8em; list-style-type: disc; }
+#nice ol { margin: 0.6em 0; padding-left: 1.8em; list-style-type: decimal; }
+#nice li { margin: 0.35em 0; line-height: 1.85; }
+
+/* The key statements: a light frame, as the boxed results in the PDF. */
+#nice blockquote {
+  margin: 1.4em 0;
+  padding: 12px 18px;
+  border: 1px solid var(--ln-frame);
+  border-radius: 4px;
+  background: var(--ln-soft);
+  color: var(--ln-ink);
+  text-align: center;
+}
+#nice blockquote p { margin: 0.3em 0; text-align: center; }
+
+#nice table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 14px; display: table; }
+#nice th { font-weight: bold; border-bottom: 1px solid var(--ln-ink); padding: 6px 10px; text-align: left; }
+#nice td { border-bottom: 1px solid var(--ln-rule); padding: 6px 10px; }
+
+#nice hr { border: none; border-top: 1px solid var(--ln-rule); margin: 2em 0; }
+
+#nice code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.86em;
+  background: var(--ln-soft);
+  color: var(--ln-ink);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+#nice .code-block-wrapper { margin: 1em 0; }
+#nice .code-lang { display: block; font-size: 11px; color: var(--ln-muted); margin-bottom: 4px; }
+#nice pre.code-block {
+  background: var(--ln-soft);
+  border: 1px solid var(--ln-rule);
+  border-radius: 4px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 100%;
+}
+#nice pre.code-block code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+
+#nice img { max-width: 100%; height: auto; display: block; margin: 1.2em auto; }
+
+/* Display mathematics: overflow is MDTeX's job, see THEME_GUIDE.md. */
+#nice .katex-display { margin: 1.1em 0; overflow: visible; }
+#nice .katex { font-size: 1.08em; color: #111; }
+#nice .footnotes { margin-top: 2em; padding-top: 1em; border-top: 1px solid var(--ln-rule); font-size: 0.9em; }
+#nice .footnote-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
