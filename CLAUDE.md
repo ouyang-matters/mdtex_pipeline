@@ -120,3 +120,12 @@ What I've noticed about how they work:
   `node scripts/workflow-check.js`, `publisher doctor`. Run the browser-driving
   ones before claiming a UI feature works — jsdom lies, especially about
   performance.
+
+### Research: MMHM v2 (`research/mmhm/`)
+
+MAKIROR asked for a from-scratch redo of arXiv:2508.14429 (MMHM, dynamic
+homology of evolving simplicial complexes): fix definitions, rerun experiments,
+rewrite the paper and figures. `research/mmhm/SPEC.md` is the source of truth.
+v1's localized column update is incorrect (no basis tracking; affected set
+ignores gradient paths); v2 uses an exact dynamic reduced basis with a
+Morse-collapse order as sparsifier. Claim only what is measured.
