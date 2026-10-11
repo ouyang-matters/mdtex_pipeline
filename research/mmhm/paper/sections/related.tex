@@ -1,0 +1,130 @@
+% sections/related.tex -- Related work (MMHM v2)
+% Citation keys: refs.bib. Verification log: REFERENCES_VERIFICATION.md.
+\section{Related work}\label{sec:related}
+
+\paragraph{Static homology and persistence computation.}
+Over a field, Betti numbers are ranks of boundary matrices, and the standard
+way to obtain them, together with the persistence barcode of a filtration, is
+column reduction in a fixed total order of the cells: each column receives
+additions from earlier columns until its lowest non-zero entry (its
+\emph{low}) differs from that of every other non-zero column
+\cite{edelsbrunner2002topological,zomorodian2005computing,edelsbrunner2010computational}.
+The worst case is cubic in the number of cells
+\cite{edelsbrunner2010computational}, and practical performance comes from a
+small set of devices. \emph{Clearing} (the \emph{twist}) processes dimensions
+from the top down and sets to zero every column whose cell is already known to
+be the low of a reduced column one dimension up \cite{chen2011twist};
+\emph{clear and compress} pairs columns locally in chunks and compresses the
+remainder before a global reduction \cite{bauer2014clear}. \emph{Apparent
+pairs} are decided by a purely local condition on the boundary matrix, need no
+column additions, and are both persistence pairs and gradient pairs of a
+discrete Morse function; Ripser combines them with clearing, cohomology and an
+implicit coboundary \cite{bauer2021ripser}. PHAT \cite{bauer2017phat} and
+GUDHI \cite{maria2014gudhi} package these variants, and Otter et
+al.~\cite{otter2017roadmap} benchmark the available software. All of this is
+static: an edited complex is a new input. Our rebuild step is exactly such a
+static reduction with clearing, modified to retain the change of basis~$V$;
+our \texttt{full-*} baselines rerun it, without~$V$, after every update.
+
+\paragraph{Discrete Morse theory and coreductions.}
+Forman's discrete Morse theory \cite{forman1998morse,forman2002user} replaces
+a complex by a chain-homotopy-equivalent Morse complex on the critical cells
+of an acyclic matching. Algorithmically, matchings are built by collapses or
+coreductions and used to shrink the input before any linear algebra:
+coreduction homology \cite{mrozek2009coreduction}, extended to regular CW
+complexes \cite{dlotko2011coreduction}, to maps
+and persistence \cite{mrozek2010coreduction,harker2014discrete}, and filtered
+Morse complexes that preserve persistent homology \cite{mischaikow2013morse}.
+On 2-manifolds, matchings with the minimum number of critical cells can be
+constructed in linear time \cite{lewiner2003optimal}; in general, Benedetti
+and Lutz \cite{benedetti2014random} collapse a free face chosen at random and
+declare a cell critical only when no free face is left, and use the resulting
+distribution of critical-cell counts to measure how complicated a
+triangulation is. Our matching is a deterministic variant of their collapse
+strategy. We use it differently from the works
+above, because we never form the Morse complex. Its boundary entries are sums
+over gradient paths, so an edit to a \emph{matched} cell can change the
+boundaries of critical cells far from the edit; this is one of the two defects
+that invalidated the localized update of v1 \cite{ouyang2025mmhm_v1}.
+Instead we use the matching only to choose the total order of the
+\emph{unreduced} boundary matrix, so that every gradient pair is an apparent
+pair. This is the converse of the observation in \cite{bauer2021ripser}
+that apparent pairs form a discrete gradient: the order is designed so that a
+given matching is recovered as apparent pairs, which concentrates reduction
+work on the critical cells.
+
+\paragraph{Updating persistence.}
+Vineyards \cite{cohensteiner2006vines} maintain the decomposition $R = DV$ of
+a filtered boundary matrix, with $V$ stored, under transpositions of adjacent
+cells at linear cost per transposition. Our dynamic reduced basis (DRB) is the
+same kind of object, a reduced matrix $R = BV$ with $V$ invertible and
+tracked, maintained under a different set of moves. Zigzag persistence
+\cite{carlsson2010zigzag} handles both insertions and deletions. Carlsson, de
+Silva and Morozov \cite{carlsson2009zigzag} gave an incremental algorithm;
+Milosavljevi\'c, Morozov and \v{S}kraba \cite{milosavljevic2011zigzag} bounded
+the cost of $n$ additions and deletions by matrix-multiplication time; Maria
+and Schreiber \cite{maria2024discrete} use discrete Morse reductions as
+preprocessing, with cost depending mostly on the number of critical cells; and
+FastZigzag \cite{dey2022fast} converts a simplex-wise zigzag filtration into
+an ordinary filtration of a $\Delta$-complex of the same length, so that
+standard persistence software applies. On graphs, zigzag persistence takes
+near-linear time using dynamic connectivity structures \cite{dey2021zigzag},
+and vineyard updates extend to zigzag filtrations, including expansions and
+contractions \cite{dey2024vineyard}. Dey, Fan and Wang
+\cite{dey2014simplicial} maintain $\mathbb{Z}_2$ simplex annotations under
+elementary inclusions and vertex collapses to compute persistence along
+simplicial maps. Closest to our deletion step are methods that warm-start from
+an existing $R = DV$ factorization when a filtration changes. Luo and Nelson
+\cite{luo2023warmstart} extend the vineyard updates to cell insertions and
+deletions processed in a batch, with cost scaling with the number of
+elementary changes. Giunti and Lazovskis \cite{giunti2026pruning} update $R$,
+$V$ and the representative cycles when a simplex and its cofaces are removed,
+compatibly with the twist (clearing) optimization.
+
+\paragraph{Incremental and dynamic Betti numbers.}
+Delfinado and Edelsbrunner \cite{delfinado1995incremental} compute the Betti
+numbers of a complex in the 3-sphere built by adding one simplex at a time,
+in $O(n\,\alpha(n))$ time. Each new simplex either creates a cycle or destroys
+one (the positive/negative dichotomy that is also our insertion step); in
+$S^3$ the test reduces to union--find on the complex and on its complement,
+with $\beta_1$ following from the Euler characteristic. The algorithm is
+insertion-only and depends on the embedding. Fully dynamic $\beta_0$ under
+edge insertions and deletions is dynamic graph connectivity, solved in
+polylogarithmic amortized time per update \cite{holm2001polylog}; for graphs
+embedded on a surface, Eppstein \cite{eppstein2003dynamic} maintains
+generators of the surface's fundamental group under edge insertions,
+deletions and their duals. These bounds rely on special structure (a graph,
+an ambient $S^3$, an embedding surface) and none of them covers $\beta_1$,
+$\beta_2$ and $\beta_3$ of an arbitrary complex of dimension at most three
+under insertions and deletions, which is our setting.
+
+\paragraph{Positioning.}
+We maintain, for each $k$, a reduced basis $R_k = B_k V_k$ with $V_k$
+tracked, under column insertion and column deletion. This suffices because a
+simplex's boundary never changes while the simplex exists, so rows appear and
+disappear only while they are zero. Insertion is the usual incremental
+reduction step. Deletion is where $V$ is needed: every column whose chain
+$V_j$ contains the deleted simplex is corrected by a cycle (Case~A) or by
+the column with the smallest low (Case~B). The procedure is not new in
+substance. It is the rank-only specialization of the deletion updates used
+for zigzag persistence and for warm-started $R = DV$ factorizations
+\cite{carlsson2009zigzag,luo2023warmstart,giunti2026pruning}, and we give a
+self-contained proof because v1's localized re-reduction omitted precisely
+this basis tracking \cite{ouyang2025mmhm_v1}.
+
+The difference lies in the output and in the freedom it buys. Zigzag
+persistence yields the barcode of the entire sequence of complexes, a strictly
+richer output: $\beta_k(K_t)$ is the number of $k$-dimensional intervals
+containing~$t$, so an incremental zigzag algorithm \cite{carlsson2009zigzag}
+already answers our query. In zigzag, vineyard and warm-start methods,
+however, the cell order is the filtration itself and is fixed by the input.
+We report only the current Betti numbers after each update, so the order
+carries no meaning in our output; it is a computational device that we are
+free to choose (the Morse order, under which gradient pairs are apparent pairs
+and the stored basis stays sparse) and to replace at a rebuild. We claim no
+locality theorem. Costs are stated in output-sensitive terms (reduction-chain
+lengths and deletion footprints), we measure them, and we exhibit families on
+which they grow linearly with the size of the complex. For $\beta_0$ alone,
+and for insertion-only complexes in $S^3$, the specialized structures above
+have better worst-case bounds. All statements are over $\mathbb{Z}_2$ and say
+nothing about torsion.
