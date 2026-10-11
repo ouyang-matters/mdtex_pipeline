@@ -1,0 +1,2 @@
+workload,n,D,ambient,seeds,states,b0_min,b0_max,b0_init_mean,b1_min,b1_max,b1_init_mean,b2_min,b2_max,b2_init_mean,b3_min,b3_max,b3_init_mean,bD_over_n_init,K0
+w4_2d_n4000_D3,4000,3,2d,1,2001,2,3,2,308,331,326,0,1,0,24744,25967,25339,6.33475,111763

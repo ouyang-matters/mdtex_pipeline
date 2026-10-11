@@ -41,6 +41,7 @@ def main():
                     ax.plot(x, y, color=S.COLOR[m], ls=ls, lw=1.2, marker=S.MARKER[m], ms=4,
                             mec="white", mew=0.5)
             ax.set_yscale("log")
+            S.log_axis(ax, "y")
             ax.set_xticks(x)
             ax.set_xticklabels(ALPHAS)
             if i == 1:

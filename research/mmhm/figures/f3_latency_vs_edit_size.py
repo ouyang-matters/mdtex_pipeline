@@ -35,6 +35,7 @@ def main():
     for ax in (a1, a2):
         ax.set_xscale("log", base=2)
         ax.set_yscale("log")
+        S.log_axis(ax, "y")
         ax.set_xticks([1, 2, 4, 8, 16, 32, 64])
         ax.set_xticklabels(["1", "2", "4", "8", "16", "32", "64"])
         ax.xaxis.set_minor_locator(NullLocator())

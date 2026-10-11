@@ -134,6 +134,8 @@ def sig(x, n=3):
 
 
 def intc(x):
+    if x is None or (isinstance(x, float) and math.isnan(x)):
+        return "--"
     return f"{int(round(float(x))):,}".replace(",", "{,}")
 
 
@@ -356,7 +358,7 @@ def main():
 
     def add_slopes(exp, fam, sub, xcol, xname):
         for lab, g in sub.groupby("label"):
-            g = g.sort_values(xcol)
+            g = g.dropna(subset=[xcol]).sort_values(xcol)
             if len(g) < 2:
                 continue
             for stat, col in (("Med", "lat_med_us"), ("Amort", "amort_us")):
@@ -424,7 +426,7 @@ def main():
                "w1_torus_256": "E5"}
     e8 = runs_df[runs_df.workload.isin(e8_inst) & runs_df.method.isin(DYN) &
                  runs_df.label.isin(DYN)]
-    e8 = e8[[e8_inst[w] == e for w, e in zip(e8.workload, e8.exp)]]
+    e8 = e8.loc[np.array([e8_inst[w] == e for w, e in zip(e8.workload, e8.exp)], dtype=bool)]
     E8 = []
     for (w, lab), g in e8.groupby(["workload", "label"]):
         # pooled distributions over seeds from the raw CSVs
@@ -445,7 +447,10 @@ def main():
                    "fp_p95": np.percentile(fps, 95), "fp_p99": np.percentile(fps, 99),
                    "fp_max": fps.max(), "nnz0": g.nnz0.mean(), "nnz_end": g.nnz_end.mean(),
                    "nnz_max": g.nnz_max.mean(), "rebuilds": g.rebuilds.mean()})
-    E8 = pd.DataFrame(E8)
+    E8 = pd.DataFrame(E8, columns=["workload", "label", "updates", "adds_mean", "adds_med",
+                                   "adds_p95", "adds_p99", "adds_max", "frac_zero_adds", "fp_mean",
+                                   "fp_med", "fp_p95", "fp_p99", "fp_max", "nnz0", "nnz_end",
+                                   "nnz_max", "rebuilds"])
     E8.to_csv(os.path.join(RES, "summary_e8.csv"), index=False, float_format="%.6g")
     for _, x in E8.iterrows():
         pre = f"NumEEight{inst_tag(x.workload)}{METHOD_TAG[x.label]}"
@@ -519,7 +524,9 @@ def main():
     lcr_path = os.path.join(RES, "E0_lcr.csv")
     C = pd.read_csv(corr_path)
     if (C.status != "ok").any():
-        raise SystemExit("E0_correctness.csv has failures; run verify.py and stop")
+        if "--partial" not in sys.argv:
+            raise SystemExit("E0_correctness.csv has failures; run verify.py and stop")
+        print("WARNING: --partial: E0 has failures/incomplete coverage; numbers are provisional")
     C_t = C
     M.add("NumExactRuns", intc(len(C_t)), "runs of exact methods checked (E1-E7)", "verify.py")
     M.add("NumExactMismatches", intc(C_t.internal_mismatch.sum() + C_t.fullid_mismatch.sum() +
@@ -733,7 +740,7 @@ def write_tables(S, C, L, E8, W4, e7, runs_df):
     lines = [r"\begin{tabular}{@{}lrrrrrrr@{}}", r"\toprule",
              r"instance & $|K_0|$ & $\beta_0$ & $\beta_1$ & $\beta_2$ & $\beta_3$ & "
              r"$\beta_D/n$ at INIT \\", r"\midrule"]
-    for _, x in W4.sort_values(["ambient", "D", "n"]).iterrows():
+    for _, x in (W4.sort_values(["ambient", "D", "n"]) if len(W4) else W4).iterrows():
         rng = []
         for k in range(4):
             lo, hi = x[f"b{k}_min"], x[f"b{k}_max"]

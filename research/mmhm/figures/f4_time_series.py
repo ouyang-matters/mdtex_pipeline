@@ -71,6 +71,7 @@ def main():
             at.plot(rb, np.full(len(rb), yy), ls="none", marker="|", ms=6, mew=1.2,
                     color=S.COLOR[m])
         at.set_ylim(lo, hi * 1.0)
+        S.log_axis(at, "y")
         if w.startswith("w1"):
             bpath = os.path.join(S.RES, exp, f"{w}__full-id__seed0.betti.gz")
             with gzip.open(bpath, "rt") as fh:

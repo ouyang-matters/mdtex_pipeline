@@ -46,6 +46,8 @@ def main():
                         mfc="white", mec=S.COLOR[m], mew=1.0, zorder=5)
         ax.set_xscale("log")
         ax.set_yscale("log")
+        S.log_axis(ax, "x")
+        S.log_axis(ax, "y")
         ax.set_title(title, loc="left")
         ax.set_xlabel(r"complex size $|K_0|$ (simplices)")
         ax.set_ylabel(r"per-update latency ($\mu$s)")

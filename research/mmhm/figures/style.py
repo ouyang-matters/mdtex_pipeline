@@ -99,8 +99,37 @@ def band(ax, x, lo, hi, m):
     ax.fill_between(x, lo, hi, color=COLOR[m], alpha=0.12, lw=0)
 
 
+def compact(v):
+    """1, 2, 5, 10, ..., 1k, 2k, 10k, 1M, 0.5 -- plain tick labels."""
+    if v >= 1e6:
+        s = f"{v / 1e6:g}M"
+    elif v >= 1e3:
+        s = f"{v / 1e3:g}k"
+    else:
+        s = f"{v:g}"
+    return s
+
+
+def log_axis(ax, which="y"):
+    """Log scale with plain compact labels. Spans of up to ~1.5 decades also
+    label the 2x and 5x minor ticks so every panel has readable ticks."""
+    from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
+    axis = ax.yaxis if which == "y" else ax.xaxis
+    lo, hi = (ax.get_ylim() if which == "y" else ax.get_xlim())
+    span = (hi / lo) if lo > 0 else 1e9
+    axis.set_major_locator(LogLocator(base=10, numticks=12))
+    fmt = FuncFormatter(lambda v, _: compact(v))
+    axis.set_major_formatter(fmt)
+    if span <= 40:
+        axis.set_minor_locator(LogLocator(base=10, subs=(2.0, 5.0), numticks=12))
+        axis.set_minor_formatter(fmt)
+    else:
+        axis.set_minor_locator(LogLocator(base=10, subs=tuple(range(2, 10)), numticks=12))
+        axis.set_minor_formatter(NullFormatter())
+
+
 def save(fig, name):
     path = os.path.join(HERE, name + ".pdf")
-    fig.savefig(path)
+    fig.savefig(path, metadata={"CreationDate": None, "ModDate": None})
     plt.close(fig)
     print("wrote", path)

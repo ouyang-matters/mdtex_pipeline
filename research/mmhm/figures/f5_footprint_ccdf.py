@@ -61,12 +61,16 @@ def main():
                 if not len(xs):
                     continue
                 ax.step(xs, ys, where="post", color=S.COLOR[m], lw=1.2)
-                k = np.unique(np.geomspace(1, len(xs), 5).astype(int) - 1)
-                k = np.clip(k + METHODS.index(m), 0, len(xs) - 1)
-                ax.plot(xs[k], ys[k], ls="none", marker=S.MARKER[m], ms=4, color=S.COLOR[m],
+                # markers at geometrically spaced x (offset per method), on the curve
+                gx = np.geomspace(xs[0], xs[-1], 6) * (1.15 ** METHODS.index(m))
+                gx = gx[gx <= xs[-1]]
+                k = np.clip(np.searchsorted(xs, gx, side="right") - 1, 0, len(xs) - 1)
+                ax.plot(gx, ys[k], ls="none", marker=S.MARKER[m], ms=4, color=S.COLOR[m],
                         mec="white", mew=0.5)
             ax.set_xscale("log")
             ax.set_yscale("log")
+            S.log_axis(ax, "x")
+            S.log_axis(ax, "y")
             ax.set_xlabel(ylab)
             if j == 0:
                 ax.set_ylabel(r"fraction of updates $\geq x$")
