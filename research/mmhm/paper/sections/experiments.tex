@@ -359,7 +359,9 @@ of them engine runs and the others \method{gudhi}. We did not measure two
 concurrent timed runs at about $10^6$ simplices, the usual condition after that
 time. We call a difference between two methods \emph{within noise} when their
 per-seed ranges overlap (\path{experiments/results/summary_pairs.csv}) and say
-so where it matters.
+so where it matters. Each range has only three points, and on W1--W4 the three
+seeds are different workload instances, so a range mixes instance and timing
+variation; \emph{beyond noise} is therefore a weak criterion, not a test.
 
 \paragraph{Counters.}
 Besides time, every run records per update the number of column additions, the
@@ -788,7 +790,8 @@ The median of the DRB methods grows with $|K_0|$ almost like that of
 \method{full-id} (slopes \NumSlopeEFiveWOneSphereMmhmNorbMed{} to
 \NumSlopeEFiveWOneSphereDrbIdRbMed{} on the sphere, against
 \NumSlopeEFiveWOneSphereFullIdMed; \cref{fig:latency-size}(d)), so a typical W1
-update works on chains whose size grows with the complex. The closed surface,
+update presumably works on chains whose size grows with the complex (chain
+sizes were not logged). The closed surface,
 on which \cref{prop:nonlocal} forces $\Omega(n_2)$ work, reappears after only
 \NumWOneSphereLSevenClosedStates{} of the \NumUpdates{} updates of a run on the
 largest sphere (mean over the runs), too rarely to set the median, and on that

@@ -549,7 +549,9 @@ $m$ of terms in (a), and $|O|-1$ per deletion in (b)), the sum of the
 footprints $|\occ(\sigma)|$ of the deleted simplices, and $\nnz(R)+\nnz(V)$
 (Section~\ref{sec:exp-timing}). These are proxies: they count the terms of the
 sums above but not the sizes of the chains involved, so they need not move in
-the same direction as running time.
+the same direction as running time. Neither model counts the engine's lazy
+footprint lists: entries left behind by earlier eliminations are skipped when
+$\occ(\sigma)$ is read, which adds work proportional to the stale entries met.
 
 The quantities in Proposition~\ref{prop:cost} --- footprints $|\occ(\sigma)|$,
 reduction-chain lengths and the sizes of the chains involved --- depend on the
