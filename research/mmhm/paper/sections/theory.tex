@@ -1,0 +1,600 @@
+% sections/theory.tex -- method and theory (SPEC.md sections 1--4).
+% Uses macros.tex. Results: Theorem 1 (exactness), Corollary 1.1 (rebuild),
+% Lemma 2 (apparent pairs), Corollaries 2.1--2.2 (Morse order), Proposition 3
+% (cost), Proposition 4 (no worst-case locality). Executable checks of every
+% statement: research/mmhm/reference/check_props.py.
+
+\section{Method and theory}\label{sec:theory}
+
+This section defines the data structure maintained by \method{mmhm}, proves
+that it yields exact Betti numbers after every atomic edit
+(Theorem~\ref{thm:exact}), shows where discrete Morse theory enters and what it
+provably buys (Lemma~\ref{lem:apparent} and its corollaries), states the cost of
+an update in terms of quantities of the data structure
+(Proposition~\ref{prop:cost}), and shows that these quantities admit no bound in
+terms of the size of the update (Proposition~\ref{prop:nonlocal}). Correctness
+does not depend on any locality or on the order used; the order affects only
+cost. Coefficients are in $\Z$ throughout; we make no statement about integer
+homology or torsion. The arguments hold in every dimension; the implementation
+is restricted to $\dim K\le 3$.
+
+\subsection{Setting}\label{sec:setting}
+
+Let $K$ be a finite simplicial complex of dimension $d$. A $k$-simplex is a set of
+$k+1$ vertices; $\Kc{k}$ is the set of $k$-simplices of $K$ and $n_k=|\Kc{k}|$.
+We identify the chain group $\Cc{k}=C_k(K;\Z)$ with the set of finite subsets of
+$\Kc{k}$, addition being symmetric difference. The boundary
+$\bd_k\colon\Cc{k}\to\Cc{k-1}$ sends a simplex to the set of its facets
+(codimension-one faces); $\Bm{k}$ is its matrix, with rows indexed by
+$\Kc{k-1}$ and columns by $\Kc{k}$. We write $\Zc{k}=\ker\bd_k$,
+$r_k=\rank\Bm{k}$ for $1\le k\le d$, and $r_0=r_{d+1}=0$. By rank--nullity,
+$\dim\Zc{k}=n_k-r_k$ and $\dim\operatorname{im}\bd_{k+1}=r_{k+1}$, so
+\begin{equation}\label{eq:betti}
+  \beta_k \;=\; n_k - r_k - r_{k+1}\qquad(0\le k\le d).
+\end{equation}
+
+\paragraph{Edits and updates.} An \emph{atomic edit} is either
+$\Ins(\sigma)$, for a simplex $\sigma\notin K$ all of whose facets lie in $K$, or
+$\Del(\sigma)$, for a simplex $\sigma\in K$ that has no proper coface in $K$.
+Each atomic edit leaves a simplicial complex. An \emph{update} $u_t$ is a finite
+sequence of atomic edits (a batch); its \emph{size} is $s_t=|u_t|$. The task is
+to output $\beta_0,\dots,\beta_d$ of $K_t$ after every update $t$.
+
+\begin{observation}[Structural fact]\label{obs:structural}
+Let $\sigma$ be a $k$-simplex. While $\sigma\in K$, its boundary $\bd\sigma$ does
+not change. Inserting $\sigma$ appends the column $\bd\sigma$ to $\Bm{k}$ and
+appends a zero row (indexed by $\sigma$) to $\Bm{k+1}$; deleting $\sigma$
+removes its column from $\Bm{k}$ and removes its row from $\Bm{k+1}$, and that
+row is zero. No other boundary matrix changes, and among $n_0,\dots,n_d$ only
+$n_k$ changes.
+\end{observation}
+
+\begin{proof}
+The boundary of a simplex is determined by its vertex set. When $\sigma$ is
+inserted it has no coface: a coface would already be in $K$, and $K$ is closed
+under faces while $\sigma\notin K$. A deleted simplex has no coface by the
+precondition of $\Del$. In both cases the row $\sigma$ of $\Bm{k+1}$ is zero.
+\end{proof}
+
+Consequently, for each $k\ge1$ the problem is to maintain $r_k=\rank\Bm{k}$ under
+\emph{column insertion and column deletion}, where rows appear and disappear
+only while they are zero; adding or removing a zero row changes no rank. The
+vertex dimension $k=0$ needs no matrix: $\bd_0=0$.
+
+\subsection{The dynamic reduced basis}\label{sec:drb}
+
+Every cell $x\in K$ carries an \emph{order key} $\ord(x)$; keys of distinct cells
+are distinct. For a non-zero chain $c$, $\low(c)$ is the cell of $c$ with the
+largest key. Keys do not change between rebuilds (Section~\ref{sec:morse}); an
+inserted cell receives a key larger than every key in use. Nothing in this
+subsection depends on how the keys are chosen.
+
+\begin{definition}[DRB]\label{def:drb}
+Let $k\ge1$. A \emph{dynamic reduced basis} of $\Bm{k}$ is a finite family of
+\emph{slots} $j\in J_k$, each holding a pair $(R_j,V_j)$ with $V_j\in\Cc{k}$
+and $R_j\in\Cc{k-1}$, such that
+\begin{description}
+\item[(I1)] $R_j=\bd_k V_j$ for every $j\in J_k$;
+\item[(I2)] the non-zero $R_j$ have pairwise distinct lows;
+\item[(I3)] $(V_j)_{j\in J_k}$ is a basis of $\Cc{k}$; in particular $|J_k|=n_k$.
+\end{description}
+Two index structures are derived from the slots: $\pivot(\ell)=j$ if $R_j\ne0$
+and $\low(R_j)=\ell$ (well defined by (I2)), and, for $x\in\Kc{k}$,
+$\occ(x)=\{j\in J_k : x\in V_j\}$, the \emph{footprint} of $x$. Both are updated
+together with the chains; we do not spell out this bookkeeping.
+\end{definition}
+
+Writing $R$ and $V$ for the matrices with columns $R_j$ and $V_j$, (I1) and (I3)
+say that $R=\Bm{k}V$ with $V$ invertible, and (I2) says that $R$ is
+\emph{reduced}. Unlike the decomposition used for persistence, $V$ is not
+required to be triangular with respect to $\ord$.
+
+\paragraph{Insertion.} $\Ins(\sigma)$ for a $k$-simplex $\sigma\notin K$, $k\ge1$,
+all of whose facets are in $K$:
+\begin{enumerate}
+\item give $\sigma$ a key larger than all keys in use; create a slot $j$ with
+  $V_j=\{\sigma\}$ and $R_j=\bd\sigma$;
+\item while $R_j\ne0$ and $p=\pivot(\low(R_j))$ is defined: $R_j\gets R_j+R_p$,
+  $V_j\gets V_j+V_p$;
+\item if $R_j\ne0$, set $\pivot(\low(R_j))=j$.
+\end{enumerate}
+The slots $p_1,\dots,p_m$ added in step~2 form the \emph{reduction chain} of
+$\sigma$. We call $\sigma$ \emph{positive} if $R_j=0$ at the end and
+\emph{negative} otherwise.
+
+\paragraph{Deletion.} $\Del(\sigma)$ for $\sigma\in\Kc{k}$, $k\ge1$, without
+cofaces. Let $O=\occ(\sigma)$ and $Z=\{j\in O: R_j=0\}$.
+\begin{description}
+\item[Case A ($Z\ne\emptyset$).] Choose any $z\in Z$ (the implementation takes
+  one with $|V_z|$ minimal). For every $j\in O\setminus\{z\}$:
+  $V_j\gets V_j+V_z$. Remove slot $z$.
+\item[Case B ($Z=\emptyset$).] Let $p\in O$ be the slot whose $\low(R_p)$ has
+  the smallest key. For every $j\in O\setminus\{p\}$: $R_j\gets R_j+R_p$ and
+  $V_j\gets V_j+V_p$. Remove slot $p$ and the entry $\pivot(\low(R_p))$.
+\end{description}
+Finally remove $\sigma$ from $K$. Inserting or deleting a vertex changes only
+$n_0$.
+
+\begin{theorem}[Exactness]\label{thm:exact}
+Let $k\ge1$ and let $(R_j,V_j)_{j\in J_k}$ satisfy (I1)--(I3) for $\Bm{k}(K)$,
+for some injective key function.
+\begin{enumerate}
+\item[(a)] $r_k=\#\{j\in J_k : R_j\ne0\}$, and $\{V_j : R_j=0\}$ is a basis of
+  $\Zc{k}(K)$.
+\item[(b)] Let $\sigma\notin K$ be a $k$-simplex whose facets are all in $K$.
+  The loop of $\Ins(\sigma)$
+  terminates, and afterwards the slots satisfy (I1)--(I3) for
+  $\Bm{k}(K\cup\{\sigma\})$; every family satisfying (I1)--(I3) for
+  $\Bm{k+1}(K)$ satisfies them, unchanged, for $\Bm{k+1}(K\cup\{\sigma\})$.
+\item[(c)] Let $\sigma\in\Kc{k}$ have no coface. Then $O\ne\emptyset$; after
+  $\Del(\sigma)$, in Case A and in Case B, the slots satisfy (I1)--(I3) for
+  $\Bm{k}(K\setminus\{\sigma\})$; every family satisfying (I1)--(I3) for
+  $\Bm{k+1}(K)$ satisfies them, unchanged, for $\Bm{k+1}(K\setminus\{\sigma\})$.
+\item[(d)] Inserting a positive $k$-simplex increases $\beta_k$ by one; inserting
+  a negative one decreases $\beta_{k-1}$ by one. A deletion in Case A decreases
+  $\beta_k$ by one; a deletion in Case B increases $\beta_{k-1}$ by one. No
+  other Betti number changes. Inserting (deleting) a vertex increases
+  (decreases) $\beta_0$ by one. Moreover, $\Del(\sigma)$ is in Case A if and only
+  if $\sigma$ lies in the support of a $k$-cycle of $K$, and $\Ins(\sigma)$ is
+  positive if and only if $\sigma$ lies in the support of a $k$-cycle of
+  $K\cup\{\sigma\}$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(a) By (I1) and (I3), $R=\Bm{k}V$ with $V$ invertible, so $\rank R=r_k$. The
+non-zero columns of $R$ are linearly independent: in a non-empty sum of them,
+let $R_i$ be the summand whose low $\ell$ has the largest key; every other
+summand has its low, hence all its cells, strictly below $\ell$, so $\ell$
+survives in the sum. Hence $r_k$ is the number of non-zero $R_j$. Each $V_j$ with
+$R_j=0$ is a cycle; these chains are independent as part of a basis, and there
+are $n_k-r_k=\dim\Zc{k}$ of them.
+
+(b) Let $K'=K\cup\{\sigma\}$. Throughout the loop, $R_j=\bd V_j$ (true at the
+start and preserved by linearity because $R_p=\bd V_p$) and $V_j=\sigma+w$ with
+$w\in\Cc{k}(K)$. An addition is performed only when $\low(R_p)=\low(R_j)=\ell$;
+all cells of both chains have keys at most $\ord(\ell)$ and $\ell$ cancels, so
+afterwards $R_j=0$ or $\low(R_j)$ is strictly smaller. Hence the loop
+terminates, after at most one addition per non-zero slot. On exit either
+$R_j=0$ or $\low(R_j)$ is no pivot, so recording the pivot preserves (I2); (I1)
+holds. Since $\Cc{k}(K')=\Cc{k}(K)\oplus\Z\sigma$ and the old $V_i$ form a basis
+of $\Cc{k}(K)$, the old chains together with $V_j=\sigma+w$ form a basis of
+$\Cc{k}(K')$: they are $n_k+1$ chains spanning $\sigma=V_j+w$. For $\Bm{k+1}$:
+the chain group $\Cc{k+1}$ is unchanged, each $R_i=\bd V_i$ is supported on facets
+of $(k+1)$-simplices of $K'$, none of which is $\sigma$
+(Observation~\ref{obs:structural}), and keys of existing cells are unchanged;
+so (I1)--(I3) continue to hold.
+
+(c) Since the $V_j$ span $\Cc{k}$, $\sigma$ is a sum of some of them, so some
+$V_j$ contains $\sigma$: $O\ne\emptyset$. Each operation $V_j\gets V_j+V_q$ with
+$j\ne q$ is an invertible change of basis, so throughout the loop the family
+remains a basis of $\Cc{k}(K)$. For $j\in O\setminus\{q\}$ (with $q=z$ in Case A,
+$q=p$ in Case B), both $V_j$ and $V_q$ contain $\sigma$, so $V_j+V_q$ does not;
+slots outside $O$ never contained $\sigma$. After the loop, $V_q$ is therefore
+the only chain containing $\sigma$. Removing slot $q$ leaves $n_k-1$ independent
+chains, all in $\Cc{k}(K\setminus\{\sigma\})$, which has dimension $n_k-1$:
+(I3) holds.
+\emph{Case A.} Because $\bd V_z=R_z=0$, the additions leave every $R_j$
+unchanged, so (I1) and (I2) hold; the removed slot had $R_z=0$ and owned no
+pivot.
+\emph{Case B.} Every $R_j$ with $j\in O$ is non-zero, and by (I2) the lows are
+distinct, so $p$ is well defined and $\low(R_p)$ is strictly smaller than
+$\low(R_j)$ for $j\in O\setminus\{p\}$. All cells of $R_p$ have keys at most
+$\ord(\low(R_p))<\ord(\low(R_j))$, so $\low(R_j)\notin R_p$ and
+$\low(R_j+R_p)=\low(R_j)$; in particular $R_j+R_p\ne0$. Lows are unchanged and
+the low of $R_p$ is released with slot $p$, so (I2) holds; (I1) holds by
+linearity. (The minimal choice of $p$ is what guarantees this: adding an $R_p$
+with a larger low would move lows and require further reduction.)
+For $\Bm{k+1}$: $\sigma$ has no coface, so no $R_i=\bd V_i$ of dimension $k+1$
+contains $\sigma$ and $\sigma$ is not a pivot there; deleting the zero row
+$\sigma$ leaves (I1)--(I3) intact.
+
+(d) By (a), $r_k$ increases by one exactly when the inserted $\sigma$ is negative,
+and decreases by one exactly in Case B; $n_k$ changes by $\pm1$; $r_{k+1}$ is
+unchanged because only a zero row of $\Bm{k+1}$ is added or removed
+(Observation~\ref{obs:structural}); all other $n_i$ and $r_i$ are unchanged.
+Formula~\eqref{eq:betti} gives the stated changes, also for vertices. If
+$z\in Z$, then $V_z$ is a cycle containing $\sigma$. Conversely, if a cycle
+$c\in\Zc{k}(K)$ contains $\sigma$, write $c$ in the basis
+$\{V_j:R_j=0\}$ of $\Zc{k}(K)$ from (a); some $V_j$ in this expansion contains
+$\sigma$, and that $j$ lies in $Z$. For insertion, if $\sigma$ is positive then
+the final $V_j$ is a cycle of $K'$ containing $\sigma$. Conversely, if a cycle
+$c$ of $K'$ contains $\sigma$, then $\bd\sigma=\bd(c+\sigma)$ lies in the
+column space of $\Bm{k}(K)$, so $r_k$ does not increase, and by (a) the new slot
+has $R_j=0$.
+\end{proof}
+
+A batch is processed one atomic edit at a time, so Theorem~\ref{thm:exact}
+makes the Betti numbers exact after every update. The choice of $z$ in Case A
+is free; it only affects sparsity. Theorem~\ref{thm:exact} holds for every key
+function, so the order chosen in Section~\ref{sec:morse} is a matter of cost
+alone.
+
+\paragraph{Initialisation and rebuilds.}
+The DRB is initialised, and periodically rebuilt, by the static reduction with
+clearing~\cite{chen2011twist}, tracking $V$: for $k=d,d-1,\dots,1$, process the
+columns of $\Bm{k}$ in increasing key order; if the $k$-simplex $\tau$ is the low
+of a non-zero reduced column $R$ of $\Bm{k+1}$, \emph{clear} it ($R_\tau:=0$,
+$V_\tau:=R$); otherwise reduce it as in steps~2--3 of $\Ins$, starting from
+$V_\tau=\{\tau\}$, $R_\tau=\bd\tau$.
+
+\begin{corollary}[Rebuild]\label{cor:rebuild}
+For every injective key function, the static reduction with clearing produces
+slots satisfying (I1)--(I3) in every dimension. Moreover, every $V_\tau$ consists
+of $\tau$ and cells with smaller keys. In particular the ranks it reports are
+exact even when $V$ is not stored.
+\end{corollary}
+
+\begin{proof}
+We show $\low(V_\tau)=\tau$ for every column $\tau$, by induction along the
+processing order. A non-cleared $\tau$ ends with
+$V_\tau=\{\tau\}+\sum V_p$ over pivot owners $p$ processed earlier, hence with
+smaller keys, and by induction every cell of $V_p$ has key at most $\ord(p)$. A
+cleared $\tau$ has $V_\tau=R$ with $\low(R)=\tau$. Ordering rows and columns by
+key, $V$ is therefore upper unitriangular, hence invertible: (I3). (I1) holds
+for non-cleared columns by linearity, and for cleared ones because $R=\bd V'$
+for the slot $V'$ of $\Bm{k+1}$ that produced it (induction over dimensions), so
+$\bd V_\tau=\bd\bd V'=0=R_\tau$. (I2): a non-cleared column ends with $R_\tau=0$ or
+with a low that no earlier column owns; cleared columns are zero. The last
+statement follows from Theorem~\ref{thm:exact}(a).
+\end{proof}
+
+Note that the correctness of clearing here follows from the invariants alone;
+we do not need the classical fact that a cleared column would have reduced to
+zero. After deletions, however, $V$ is no longer triangular (Case A adds
+$V_z$, whose low may exceed that of $V_j$), so the DRB maintains ranks and a cycle
+basis but not a persistence pairing, and we claim none. This is the difference
+from vineyard updates~\cite{cohensteiner2006vines}, which keep $V$ triangular
+for a changing order.
+
+\paragraph{Rebuild policy.} \method{mmhm} rebuilds with the Morse order of Section~\ref{sec:morse}; it
+rebuilds after update $t$ if $t-t_{\mathrm{last}}\ge m$ or
+$\nnz(R)+\nnz(V)>(1+\alpha)\max(\nnz_{\mathrm{last}},|K|)$, where
+$\nnz_{\mathrm{last}}$ is the value right after the previous rebuild (defaults
+$m=\infty$, $\alpha=1$), and the rebuild is charged to update $t$.
+\method{drb-id} uses insertion keys and never rebuilds; \method{mmhm-norb} uses
+the Morse order at the initial build only.
+
+\subsection{The Morse order}\label{sec:morse}
+
+Discrete Morse theory~\cite{forman2002user} enters only through the choice of
+keys at a rebuild. A rebuild computes an acyclic matching by collapses, in the
+spirit of~\cite{benedetti2014random}, and orders cells by reverse removal time.
+
+\begin{definition}[Collapse matching and Morse order]\label{def:collapse}
+Run the following on $P:=K$, with a counter $t:=0$ and a queue $Q$ of the cells
+$x$ that have exactly one immediate coface in $P$ (\emph{free faces}).
+\begin{enumerate}
+\item While $Q\ne\emptyset$: pop $x$; skip it unless $x\in P$ and $x$ has
+  exactly one immediate coface $y$ in $P$. Then \emph{pair} $(x,y)$, set
+  $\rmt(y):=t$, $\rmt(x):=t+1$, $t\gets t+2$, remove $y$ and $x$ from $P$, and
+  push every facet of $y$ or $x$ that has become free.
+\item If $P\ne\emptyset$, choose a cell $c$ of the highest dimension present in
+  $P$ (smallest vertex tuple), declare it \emph{critical}, set $\rmt(c):=t$,
+  $t\gets t+1$, remove it, push the facets that have become free, and go to~1.
+\end{enumerate}
+The \emph{Morse order} is $\ord(x):=-\rmt(x)$ (relabelled to $0,\dots,|K|-1$).
+Write $M$ for the set of pairs, $\Crit$ for the critical cells, $\Lo$ for the
+cells $x$ with $(x,y)\in M$ and $\Up$ for the cells $y$ with $(x,y)\in M$; for
+$x\in\Lo$ let $V(x)$ be its partner. For a cell $x$, its \emph{youngest facet}
+is the facet with the largest key and its \emph{oldest coface} the coface with
+the smallest key.
+\end{definition}
+
+The removed cells are always maximal in $P$, and $P$ remains a subcomplex. For
+the paired cell $y$ this uses the simplicial diamond property: if $y$ had a
+coface $w\in P$, then $w$ would have exactly two facets containing $x$, namely
+$y$ and some $y'\ne y$, and $y'\in P$ because $P$ is a subcomplex, so $x$ would
+not be free. The queue discipline is not specified; all results below hold for
+every discipline.
+
+A \emph{gradient path} (V-path) is a sequence $\tau_0,\sigma_0,\tau_1,\sigma_1,
+\dots,\tau_m$ with $(\tau_i,\sigma_i)\in M$ and $\tau_{i+1}$ a facet of
+$\sigma_i$ different from $\tau_i$.
+
+\begin{lemma}[Gradient pairs are apparent pairs]\label{lem:apparent}
+For every execution of the collapse procedure, with $\ord=-\rmt$:
+\begin{enumerate}
+\item[(a)] $\ord$ is a filtration order: $\ord(f)<\ord(s)$ whenever $f$ is a facet
+  of $s$.
+\item[(b)] $\rmt$ strictly increases along the lower cells of every gradient
+  path ($\rmt(\tau_{i+1})>\rmt(\tau_i)$); in particular $M$ has no closed
+  gradient path, so it is an acyclic matching.
+\item[(c)] For every $(\tau,\sigma)\in M$: $\tau$ is the youngest facet of
+  $\sigma$, i.e.\ $\tau=\low(\bd\sigma)$, and $\sigma$ is the oldest coface of
+  $\tau$.
+\item[(d)] If $z\ne0$ is a cycle, then $\low(z)\notin\Up$.
+\item[(e)] In the static reduction under $\ord$, with or without clearing, for
+  every $(\tau,\sigma)\in M$ the column $\sigma$ is not cleared, receives no
+  addition, and obtains pivot $\tau$; thus $R_\sigma=\bd\sigma$ and
+  $(\tau,\sigma)$ is an \emph{apparent pair}~\cite{bauer2021ripser}.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(a) Only maximal cells of $P$ are removed (above), so every cell is removed
+before each of its facets.
+
+(b) When $\sigma_i$ is removed at time $\rmt(\sigma_i)$, its facet $\tau_{i+1}$ is
+still in $P$. Times $\rmt(\sigma_i)$ and $\rmt(\tau_i)=\rmt(\sigma_i)+1$ are
+used by $\sigma_i$ and $\tau_i$, and $\tau_{i+1}\ne\tau_i$, so
+$\rmt(\tau_{i+1})>\rmt(\tau_i)$. A closed gradient path would give
+$\rmt(\tau_0)<\rmt(\tau_0)$.
+
+(c) When $\sigma$ is removed, all its facets are in $P$; $\sigma$ and $\tau$ take
+the times $t$ and $t+1$, and the other facets are removed later, so they have
+smaller keys than $\tau$. When $\tau$ was popped, $\sigma$ was its only coface in
+$P$; every other coface of $\tau$ had been removed earlier, so it has a larger
+key than $\sigma$.
+
+(d) Let $u=\low(z)\in\Up$ with $u=V(w)$. The coefficient of $w$ in $\bd z=0$
+vanishes and $w\in\bd u$, so some $u'\in z$ with $u'\ne u$ has $w$ as a facet.
+By (c), $u$ is the oldest coface of $w$, so $\ord(u')>\ord(u)$, contradicting
+$u=\low(z)$.
+
+(e) If $\sigma$ were cleared, it would be the low of a reduced column $R$ of the
+next dimension; $R=\bd V'$ (Corollary~\ref{cor:rebuild}) is a non-zero cycle with
+low $\sigma\in\Up$, contradicting (d). Columns are processed in increasing key
+order. When $\sigma$ is processed, every earlier column $x$ has $R_x=0$ (if
+cleared) or $R_x=\bd V_x$ with all cells of $V_x$ of key at most
+$\ord(x)<\ord(\sigma)$ (Corollary~\ref{cor:rebuild}); by (c) no such cell has
+$\tau$ as a facet, so $\tau\notin R_x$ and $\pivot(\tau)$ is undefined. Since
+$\low(\bd\sigma)=\tau$ by (c), the reduction loop performs no addition and
+assigns $\pivot(\tau)=\sigma$.
+\end{proof}
+
+\begin{corollary}[Work happens only on critical columns]\label{cor:critical-work}
+In the static reduction with clearing under the Morse order, the column of every
+$x\in\Lo$ with $\dim x\ge1$ is cleared, the column of every $y\in\Up$ is
+apparent, and therefore every column addition is performed while reducing the
+column of a critical cell.
+\end{corollary}
+
+\begin{proof}
+For $(x,y)\in M$ with $\dim y=k+1\ge2$, Lemma~\ref{lem:apparent}(e) applied to
+$\Bm{k+1}$, which is processed before $\Bm{k}$, gives $R_y=\bd y$ with
+$\low(R_y)=x$, so $x$ is cleared. Upper cells are apparent by
+Lemma~\ref{lem:apparent}(e). Every remaining column belongs to a critical cell.
+\end{proof}
+
+\paragraph{Morse boundary.} By Lemma~\ref{lem:apparent}(b) the following
+recursion is well founded and defines a linear map
+$\flow\colon\Cc{k-1}\to\Cc{k-1}$: $\flow(\tau)=\tau$ for $\tau\in\Crit$,
+$\flow(\tau)=0$ for $\tau\in\Up$, and
+$\flow(\tau)=\sum_{\tau'\in\bd V(\tau),\,\tau'\ne\tau}\flow(\tau')$ for
+$\tau\in\Lo$. Thus $\flow(\tau)$ is the sum, over all gradient paths from $\tau$
+to a critical cell, of their endpoints, counted mod~2. The \emph{Morse boundary}
+of a critical $k$-cell $c$ is $\dM c:=\flow(\bd c)$, the boundary of the Morse
+complex of the matching~\cite{forman2002user}; the Morse boundary matrices
+$\Bm{k}^M$ have rows $\Crit\cap\Kc{k-1}$ and columns $\Crit\cap\Kc{k}$. For
+$y\in\Up$ with partner $x$, the definition of $\flow(x)$ gives
+\begin{equation}\label{eq:flow-kills}
+  \flow(\bd y)=\flow(x)+\sum_{f\in\bd y,\,f\ne x}\flow(f)=0 .
+\end{equation}
+
+\begin{corollary}[Critical columns perform the Morse reduction]\label{cor:morse-reduction}
+Consider the static reduction with clearing under the Morse order and, next to
+it, the standard reduction with clearing of the Morse boundary matrices
+$\Bm{d}^M,\dots,\Bm{1}^M$, critical cells taken in increasing key order. For
+every critical $k$-cell $c$, $k\ge1$:
+\begin{enumerate}
+\item[(i)] the additions performed on column $c$ are first additions of apparent
+  columns $R_y=\bd y$ ($y\in\Up$), then additions of columns of critical cells;
+\item[(ii)] if $c$ is not cleared, then when the first phase ends the column
+  contains no cell of $\Lo$ and its restriction to $\Crit$ equals $\dM c$;
+\item[(iii)] the second phase performs, one for one, the additions that the
+  Morse reduction performs on column $c$; $c$ is cleared exactly when it is
+  cleared in the Morse reduction; and the final column $R_c$ contains no cell
+  of $\Lo$, while $R_c\cap\Crit$ is the reduced Morse column of $c$.
+\end{enumerate}
+\end{corollary}
+
+Each first-phase addition $R\gets R+\bd y$ with $\low(R)=x$ and $y=V(x)$
+replaces $x$ by the other facets of $y$; it is one step of the discrete gradient
+flow, and $\flow(R)$ does not change by~\eqref{eq:flow-kills}. This is the
+precise sense in which the reduced column of a critical cell ``traces its
+gradient flow''. $R_c$ may still contain cells of $\Up$; we observed this in
+the randomised checks and claim nothing about them.
+
+\begin{proof}
+We use the rule of Definition~\ref{def:collapse} that a critical cell is chosen
+of the highest dimension present in $P$. (Lemma~\ref{lem:apparent} did not use
+it.)
+
+\emph{Claim (separation).} For every $q$, every critical $q$-cell has a smaller
+key than every $q$-cell of $\Lo$. Indeed, when a critical $q$-cell $t$ is removed,
+$P$ contains no $(q+1)$-cell. If $\ell\in\Lo$ were a $q$-cell with
+$\rmt(\ell)>\rmt(t)$, its partner $V(\ell)$, a $(q+1)$-cell removed at time
+$\rmt(\ell)-1\ge\rmt(t)$, would be in $P$ at that moment.
+
+We argue by induction over the dimensions (top-down) and, within $\Bm{k}$, over
+the columns in increasing key order. The statement about clearing is shown below;
+a cleared column receives no addition and has $R_c=0$, matching the zero column
+of the Morse reduction. So let $c$ be a column that is not cleared, and let $R$
+denote its column during its reduction; initially $R=\bd c$.
+
+\emph{First phase.} Suppose $\ell=\low(R)\in\Lo$ and let $y=V(\ell)$. All cells
+added to $V_c$ so far are $c$ and upper cells with smaller keys, so $\ell$ is a
+facet of a cell $x$ with $\ord(x)\le\ord(c)$; since $y$ is the oldest coface of
+$\ell$ (Lemma~\ref{lem:apparent}(c)) and $y\ne c$, $\ord(y)<\ord(c)$. By
+Lemma~\ref{lem:apparent}(e), the column of $y$ has been processed, holds
+$R_y=\bd y$ and owns $\pivot(\ell)$; the algorithm adds it, which
+strictly decreases the low and preserves $\flow(R)$ by~\eqref{eq:flow-kills}.
+The phase ends with $R=0$ or with $t=\low(R)\notin\Lo$. In the latter case $R$
+is a non-zero cycle (by (I1), $R=\bd V_c$), so $t\notin\Up$ by
+Lemma~\ref{lem:apparent}(d), and $t\in\Crit$. By the separation claim every
+cell of $R$, having key at most $\ord(t)$, lies outside $\Lo$. As $\flow$ fixes
+critical cells and kills upper cells,
+$R\cap\Crit=\flow(R)=\flow(\bd c)=\dM c$. This proves (ii) and the first part
+of (i).
+
+\emph{Clearing.} The cells cleared in $\Bm{k}$ are the lows of the non-zero
+reduced columns of $\Bm{k+1}$: the lower cells (lows of apparent columns) and
+the lows of non-zero critical columns. By the induction hypothesis (iii) for
+dimension $k+1$, the latter are critical and coincide with the lows of the
+non-zero reduced Morse columns, i.e.\ with the cells cleared in the Morse
+reduction. So a critical $c$ is cleared in one reduction if and only if in the
+other; in the top dimension nothing is cleared in either.
+
+\emph{Second phase.} A pivot on a critical row cannot be owned by an apparent
+column (its low is in $\Lo$) or a cleared one (zero), so it is owned by a
+critical column $c'$ processed earlier. By the induction hypothesis $R_{c'}$ has
+no cell of $\Lo$, it is a cycle, its low is critical and equals
+$\low(R_{c'}\cap\Crit)$, and $R_{c'}\cap\Crit$ is the reduced Morse column of
+$c'$; hence the pivot tables of the two reductions agree on critical rows.
+Adding such columns keeps $R\cap\Lo=\emptyset$ and keeps $R$ a cycle, so while
+$R\ne0$ its low is critical and equals $\low(R\cap\Crit)$. The sequence of pivot
+look-ups and additions on $R\cap\Crit$, which starts from $\dM c$, is therefore
+exactly the Morse reduction of column $c$, and no apparent column is added any
+more. This proves (i) and (iii).
+\end{proof}
+
+\begin{remark}[Relation to known results]\label{rem:morse-literature}
+Bauer~\cite{bauer2021ripser} observed that the apparent pairs of any simplexwise
+filtration form a discrete gradient and used them to skip columns.
+Lemma~\ref{lem:apparent} is a converse for the gradient produced by collapses:
+ordering cells by reverse removal time turns every gradient pair into an
+apparent pair. Mischaikow and Nanda~\cite{mischaikow2013morse} showed that
+Morse reductions compatible with a filtration preserve persistent homology;
+Corollary~\ref{cor:morse-reduction} is a matrix-level form of this for our order:
+on critical rows and columns, the static reduction \emph{is} the reduction of
+the Morse complex, and by Corollary~\ref{cor:critical-work} the other columns
+cost no additions. This is what the \method{full-morse} baseline exploits. In the
+language of algebraic Morse theory, the first phase of
+Corollary~\ref{cor:morse-reduction} is Gaussian elimination of the invertible
+entries $\langle\bd y,x\rangle=1$ of the matched pairs, which is how the Morse
+complex arises algebraically; the order makes the reduction algorithm perform
+these eliminations by itself, without a separate Morse-reduction pass.
+\end{remark}
+
+\begin{remark}[Scope]\label{rem:morse-scope}
+Lemma~\ref{lem:apparent} and its corollaries describe the state produced by a
+rebuild. Between rebuilds the matching is not maintained, inserted cells get
+keys larger than all others, and deletions add chains whose lows may exceed
+those of their targets. We make no claim that the DRB stays sparse between
+rebuilds; the Morse order is a heuristic for small footprints and short
+reduction chains, its effect is measured, and the rebuild policy bounds the
+drift of $\nnz(R)+\nnz(V)$.
+\end{remark}
+
+\subsection{Cost of an update}\label{sec:cost}
+
+We count \emph{elementary operations}: inserting, removing or testing one cell in
+a chain or one slot in a footprint, one pivot-table operation, and one low query.
+With chains stored as ordered sets keyed by $\ord$ (or as hash sets with a
+separately maintained maximum), each costs $O(\log n)$ time, $n=|K|$.
+
+\begin{proposition}[Output-sensitive cost]\label{prop:cost}
+Let $\sigma$ be a $k$-simplex, $k\ge1$.
+\begin{enumerate}
+\item[(a)] $\Ins(\sigma)$ with reduction chain $p_1,\dots,p_m$ performs
+  $\Theta\bigl(k+1+\sum_{i=1}^{m}(1+|R_{p_i}|+|V_{p_i}|)\bigr)$ elementary
+  operations. The $p_i$ are pairwise distinct, so $m\le r_k$ and
+  $\sum_i(|R_{p_i}|+|V_{p_i}|)\le\nnz(R)+\nnz(V)$ of the DRB of $\Bm{k}$.
+\item[(b)] $\Del(\sigma)$ with footprint $O=\occ(\sigma)$ performs
+  $\Theta\bigl(|O|\,(1+|V_z|)\bigr)$ elementary operations in Case A and
+  $\Theta\bigl(|O|\,(1+|R_p|+|V_p|)\bigr)$ in Case B, including the maintenance
+  of $\occ$ and $\pivot$.
+\item[(c)] An update costs the sum over its atomic edits; a vertex edit costs
+  $O(1)$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+(a) Each addition touches every cell of $R_p$ and $V_p$ once and performs one
+pivot look-up and one low query; the final chain $V_j$, of size at most
+$1+\sum_i|V_{p_i}|$, is entered into the footprints; $|\bd\sigma|=k+1$. Along
+the chain the lows strictly decrease (proof of Theorem~\ref{thm:exact}(b)), and
+each slot owns one low, so no slot is added twice.
+(b) Scanning $O$ to determine $Z$, and $z$ or $p$, costs $O(|O|)$ (sizes $|V_j|$
+are stored). In Case A each of the $|O|-1$ additions touches the $|V_z|$ cells of
+$V_z$ in $V_j$ and in the footprints, and removing slot $z$ removes it from
+$|V_z|$ footprints. Case B is the same with $|R_p|+|V_p|$, plus one pivot
+removal.
+\end{proof}
+
+The quantities in Proposition~\ref{prop:cost} --- footprints $|\occ(\sigma)|$,
+reduction-chain lengths and the sizes of the chains involved --- depend on the
+whole history and on the order, not on $s_t$. We report them as measurements and
+state no locality theorem. Proposition~\ref{prop:nonlocal} shows that none is
+possible for this data structure.
+
+\subsection{No worst-case locality}\label{sec:nonlocal}
+
+\begin{proposition}[No worst-case locality for the DRB]\label{prop:nonlocal}
+Let $K$ be either (W5a) the cycle graph $C_L$, $L\ge3$, and $\sigma$ one of its
+edges, with $n:=L$; or (W5b) a triangulated $2$-sphere (more generally, a
+connected closed triangulated surface) and $\sigma$ one of its triangles, with
+$n:=n_2$. Let $k=\dim\sigma$. Then, for every key function and every choice in
+Case A:
+\begin{enumerate}
+\item[(a)] for every DRB of $\Bm{k}(K)$ satisfying (I1)--(I3), $\Del(\sigma)$ is in
+  Case A with $|V_z|=n$ and performs at least $n$ elementary operations;
+\item[(b)] for every DRB of $\Bm{k}(K\setminus\{\sigma\})$ satisfying
+  (I1)--(I3), $\Ins(\sigma)$ is positive, ends with $V_j=\Kc{k}$, and its
+  reduction chain satisfies $\sum_i|V_{p_i}|\ge n-1$;
+\item[(c)] if $S$ is any DRB state of $K\setminus\{\sigma\}$ and $S'$ is the state
+  after $\Ins(\sigma)$, then $\Del(\sigma)$ applied to $S'$ restores $S$ exactly.
+  Hence, after the first deletion, toggling $\sigma$ alternates between two fixed
+  states $S_0,S_1$, and each toggle costs at least $n$ and at most
+  $O\bigl(n+\nnz(R)+\nnz(V)\bigr)$ elementary operations, with $\nnz$ taken in
+  $S_0$.
+\end{enumerate}
+So on these families every update of size $s_t=1$ costs this algorithm
+$\Omega(n)$ work, and $\Theta(n)$ whenever $\nnz(R)+\nnz(V)=O(n)$ in $S_0$.
+\end{proposition}
+
+The statement bounds the work of \emph{this} algorithm, which must maintain
+(I1)--(I3) and the footprint index; it is not a lower bound for computing Betti
+numbers under edits. For (W5a), $\beta_1=n_1-n_0+\beta_0$ and $\beta_0$ can be
+maintained by dynamic connectivity in polylogarithmic amortised time per edge
+edit~\cite{holm2001polylog}; for (W5b), see Remark~\ref{rem:surfaces}. What the
+proposition does show is that any method that stores cycle representatives
+explicitly, as (I3) forces, has to write the $n$-cell cycle when it appears.
+
+\begin{proof}
+In both cases $\Zc{k}(K)=\{0,\Kc{k}\}$. For $C_L$, a $1$-cycle is a set of edges
+meeting every vertex an even number of times, and the only non-empty such set is
+the whole cycle. For a connected closed surface, a $2$-cycle that contains a
+triangle contains, for each edge of it, the other triangle on that edge; as the
+surface is strongly connected, it contains every triangle. Also
+$\Zc{k}(K\setminus\{\sigma\})=\{0\}$, since the only non-zero cycle of $K$
+contains $\sigma$.
+
+(a) By Theorem~\ref{thm:exact}(a) exactly one slot $z$ has $R_z=0$, and
+$V_z=\Kc{k}\ni\sigma$. So $z\in O$, the deletion is in Case A with $Z=\{z\}$, and
+removing slot $z$ removes it from the footprints of all $n$ cells of $V_z$.
+
+(b) $\beta_k(K)=\beta_k(K\setminus\{\sigma\})+1$, so by
+Theorem~\ref{thm:exact}(d) $\sigma$ is positive; the final $V_j$ is then a non-zero
+cycle of $K$, i.e.\ $V_j=\Kc{k}$. Since $V_j=\{\sigma\}+\sum_iV_{p_i}$, we get
+$n\le1+\sum_i|V_{p_i}|$.
+
+(c) In $S$ no chain contains $\sigma$, and $\Ins(\sigma)$ creates one slot $j$
+and modifies no other. So in $S'$ we have $\occ(\sigma)=\{j\}$ and $R_j=0$ by
+(b): $\Del(\sigma)$ is in Case A with $O=Z=\{j\}$, modifies nothing and removes
+$j$. The key given to $\sigma$ differs between insertions, but it is always the
+largest key in use and the algorithms only compare keys, so every insertion from
+$S_0$ performs the same computation. The bounds follow from (a), (b) and
+Proposition~\ref{prop:cost}.
+\end{proof}
+
+\begin{remark}[Surfaces need no linear algebra]\label{rem:surfaces}
+Let $S$ be a connected triangulated surface, possibly with boundary (every edge
+lies in one or two triangles and every vertex link is a path or a cycle). Over
+$\Z$: $\beta_0=1$; $\beta_2=1$ if no edge lies in exactly one triangle and
+$\beta_2=0$ otherwise (by strong connectivity a non-zero $2$-cycle is the set of
+all triangles, whose boundary is the set of boundary edges); and
+$\beta_1=\beta_0+\beta_2-\chi(S)$ with $\chi=n_0-n_1+n_2$. Under atomic edits that
+keep $S$ a connected surface, $n_0,n_1,n_2$ and the number of boundary edges are
+maintained in $O(1)$ per edit from per-edge triangle counts. All Betti numbers
+are then available in $O(1)$ per edit without any matrix --- provided that
+connectivity and the surface property are known in advance; the counters do not
+certify connectivity. This is the \method{euler} method. Consequently, workloads
+consisting of connected surfaces with known connectivity cannot evaluate the
+algebraic part of a homology-maintenance method: a method that switches to these
+formulas returns correct Betti numbers there whether or not its matrix updates
+are correct. The gates of version~1 (its \S2.4) are these formulas, and its
+experiments P1 and P3 are workloads of this type
+(Section~\ref{sec:erratum}).
+\end{remark}

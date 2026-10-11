@@ -747,6 +747,13 @@
    0
   ]
  },
+ "E2 cycles": {
+  "L": [
+   5,
+   40
+  ],
+  "edits": 702
+ },
  "prop4": [
   {
    "family": "cycle",

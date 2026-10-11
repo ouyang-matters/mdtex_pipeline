@@ -1,0 +1,160 @@
+% sections/erratum.tex -- erratum to version 1 (arXiv:2508.14429v1).
+% Intended to be \input right after sections/theory.tex: it is the last
+% subsection of the theory section (change \subsection to \section if it is
+% placed elsewhere). Every instance below is produced and checked by
+% research/mmhm/reference/check_props.py (recorded in reference/README.md and
+% reference/counterexamples.json).
+
+\subsection{Erratum to version 1}\label{sec:erratum}
+
+This paper replaces version~1~\cite{ouyang2025mmhm_v1}. The update rule of
+version~1 does not maintain exact Betti numbers. We state what version~1
+specified, give counterexamples to its two exactness claims, and record an
+inconsistency in its experiment P2. Section and figure numbers below refer to
+version~1.
+
+\paragraph{What version 1 specified.}
+An acyclic matching on $K$ defines critical cells, critical chain groups
+$C_k^C$ and a critical boundary $\bd_k^C$ ``induced by the matching via
+$V$-paths (Forman's gradient flow)'', with matrices $\Bm{k}^C$; Betti numbers
+are read off from $r_k=\rank\Bm{k}^C$ and the numbers of critical cells
+(\S2.2, \S2.5). The matching is computed at initialisation and at
+\emph{recompression events}: every $m$ updates, when the fraction $\rho_t$ of
+affected critical cells reaches a threshold $\tau$, or when a gate precondition
+fails (typical choices $m=32$, $\tau=0.30$). No rule is given for updating the
+matching between recompressions. For an edit, $R_k\subseteq\Kc{k}$ is the set of
+$k$-simplices ``whose incidences in the boundary operators are affected by the
+modification'', computed by comparing the stars of the modified region before
+and after the update, and the affected critical columns are
+\[
+  R_k^C=\{\,j : \sigma_j^k\in C_k^C\ \text{and}\ \sigma_j^k\in R_k\,\}
+\]
+(\S2.3). The columns $\{\Bm{k}^C[:,j] : j\in R_k^C\}$ are replaced by their new
+incidence patterns, ``followed by reapplying column-reduction operations only to
+these affected columns and to any columns whose pivots conflict with them'';
+``when a column is replaced, its pivot assignment is cleared, the column is
+re-reduced against existing pivots, and any resulting pivot conflicts are
+propagated in a localized manner''. If the row set of $\Bm{k}^C$ changes, the
+pivot map of that dimension is re-initialised. Version~1 states that this
+``ensures that the rank of $\Bm{k}^C$ is updated exactly'' (\S2.3) and
+``guarantees exact Betti numbers'' (\S2.5). Both statements are false, for two
+independent reasons, E1 and E2.
+
+\paragraph{E1: a reduced column records the columns it absorbed.}
+In a column reduction $R=BV$, a reduced column $R_b=\bd b+\bd a_1+\dots$ is
+correct only while the absorbed columns $a_i$ are present with their old
+boundaries. The rule above re-reduces a replaced column $a$, but leaves every
+$R_b$ that absorbed $a$ in place. Such an $R_b$ need not own a pivot (it may be
+zero), so it is never in conflict with anything, and nothing in the rule
+revisits it. A deletion is a replacement by the zero column and fails in the
+same way. The DRB repairs exactly this: $\occ(a)$ lists every slot whose $V$
+contains $a$, and $\Del$ rewrites all of them (Theorem~\ref{thm:exact}(c)).
+
+\begin{example}[E1, matrix form]\label{ex:e1-matrix}
+Rows $e_1<e_2$, $B=[\,a\mid b\,]$ with $a=b=e_1$. Reduction: $R_a=e_1$ owns pivot
+$e_1$; $R_b=b+a=0$; rank $1$. Replace $a$ by $e_2$: its pivot is cleared, it is
+re-reduced to $R_a=e_2$, which owns the free pivot $e_2$, so there is no
+conflict; $R_b=0$ is not touched. The reported rank is $1$; the rank of
+$[\,e_2\mid e_1\,]$ is $2$.
+\end{example}
+
+\begin{example}[E1, shortest simplicial instance]\label{ex:e1-simplicial}
+The empty matching is admissible in version~1 (every simplex in at most one pair,
+no closed $V$-path); then $\Bm{k}^C=\Bm{k}$. Apply, one edit per update, with keys
+in insertion order,
+\[
+  +\{0\},\ +\{1\},\ +\{2\},\ +\{0,1\},\ +\{0,2\},\ +\{1,2\},\ -\{0,1\}.
+\]
+After $+\{1,2\}$ the reduction gives $R_{01}=\{0,1\}$, $R_{02}=\{0,2\}$ and
+$R_{12}=\{1,2\}+\{0,2\}+\{0,1\}=0$, so $\beta=(1,1)$. Deleting $\{0,1\}$ clears
+its pivot and drops its column; $R_{12}=0$ stays. Reported: $r_1=1$,
+$\beta=(2,1)$. True: the path $1$--$2$--$0$, $r_1=2$, $\beta=(1,0)$. The DRB has
+$V_{12}=\{\{1,2\},\{0,2\},\{0,1\}\}$, so $\occ(\{0,1\})$ contains the slots of
+$\{0,1\}$ and $\{1,2\}$; Case A applies with $z$ the slot of $\{1,2\}$, sets
+$V_{01}\gets\{\{1,2\},\{0,2\}\}$ (still $\bd V_{01}=\{0,1\}=R_{01}$), removes
+slot $z$, and reports $r_1=2$.
+This is a shortest instance. An exhaustive enumeration of the valid edit
+sequences on at most four vertices, up to relabelling (1, 2, 5, 15, 61 and 263
+sequences of lengths 1 to 6, and 1250 of length 7), finds no failure of length
+at most 6 and 18 of length 7; a sequence of length at most 6 on five or more
+vertices contains at most one edit of positive dimension and cannot fail. The failing
+edit deletes an edge, so the row set of $\Bm{1}$ is unchanged and the
+re-initialisation clause does not apply. Adding $N\ge5$ isolated vertices, which
+are critical under every matching and untouched by the edits, makes
+$\rho_1\le 3/(6+N)<0.3$; with $m=32$ and gates disabled (as in version~1's P2),
+no recompression is triggered, and the reported $\beta_0$ is one too large and
+$\beta_1=1$ instead of~$0$.
+\end{example}
+
+\paragraph{E2: the affected set misses distant critical columns.}
+The critical boundary is a sum over gradient paths, $\dM c=\flow(\bd c)$
+(Section~\ref{sec:morse}), and it depends on every pair along every gradient
+path leaving the facets of $c$. These paths can be arbitrarily long, so an edit
+to a matched cell can change $\dM c$ for critical cells $c$ far from the edit,
+while $R_k^C$ contains only critical cells whose own incidences change. Since
+version~1 does not say how the matching is maintained between recompressions, we
+use the least intrusive convention: keep every pair that does not involve a
+deleted cell; the partner of a deleted matched cell, and every inserted cell,
+becomes critical. The restriction of an acyclic matching is acyclic, so this is
+a valid matching. (Under this convention insertions are harmless: a new cell is
+maximal and critical and lies on no gradient path. Deleting a matched cell is
+not.)
+
+\begin{example}[E2 on cycle graphs]\label{ex:e2-cycle}
+Let $K=C_L$, $L\ge4$, with the collapse matching of
+Definition~\ref{def:collapse}. The collapse removes one critical edge $c$, then
+collapses the remaining path completely, leaving one critical vertex $r$. The
+gradient paths from the two endpoints of $c$ are the two arcs of $C_L\setminus c$
+from those endpoints to $r$; together they contain every matched edge exactly
+once, and $\dM c=r+r=0$. Delete a matched edge $y=V(x)$: now $x$ is critical,
+the arc through $y$ ends at $x$, and $\dM c=r+x\ne0$. When $y$ shares no vertex
+with $c$, the column $c$ is not in $R_1^C$ and stays $0$; the critical complex
+then reports $\beta=(2,1)$ instead of $(1,0)$. Such $y$ exist at graph distance
+up to about $L/2$ from $c$. The smallest case, $L=4$ with edges
+$\{0,1\},\{1,2\},\{2,3\},\{0,3\}$: the collapse gives $c=\{0,1\}$, $r=\{3\}$ and
+pairs $(\{1\},\{1,2\})$, $(\{0\},\{0,3\})$, $(\{2\},\{2,3\})$; deleting $\{2,3\}$
+changes $\dM\{0,1\}$ from $0$ to $\{2\}+\{3\}$.
+\end{example}
+
+\begin{example}[E2 with a critical triangle]\label{ex:e2-torus}
+Let $K$ be the $3\times3$ grid torus on the vertices $1,\dots,9$, in which
+vertex $(i,j)$, $i,j\in\mathbb{Z}/3$, is labelled $1+3i+j$ and the triangles are
+\[
+  \{(i,j),(i{+}1,j),(i{+}1,j{+}1)\},\qquad \{(i,j),(i,j{+}1),(i{+}1,j{+}1)\},
+\]
+together with the cone with apex $0$ over the meridian $1$--$4$--$7$;
+$\beta(K)=(1,1,1)$. The collapse matching (FIFO queue) has critical cells
+$\{0,1,4\}$, $\{1,2,5\}$, $\{3,4\}$, $\{3,8\}$, $\{9\}$, and $\dM\{1,2,5\}=0$.
+Deleting the matched triangle $\{6,7,9\}$, paired with the edge $\{6,9\}$,
+changes $\dM\{1,2,5\}$ to $\{6,9\}$, although $\{1,2,5\}$ and $\{6,7,9\}$ share no
+vertex. The stale critical complex reports $\beta=(1,2,1)$; the truth is
+$(1,1,0)$.
+\end{example}
+
+\paragraph{P2: an inconsistent workload description.}
+Version~1, \S3.3, defines the P2 sequence as alternating a refinement and ``its
+exact inverse'', $\textsc{Refine}(R_t)$ followed by $\textsc{Coarsen}(R_t)$. Under
+that definition $|K_t|$ takes at most two values. The same section states that
+each step injects $O(1)$ new simplices, ``thus $|C_t|=\Theta(t)$'', and
+Figures~4 and~5 of version~1 show sizes growing linearly over 500 updates. The
+two descriptions cannot hold for the same sequence, and version~1 does not
+determine which sequence produced its P2 timings. The workload W2 of this paper
+lets the size perform a random walk around its initial value and records it.
+
+\paragraph{Why the experiments of version 1 did not reveal E1 and E2.}
+P1 (an octahedron with a two-triangle window) and P3 (a connected genus-$0$
+shell with ports) are connected surfaces with known connectivity, whose Betti
+numbers follow from $\chi$, $\beta_0=1$ and the boundary-edge criterion without
+any matrix (Remark~\ref{rem:surfaces}); version~1's gates (\S2.4) are these
+formulas. P2 has the constant Betti numbers $(1,0,0)$. None of the three
+experiments can therefore distinguish a correct update from an incorrect one.
+In this paper every exact method is compared after every update against
+independent recomputations.
+
+\paragraph{Cost claims.}
+Version~1, \S2.6, states a local reduction cost of
+$\Theta\bigl(\sum_k (s_k^C)^2\bigr)$ ``under sparse operations with limited
+fill-in''. That analysis concerns the rule shown above to be inexact, and we
+make no statement about it. For the exact method of this paper,
+Proposition~\ref{prop:nonlocal} shows that no bound in terms of the size of the
+update holds, and we report costs as measurements.

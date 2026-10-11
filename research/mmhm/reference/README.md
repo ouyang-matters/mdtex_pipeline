@@ -114,6 +114,11 @@ the meridian 1–4–7. Collapse: critical `{0,1,4}`, `{1,2,5}`, `{3,4}`, `{3,8}
 vertex. True Betti after: (1, 1, 0, 0); v1's stale critical complex:
 (1, 2, 1, 0). Full pair lists are in `counterexamples.json`.
 
+*Cycle family:* on `C_L`, L = 5 … 40, every matched edge that shares no vertex
+with the critical edge is such an edit (702 edits in total), as proved in the
+erratum: the two gradient paths from the critical edge's endpoints are the two
+arcs to the critical vertex, and deleting a matched edge cuts one of them.
+
 **(e) Proposition 4 — W5 non-locality.** Cycle graph `C_L` toggling edge
 `{0,1}`, and the bipyramid sphere over an `L/2`-cycle (`n₂ = L` triangles)
 toggling one triangle, for L = 8 … 128, insertion and Morse order. Asserted for

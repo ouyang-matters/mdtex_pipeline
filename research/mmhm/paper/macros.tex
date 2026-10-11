@@ -8,7 +8,8 @@
 % Theorem, lemma and proposition share one counter so that the main results are
 % Theorem 1, Lemma 2, Proposition 3, Proposition 4 (as cited in SPEC.md);
 % corollaries are numbered after their parent result (Corollary 2.1, 2.2).
-% Definitions, examples and remarks share a second counter.
+% Observations have their own counter; definitions, examples and remarks share
+% a further counter.
 % ---------------------------------------------------------------------------
 \makeatletter
 \theoremstyle{plain}
@@ -18,6 +19,7 @@
 \@ifundefined{conjecture}{\newtheorem{conjecture}[theorem]{Conjecture}}{}
 \@ifundefined{corollary}{\newtheorem{corollary}{Corollary}[theorem]}{}
 \@ifundefined{claim}{\newtheorem*{claim}{Claim}}{}
+\@ifundefined{observation}{\newtheorem{observation}{Observation}}{}
 \theoremstyle{definition}
 \@ifundefined{definition}{\newtheorem{definition}{Definition}}{}
 \@ifundefined{example}{\newtheorem{example}[definition]{Example}}{}
@@ -51,7 +53,7 @@
 \providecommand{\symdiff}{\mathbin{\triangle}}     % symmetric difference = Z2 sum
 \providecommand{\facets}{\operatorname{fac}}
 \providecommand{\method}[1]{\textsf{#1}}          % method names: \method{mmhm}
-\providecommand{\Ins}{\textsc{Insert}}
-\providecommand{\Del}{\textsc{Delete}}
-\providecommand{\Collapse}{\textsc{Collapse}}
+\providecommand{\Ins}{\textup{\textsc{Insert}}}
+\providecommand{\Del}{\textup{\textsc{Delete}}}
+\providecommand{\Collapse}{\textup{\textsc{Collapse}}}
 \providecommand{\Ot}{\widetilde{O}}

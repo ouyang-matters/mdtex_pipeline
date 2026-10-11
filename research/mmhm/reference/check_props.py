@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Randomised property checks for the MMHM v2 theory (SPEC 2-4, paper Sec. 3).
+"""Randomised property checks for the MMHM v2 theory (SPEC 2-4;
+paper/sections/theory.tex and erratum.tex).
 
   (a) Theorem 1: (I1)-(I3) (and the pivot/occ indices) hold after every atomic
       edit and every rebuild, and the DRB Betti numbers equal a brute-force
       GF(2) rank computation that shares no code with the DRB.
-  (b) Lemma 2: under the collapse (Morse) order every gradient pair (tau, sigma)
-      is an apparent pair: column sigma is not cleared, takes pivot tau with
-      zero additions; plus Corollary: with clearing, additions occur only in
-      columns of critical cells; the matching is acyclic; ord is a filtration
-      order; the Morse complex (gradient-path counting) has the right Betti
-      numbers.
+  (b) Lemma 2: under the collapse (Morse) order the matching is acyclic, ord is
+      a filtration order, and every gradient pair (tau, sigma) is an apparent
+      pair: column sigma is not cleared and takes pivot tau with zero additions
+      (with and without clearing, FIFO and random queue disciplines).
+      Corollary 2.1: with clearing, additions occur only in critical columns.
+      Corollary 2.2: critical cells precede lower cells in ord (per dimension);
+      a reduced critical column has no lower cell, its critical part is the
+      reduced Morse column, and its additions are apparent-then-critical,
+      the critical ones being exactly those of the Morse reduction.
   (c) E1: the matrix counterexample of SPEC 0, and an exhaustive search for a
       shortest atomic edit sequence on which v1's rule ('lcr') reports wrong
       Betti numbers.
   (d) E2: a small complex + collapse matching + deletion of a MATCHED cell
       that changes the Morse boundary of a critical cell sharing no vertex
-      with the edited cell (so v1's affected set misses it).
+      with the edited cell (so v1's affected set misses it); smallest found,
+      one with a far critical triangle, and the whole cycle family C_5..C_40.
   (e) Proposition 4: on the W5 families every toggle costs >= L (resp. n_2)
       elementary operations, and toggling is 2-periodic after the first delete.
 
@@ -35,7 +40,7 @@ import time
 sys.setrecursionlimit(100000)
 
 from drb_ref import (ColumnDRB, ColumnLCR, Complex, Method, SimplicialDRB,
-                     collapse, facets, morse_keys)
+                     collapse, facets)
 
 FAILURES = []
 
@@ -157,7 +162,7 @@ def random_ops(rng, nverts, D, n_grow, n_churn, seed_tops=None):
         nverts = max(nverts, 1 + max(v for s in K for v in s))
     universe = [s for r in range(1, D + 2) for s in itertools.combinations(range(nverts), r)]
     weight = {1: 1.0, 2: 1.5, 3: 2.5, 4: 3.0}
-    for phase, (count, p_ins) in enumerate(((n_grow, 0.85), (n_churn, 0.5))):
+    for count, p_ins in ((n_grow, 0.85), (n_churn, 0.5)):
         for _ in range(count):
             ins = [s for s in universe if s not in K and all(f in K for f in facets(s))]
             has_cof = {f for c in K for f in facets(c)}
@@ -683,6 +688,25 @@ def e2_search(rng, n_cx):
     return best_any, best_wrong, best_dim2
 
 
+def e2_cycles(Ls):
+    """On C_L with the collapse matching, every matched edge sharing no vertex
+    with the critical edge is an E2 edit (its deletion changes the critical
+    edge's Morse boundary from 0 to a sum of two critical vertices)."""
+    n_edits = 0
+    for L in Ls:
+        cells = closure([(i, (i + 1) % L) for i in range(L)])
+        K = Complex(1)
+        for s in by_dim(cells):
+            K.add(s)
+        rm, pairs, critical = collapse(K)
+        (c,) = [x for x in critical if len(x) == 2]
+        hits = {r["deleted"] for r in e2_on(cells, pairs, critical)}
+        expected = {y for x, y in pairs if len(y) == 2 and not set(y) & set(c)}
+        expect(hits == expected, f"E2 cycle L={L}: {sorted(hits)} != {sorted(expected)}")
+        n_edits += len(hits)
+    return n_edits
+
+
 def fmt_instance(item):
     if item is None:
         return None
@@ -815,6 +839,9 @@ def main():
                   f"becomes critical); far critical {fi['far_critical_changed']}")
             print(f"      Morse boundary before {fi['morse_boundary_before']} after {fi['morse_boundary_after']}")
             print(f"      Betti true {fi['true_betti_after']}  v1-stale {fi['v1_stale_betti_after']}")
+    ne = e2_cycles(range(5, 41))
+    print(f"    cycle graphs C_L, L = 5..40: all {ne} matched edges disjoint from the critical edge are E2 edits")
+    report["E2 cycles"] = {"L": [5, 40], "edits": ne}
     print(f"    [{time.time() - t:.1f}s]")
 
     print("(e) Proposition 4: W5 toggles (work = elementary chain/occ operations)")
