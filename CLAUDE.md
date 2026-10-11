@@ -129,3 +129,9 @@ rewrite the paper and figures. `research/mmhm/SPEC.md` is the source of truth.
 v1's localized column update is incorrect (no basis tracking; affected set
 ignores gradient paths); v2 uses an exact dynamic reduced basis with a
 Morse-collapse order as sparsifier. Claim only what is measured.
+
+Status: v2 is written, reviewed twice and committed (paper/main.pdf, 34 pp).
+Start from `research/mmhm/README.md` (open author items) and
+`experiments/README.md` (regeneration). `workloads/data/` is not in git —
+regenerate it with `run.py --only-gen`, then check hashes with
+`workloads_manifest.py`.
