@@ -14,9 +14,10 @@ python3 verify.py && python3 aggregate.py
 |---|---|
 | `numbers.tex` | `\newcommand{\Num…}{…}` for every number the text may quote; each macro is preceded by a comment saying what it is and which config/script produced it |
 | `tab_correctness.tex` | T1: correctness (E0). Upper block: per exact method, runs, reported Betti vectors, states compared with the engine `full-id` Betti file, with the analytic Betti numbers, with the GUDHI oracle, mismatches. Lower block: `lcr` (v1's rule) per E0 instance: runs, verified updates, wrong updates, % wrong, first wrong update |
-| `tab_summary.tex` | T2: per workload × method at the largest size of each family: T (or T′), median, p95, p99 and amortized per-update latency (µs), amortized speedup vs `full-id` |
-| `tab_summary_full.tex` | same for every instance of E1–E6 (long; appendix) |
+| `tab_summary.tex` | T2 (fits one page at `\small`): per workload × method at the largest size of each family of E1, E3, E4, E5 (W5 is in F6 and the full tables): \|K₀\|, T (2,000 or the prefix T′ = 200), median, p95 and amortized per-update latency (µs), amortized speedup vs `full-id` |
+| `tab_summary_full.tex`, `tab_summary_full_med.tex`, `tab_summary_full_p99.tex` | every instance of E1–E6 (rows) × method (columns): amortized / median / p99 per-update latency (µs). `′` marks the prefix T′ = 200; an empty cell means the method is not part of that experiment, `n/r` a configured run without results. Use `\footnotesize` and `\setlength{\tabcolsep}{3pt}` to fit 6.5 in |
 | `tab_e7.tex` | E7: rebuilds per run, amortized and p99 latency (µs) for `mmhm` and `drb-id-rb` over α × period |
+| `tab_rebuild_effect.tex` | does a rebuild help? Per instance where rebuilds fired (default policy α = 1, period off): amortized latency of `drb-id`, `drb-id-rb`, `mmhm-norb`, `mmhm`; rebuilds per run; and the additions of the rebuilding method in the 100 updates after each of its rebuilds divided by those of its never-rebuilding twin on the same updates (> 1: the rebuild made the following updates costlier) |
 | `tab_e8.tex` | E8: median and p99 of per-update column additions and footprints, nnz(R)+nnz(V) after INIT and at the end, for the four DRB methods |
 | `tab_w4_betti.tex` | W4: ranges of β₀..β₃ over all states of the 3 seeds, and β_D / n at INIT |
 
@@ -103,6 +104,13 @@ Fits on 3 points (E3, E4) are indicative only.
 `<stat>` ∈ {`Amort`, `Med`, `PNinetyNine`, `Rebuilds`, `Adds`}.
 `AOff POff` never rebuilds (= `mmhm-norb` resp. `drb-id` behaviour).
 
+**Rebuild effect** (aggregate.py, `results/summary_rebuild_effect.csv`):
+`\NumRebuildEffect<inst><m>Window` (`<m>` ∈ {`Mmhm`, `DrbIdRb`}) = additions
+in the 100 non-rebuild updates after each rebuild / additions of the twin
+(`mmhm-norb` resp. `drb-id`) on the same updates, 3 seeds pooled;
+`…AfterFirst` = same over all updates after the first rebuild. Defined only
+for instances where the default policy rebuilt (W3, W1, one W4 run).
+
 **E8** (aggregate.py, from E1/E3/E4/E5 runs): `\NumEEight<inst><m><stat>`,
 `<stat>` ∈ {`AddsMed`, `AddsPNinetyNine`, `FootprintMed`,
 `FootprintPNinetyNine`, `ZeroAddsPct`} over non-rebuild updates of 3 seeds.
@@ -133,4 +141,13 @@ replays running concurrently).
 `\NumGudhiSizeMax` (largest |K₀| at which gudhi is timed, on T′),
 `\NumGudhiFullSizeMax` (largest |K₀| at which gudhi is timed on all T),
 `\NumSizeMax`, `\NumSizeMin` (|K₀| range of timed runs), `\NumTimedRuns`,
-`\NumComputeHours` (sum of per-run wall times; single-threaded processes).
+`\NumComputeHours` (sum of per-run wall times; single-threaded processes),
+`\NumConfiguredRuns`, `\NumNotRun` (configured runs without results; listed
+with the reason in `experiments/results/NOT_RUN.csv`).
+
+The macros `\NumUpdates`, `\NumPrefix`, `\NumGudhiSizeMax`, `\NumSizeMax`,
+`\NumVerifiedStates`, `\NumExactMismatches`, `\NumLcrErrMax`,
+`\NumWFourBetaDRatioMin`, `\NumWFourBetaDRatioMax` are the ones `main.tex`
+already declares fallbacks for. Note `\NumGudhiSizeMax` is the largest |K₀|
+at which `gudhi` was timed at all (on the prefix T′); the largest with all T
+updates is `\NumGudhiFullSizeMax`.

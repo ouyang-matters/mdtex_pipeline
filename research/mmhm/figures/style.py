@@ -50,6 +50,13 @@ def setup():
         "font.family": "sans-serif",
         "font.sans-serif": ["Liberation Sans", "Arial", "Helvetica", "DejaVu Sans"],
         "font.size": 8,
+        "mathtext.fontset": "custom",
+        "mathtext.rm": "Liberation Sans",
+        "mathtext.it": "Liberation Sans:italic",
+        "mathtext.bf": "Liberation Sans:bold",
+        "mathtext.sf": "Liberation Sans",
+        "mathtext.cal": "Liberation Sans:italic",
+        "mathtext.tt": "Liberation Sans",
         "axes.titlesize": 8.5,
         "axes.labelsize": 8,
         "xtick.labelsize": 7.5,
@@ -126,6 +133,34 @@ def log_axis(ax, which="y"):
     else:
         axis.set_minor_locator(LogLocator(base=10, subs=tuple(range(2, 10)), numticks=12))
         axis.set_minor_formatter(NullFormatter())
+
+
+def missing_note(fig, exps, workload_pred=None, methods=None, y=-0.01):
+    """Marks missing data instead of dropping it silently: if results/NOT_RUN.csv
+    lists runs of these experiments (optionally filtered by workload and
+    method), a footnote under the figure names them. Returns the list."""
+    import pandas as pd
+    path = os.path.join(RES, "NOT_RUN.csv")
+    if not os.path.exists(path):
+        return []
+    nr = pd.read_csv(path)
+    nr = nr[nr.exp.isin(exps)]
+    if nr.empty:
+        return []
+    if workload_pred is not None:
+        nr = nr[nr.workload.map(workload_pred)]
+    if methods is not None:
+        nr = nr[nr.method.isin(methods)]
+    if nr.empty:
+        return []
+    items = []
+    for (w, m), g in nr.groupby(["workload", "method"]):
+        items.append(f"{m} @ {w} (seed {','.join(str(x) for x in sorted(g.seed))})")
+    txt = "Missing runs (experiments/results/NOT_RUN.csv): " + "; ".join(items)
+    import textwrap
+    fig.text(0.0, y, "\n".join(textwrap.wrap(txt, 150)), fontsize=6, color=INK2, ha="left",
+             va="top")
+    return items
 
 
 def save(fig, name):

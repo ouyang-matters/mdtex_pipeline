@@ -164,12 +164,48 @@ class Macros:
 
 
 # ---------------------------------------------------------------- loading ---
-def load_all_runs():
+def configured_runs():
     runs = []
     for cfg in sorted(glob.glob(os.path.join(HERE, "configs", "E*.json"))):
         _, rs = runner.load_runs(cfg)
-        runs += [r for r in rs if r.done()]
+        runs += rs
     return runs
+
+
+def load_all_runs():
+    return [r for r in configured_runs() if r.done()]
+
+
+def write_not_run():
+    """results/NOT_RUN.csv: every configured run without results, with the reason
+    recorded by run.py (timeout, not launched before the deadline, exit code)."""
+    status = {}
+    for path in glob.glob(os.path.join(RES, "*", "manifest.csv")):
+        with open(path, encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                k = f"{row['exp']}/{row['workload']}__{row['label']}__seed{row['seed']}"
+                status[k] = row
+    rows = []
+    for r in configured_runs():
+        if r.done():
+            continue
+        st = status.get(r.key)
+        if st is None:
+            reason = "not run"
+        elif st["exit"] == "timeout":
+            reason = f"timeout: {st['stderr_tail']}"
+        elif st["exit"] == "not-launched":
+            reason = f"not launched: {st['stderr_tail']}"
+        else:
+            reason = f"exit {st['exit']}: {st['stderr_tail']}"
+        rows.append({"exp": r.exp, "instance": r.instance, "workload": r.workload,
+                     "method": r.label, "seed": r.seed, "reason": reason})
+    with open(os.path.join(RES, "NOT_RUN.csv"), "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=["exp", "instance", "workload", "method", "seed",
+                                           "reason"])
+        w.writeheader()
+        w.writerows(rows)
+    return pd.DataFrame(rows, columns=["exp", "instance", "workload", "method", "seed", "reason"])
 
 
 def read_run(r):
@@ -249,6 +285,7 @@ def read_betti_gz(path):
 def main():
     os.makedirs(GEN, exist_ok=True)
     M = Macros()
+    NR = write_not_run()
     runs = load_all_runs()
     K_by_instance = {}
     per_run, lat_by_key = [], {}
@@ -466,6 +503,83 @@ def main():
         M.add(pre + "ZeroAddsPct", pct(x.frac_zero_adds), f"{what}: % of updates with zero "
               f"additions", "aggregate.py")
 
+    # ------------------------------------------- effect of a rebuild (E7) ----
+    # Same update sequence with and without rebuilds: additions performed by the
+    # rebuilding method in the 100 non-rebuild updates after each of its
+    # rebuilds, divided by the additions of its never-rebuilding twin on the
+    # same updates (> 1: the rebuild made the following updates more expensive).
+    twins = [("mmhm", "mmhm-norb"), ("drb-id-rb", "drb-id")]
+    eff = []
+    for r in runs:
+        if r.exp not in ("E1", "E3", "E4", "E5") or r.label not in ("mmhm", "drb-id-rb"):
+            continue
+        twin = dict(twins)[r.label]
+        tw = [o for o in runs if o.exp == r.exp and o.workload == r.workload and
+              o.label == twin and o.seed == r.seed]
+        if not tw:
+            continue
+        a, b = read_run(r), read_run(tw[0])
+        ts = a[a.rebuild == 1].t.to_numpy()
+        if not len(ts):
+            continue
+        win_a = win_b = 0
+        nwin = 0
+        for t0 in ts:
+            m = ((a.t > t0) & (a.t <= t0 + 100) & (a.rebuild == 0)).to_numpy()
+            win_a += int(a.chain_adds[m].sum())
+            win_b += int(b.chain_adds.to_numpy()[m].sum())
+            nwin += int(m.sum())
+        m = ((a.t > ts[0]) & (a.rebuild == 0)).to_numpy()
+        eff.append({"exp": r.exp, "workload": r.workload, "method": r.label, "twin": twin,
+                    "seed": r.seed, "rebuilds": len(ts), "window_updates": nwin,
+                    "adds_window": win_a, "adds_window_twin": win_b,
+                    "adds_after_first": int(a.chain_adds[m].sum()),
+                    "adds_after_first_twin": int(b.chain_adds.to_numpy()[m].sum())})
+    EF = pd.DataFrame(eff)
+    if len(EF):
+        EG = EF.groupby(["exp", "workload", "method", "twin"]).sum(numeric_only=True).reset_index()
+        EG["ratio_window"] = EG.adds_window / EG.adds_window_twin
+        EG["ratio_after_first"] = EG.adds_after_first / EG.adds_after_first_twin
+        EG = EG.drop(columns=["seed"])
+        EG.to_csv(os.path.join(RES, "summary_rebuild_effect.csv"), index=False,
+                  float_format="%.6g")
+        # table: amortized latency of the four DRB methods, rebuilds, and the effect ratio
+        lines = [r"\begin{tabular}{@{}lrrrrrrrr@{}}", r"\toprule",
+                 r" & \multicolumn{4}{c}{amortized latency (\textmu s)} & "
+                 r"\multicolumn{2}{c}{rebuilds / run} & \multicolumn{2}{c}{additions after a "
+                 r"rebuild} \\",
+                 r"\cmidrule(lr){2-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}",
+                 r"instance & \method{drb-id} & \method{drb-id-rb} & \method{mmhm-norb} & "
+                 r"\method{mmhm} & \method{drb-id-rb} & \method{mmhm} & "
+                 r"$\frac{\text{\method{drb-id-rb}}}{\text{\method{drb-id}}}$ & "
+                 r"$\frac{\text{\method{mmhm}}}{\text{\method{mmhm-norb}}}$ \\", r"\midrule"]
+        kk = {w: S[S.workload == w].K0.dropna().mean() for w in EG.workload.unique()}
+        order = sorted(EG.groupby(["exp", "workload"]).groups,
+                       key=lambda ew: (ew[0], ew[1].split("_")[1], kk[ew[1]]))
+        for (e, w) in order:
+            g = EG[(EG.exp == e) & (EG.workload == w)]
+            amo = S[(S.exp == e) & (S.workload == w)].set_index("label")
+            K0 = amo.K0.dropna().mean()
+            def gv(m, col):
+                x = g[g.method == m]
+                return x[col].iloc[0] if len(x) else float("nan")
+            cells = [pretty_inst(w)] + [sig(amo.amort_us.get(m, float("nan")))
+                                        for m in ("drb-id", "drb-id-rb", "mmhm-norb", "mmhm")]
+            cells += [sig(amo.rebuilds.get(m, float("nan")), 2) for m in ("drb-id-rb", "mmhm")]
+            cells += [f"{gv(m, 'ratio_window'):.2f}" for m in ("drb-id-rb", "mmhm")]
+            lines.append(" & ".join(cells) + r" \\")
+        lines += [r"\bottomrule", r"\end{tabular}"]
+        _write("tab_rebuild_effect.tex", lines)
+        for _, x in EG.iterrows():
+            pre = f"NumRebuildEffect{inst_tag(x.workload)}{METHOD_TAG[x.method]}"
+            M.add(pre + "Window", f"{x.ratio_window:.2f}",
+                  f"{x.workload}: additions of {x.method} in the 100 non-rebuild updates after "
+                  f"each of its rebuilds / additions of {x.twin} on the same updates (3 seeds "
+                  f"pooled; >1 = the rebuild made later updates costlier)", "aggregate.py")
+            M.add(pre + "AfterFirst", f"{x.ratio_after_first:.2f}",
+                  f"{x.workload}: additions of {x.method} in all non-rebuild updates after its "
+                  f"first rebuild / {x.twin} on the same updates", "aggregate.py")
+
     # ---------------------------------------------------------- W4 betti ----
     w4rows = []
     for w in sorted({r.workload for r in runs if r.workload.startswith("w4")}):
@@ -630,8 +744,12 @@ def main():
               "CPU-hours of all runs (wall time of each single-threaded process, summed)",
               "run.py manifests")
 
+    M.add("NumNotRun", intc(len(NR)), "configured runs without results (results/NOT_RUN.csv)",
+          "aggregate.py")
+    M.add("NumConfiguredRuns", intc(len(configured_runs())), "configured runs (configs/E*.json)",
+          "aggregate.py")
     M.write(os.path.join(GEN, "numbers.tex"))
-    write_tables(S, C, L, E8, W4, e7, runs_df)
+    write_tables(S, C, L, E8, W4, e7, runs_df, NR)
     print(f"{len(runs)} runs, {len(S)} pooled rows, {len(M.items)} macros -> {GEN}")
 
 
@@ -640,7 +758,7 @@ def mname(m):
     return f"\\method{{{m}}}"
 
 
-def write_tables(S, C, L, E8, W4, e7, runs_df):
+def write_tables(S, C, L, E8, W4, e7, runs_df, NR):
     # T1 correctness ---------------------------------------------------------
     lines = [r"\begin{tabular}{@{}lrrrrrr@{}}", r"\toprule",
              r"method & runs & states & vs.\ \method{full-id} & vs.\ analytic & vs.\ GUDHI "
@@ -651,9 +769,12 @@ def write_tables(S, C, L, E8, W4, e7, runs_df):
             continue
         mis = int(c.internal_mismatch.sum() + c.fullid_mismatch.sum() +
                   c.expected_mismatch.sum() + c.gudhi_mismatch.sum())
+        fid = "(ref.)" if m == "full-id" and c.fullid_states.sum() == 0 else \
+            intc(c.fullid_states.sum())
+        gud = "(ref.)" if m == "gudhi" else intc(c.gudhi_states.sum())
         lines.append(f"{mname(m)} & {intc(len(c))} & {intc(c.betti_states.sum())} & "
-                     f"{intc(c.fullid_states.sum())} & {intc(c.expected_states.sum())} & "
-                     f"{intc(c.gudhi_states.sum())} & {mis} \\\\")
+                     f"{fid} & {intc(c.expected_states.sum())} & "
+                     f"{gud} & {mis} \\\\")
     mis = int(C.internal_mismatch.sum() + C.fullid_mismatch.sum() + C.expected_mismatch.sum() +
               C.gudhi_mismatch.sum())
     lines += [r"\midrule",
@@ -665,7 +786,7 @@ def write_tables(S, C, L, E8, W4, e7, runs_df):
     lw = L.groupby("workload").agg(runs=("seed", "count"), ver=("verified_updates", "sum"),
                                    wrong=("wrong_updates", "sum"),
                                    first=("first_wrong_t", "min"), K0=("K0", "mean"))
-    order = sorted(lw.index, key=lambda w: (w.split("_")[0], lw.loc[w, "K0"]))
+    order = sorted(lw.index)
     for w in order:
         x = lw.loc[w]
         first = intc(x["first"]) if not math.isnan(x["first"]) else "--"
@@ -678,13 +799,19 @@ def write_tables(S, C, L, E8, W4, e7, runs_df):
     fam_pick = {
         "E5": ["w1_sphere_L7", "w1_torus_500"], "E1": ["w2_N33_s8"], "E3": ["w3_N27_k2"],
         "E4": ["w4_2d_n16000_D2", "w4_2d_n4000_D3", "w4_3d_n4000_D3"],
-        "E6": ["w5a_L1000000", "w5b_L8"]}
-    _write("tab_summary.tex", summary_table(S, fam_pick))
+        }
+    _write("tab_summary.tex", summary_table(S, fam_pick, NR=NR))
     full_pick = {}
     for e in ["E1", "E2", "E3", "E4", "E5", "E6"]:
-        ws = S[S.exp == e].sort_values("K0").workload.unique().tolist()
+        sub = S[S.exp == e].groupby("workload").K0.mean().sort_values()
+        ws = sorted(sub.index, key=lambda w: (w.split("_")[0], w.split("_")[1] if e in
+                                              ("E4", "E5") else "", sub[w]))
+        if e == "E2":
+            ws = sorted(sub.index, key=lambda w: int(w.split("_s")[1]))
         full_pick[e] = ws
-    _write("tab_summary_full.tex", summary_table(S, full_pick, small=True))
+    _write("tab_summary_full.tex", wide_table(S, full_pick, "amort_us", NR=NR))
+    _write("tab_summary_full_med.tex", wide_table(S, full_pick, "lat_med_us", NR=NR))
+    _write("tab_summary_full_p99.tex", wide_table(S, full_pick, "lat_p99_us", NR=NR))
 
     # E7 table ----------------------------------------------------------------
     lines = [r"\begin{tabular}{@{}llrrrrrrrrr@{}}", r"\toprule",
@@ -751,10 +878,12 @@ def write_tables(S, C, L, E8, W4, e7, runs_df):
     _write("tab_w4_betti.tex", lines)
 
 
-def summary_table(S, pick, small=False):
-    lines = [r"\begin{tabular}{@{}lrrrrrr@{}}", r"\toprule",
-             r"method & $T$ & median & p95 & p99 & amortized & $\times$ vs.\ \method{full-id} \\",
-             r"\midrule"]
+def summary_table(S, pick, small=False, NR=None):
+    """Long format, one row per (instance, method); the instance and |K_0| are
+    printed on the first row of their group."""
+    lines = [r"\begin{tabular}{@{}llrlrrrrr@{}}", r"\toprule",
+             r"instance & & $|K_0|$ & method & $T$ & median & p95 & amortized & "
+             r"$\times$ \method{full-id} \\", r"\midrule"]
     first = True
     for e, ws in pick.items():
         for w in ws:
@@ -762,21 +891,59 @@ def summary_table(S, pick, small=False):
             if not len(sub):
                 continue
             if not first:
-                lines.append(r"\midrule")
+                lines.append(r"\addlinespace")
             first = False
             K0 = sub.K0.dropna().mean()
-            lines.append(f"\\multicolumn{{7}}{{@{{}}l}}{{\\emph{{{pretty_inst(w)}}}, "
-                         f"$|K_0| = {intc(K0)}$, {sig(sub.ops_mean.dropna().mean())} edits/update "
-                         f"({e})}} \\\\")
+            missing = set() if NR is None else set(NR[(NR.exp == e) & (NR.workload == w)].method)
+            head = True
             for m in METHOD_ORDER:
                 x = sub[sub.label == m]
+                lead = (f"{pretty_inst(w)} & ({e}) & {intc(K0)}" if head else " & & ")
                 if not len(x):
+                    if m in missing:  # configured but no seed finished: say so
+                        lines.append(f"{lead} & {mname(m)} & \\multicolumn{{5}}{{l}}{{not run "
+                                     f"(see NOT\\_RUN.csv)}} \\\\")
+                        head = False
                     continue
+                head = False
                 x = x.iloc[0]
                 spd = "--" if m == "full-id" else sig(x.speedup_fullid)
-                lines.append(f"{mname(m)} & {intc(x['T'])} & {sig(x.lat_med_us)} & "
-                             f"{sig(x.lat_p95_us)} & {sig(x.lat_p99_us)} & {sig(x.amort_us)} & "
-                             f"{spd} \\\\")
+                mark = "" if int(x.seeds) >= 3 else f"$^{{{int(x.seeds)}\\,\\mathrm{{seed}}}}$"
+                lines.append(f"{lead} & {mname(m)}{mark} & {intc(x['T'])} & {sig(x.lat_med_us)} & "
+                             f"{sig(x.lat_p95_us)} & {sig(x.amort_us)} & {spd} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    return lines
+
+
+def wide_table(S, pick, col, NR=None):
+    """One row per instance, one column per method; cell = S[col] (us). A
+    configured but missing entry prints 'n/r'; T' prefixes are marked."""
+    meths = METHOD_ORDER
+    lines = [r"\begin{tabular}{@{}llr" + "r" * len(meths) + r"@{}}", r"\toprule",
+             r"exp. & instance & $|K_0|$ & " + " & ".join(mname(m) for m in meths) + r" \\",
+             r"\midrule"]
+    first = True
+    for e, ws in pick.items():
+        if not first:
+            lines.append(r"\midrule")
+        first = False
+        for w in ws:
+            sub = S[(S.exp == e) & (S.workload == w)].set_index("label")
+            if not len(sub):
+                continue
+            missing = set() if NR is None else set(NR[(NR.exp == e) & (NR.workload == w)].method)
+            cells = [e, pretty_inst(w), intc(sub.K0.dropna().mean())]
+            for m in meths:
+                if m in sub.index:
+                    v = sig(sub.loc[m, col])
+                    if int(sub.loc[m, "T"]) < 2000:
+                        v += r"$^{\prime}$"
+                    if int(sub.loc[m, "seeds"]) < 3:
+                        v += f"$^{{{int(sub.loc[m, 'seeds'])}}}$"
+                    cells.append(v)
+                else:
+                    cells.append("n/r" if m in missing else "")
+            lines.append(" & ".join(cells) + r" \\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     return lines
 

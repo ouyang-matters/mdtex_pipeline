@@ -24,6 +24,14 @@ oracle-only verification) use `--untimed-slots`; unless `--mixed` is given
 they start only after every timed run has finished, so they never share the
 machine with a timing run (see results/noise/ for the interference check).
 
+Hard limits (--timeout, default 1800 s; --no-launch-after UTC): a run that
+exceeds the per-run limit is killed and recorded as `timeout`; after the
+launch deadline no run is started (`not-launched`). Both are terminal: such
+runs are never retried (aggregate.py lists them in results/NOT_RUN.csv).
+Default order (--order priority): every experiment's small/mid instances with
+seed 0 first, then seeds 1-2, then the largest instances (>= 9e5 simplices),
+then the E7 grid.
+
 An exact method that fails (exit 3 = verification mismatch, or any other
 non-zero exit) stops the whole pipeline: nothing further is scheduled, the
 command is printed, and the runner exits 3. Nothing is papered over.
@@ -33,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import glob
 import gzip
 import json
 import os
@@ -43,6 +52,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)  # research/mmhm
@@ -80,6 +90,13 @@ class Run:
     @property
     def seq(self):
         return os.path.join(DATA, self.instance + ".seq")
+
+    def size(self):
+        try:
+            with open(os.path.join(DATA, self.instance + ".meta.json"), encoding="utf-8") as fh:
+                return int(json.load(fh)["sizes"]["start"]["total"])
+        except (OSError, KeyError, ValueError):
+            return 0
 
     def done(self):
         return os.path.exists(self.csv) and os.path.exists(self.betti)
@@ -130,7 +147,11 @@ def gzip_to(src, dst):
 
 
 class Pipeline:
-    def __init__(self, timed_slots, untimed_slots, mixed, dry):
+    def __init__(self, timed_slots, untimed_slots, mixed, dry, timeout=None, deadline=None,
+                 order="priority"):
+        self.timeout = timeout
+        self.deadline = deadline
+        self.order = order
         self.timed_slots = timed_slots
         self.untimed_slots = untimed_slots
         self.mixed = mixed
@@ -180,16 +201,38 @@ class Pipeline:
             print(("T " if r.timed else "U ") + shlex.join(cmd))
             return
         started = time.strftime("%Y-%m-%dT%H:%M:%S")
+        base_row = {"exp": r.exp, "workload": r.workload, "label": r.label, "method": r.method,
+                    "seed": r.seed, "instance": r.instance, "T": r.T, "args": " ".join(r.args),
+                    "verify_every": r.verify_every if r.method != "gudhi" else 0,
+                    "timed": int(r.timed), "started": started, "cmd": shlex.join(cmd)}
+        if self.deadline is not None and datetime.now(timezone.utc) >= self.deadline:
+            # hard limit: no new launches after the deadline; recorded, never retried
+            with self.lock:
+                self.append_manifest(r, dict(base_row, exit="not-launched", wall_s="0",
+                                             stderr_tail="launch deadline "
+                                             + self.deadline.strftime("%H:%M UTC") + " passed"))
+                self.done_count += 1
+            return
         t = time.time()
-        p = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            wall = time.time() - t
+            for f in (tmp_csv, tmp_betti):
+                if os.path.exists(f):
+                    os.remove(f)
+            with self.lock:
+                self.append_manifest(r, dict(base_row, exit="timeout", wall_s=f"{wall:.2f}",
+                                             stderr_tail=f"killed after {self.timeout:.0f} s "
+                                             "(per-run limit); not retried"))
+                self.done_count += 1
+                print(f"[{self.done_count}/{self.total}] {r.key} TIMEOUT after {wall:.0f} s",
+                      flush=True)
+            return
         wall = time.time() - t
         tail = (p.stderr or "").strip().splitlines()[-1:] if p.stderr else []
-        row = {"exp": r.exp, "workload": r.workload, "label": r.label, "method": r.method,
-               "seed": r.seed, "instance": r.instance, "T": r.T, "args": " ".join(r.args),
-               "verify_every": r.verify_every if r.method != "gudhi" else 0,
-               "timed": int(r.timed), "exit": p.returncode, "wall_s": f"{wall:.2f}",
-               "started": started, "cmd": shlex.join(cmd),
-               "stderr_tail": tail[0][:300] if tail else ""}
+        row = dict(base_row, exit=p.returncode, wall_s=f"{wall:.2f}",
+                   stderr_tail=tail[0][:300] if tail else "")
         if p.returncode == 0:
             gzip_to(tmp_csv, r.csv)
             gzip_to(tmp_betti, r.betti)
@@ -220,14 +263,36 @@ class Pipeline:
                 w.writeheader()
             w.writerow(row)
 
+    @staticmethod
+    def terminal_keys():
+        """Runs recorded as timed out or not launched: never retried."""
+        keys = set()
+        for path in glob.glob(os.path.join(RESULTS, "*", "manifest.csv")):
+            with open(path, encoding="utf-8") as fh:
+                for row in csv.DictReader(fh):
+                    if row["exit"] in ("timeout", "not-launched"):
+                        keys.add(f"{row['exp']}/{row['workload']}__{row['label']}__seed{row['seed']}")
+        return keys
+
+    def priority(self, r):
+        """Most informative first: every experiment's small/mid sizes, seed 0 before
+        seeds 1-2; the largest instances (>= 9e5 simplices) and the E7 grid last."""
+        size = r.size()
+        return (r.exp == "E7", size >= 900_000, r.seed > 0, self.cost_hint(r))
+
     def run_all(self, runs):
-        todo = [r for r in runs if not r.done()]
+        term = self.terminal_keys()
+        todo = [r for r in runs if not r.done() and r.key not in term]
         skipped = len(runs) - len(todo)
         self.total = len(todo)
         print(f"{len(runs)} runs, {skipped} already done, {len(todo)} to do", flush=True)
         # longest-first within each class keeps the slots busy until the end
-        timed = sorted([r for r in todo if r.timed], key=lambda r: -self.cost_hint(r))
-        untimed = sorted([r for r in todo if not r.timed], key=lambda r: -self.cost_hint(r))
+        if self.order == "priority":
+            key = self.priority
+        else:
+            key = lambda r: -self.cost_hint(r)  # noqa: E731  (longest first)
+        timed = sorted([r for r in todo if r.timed], key=key)
+        untimed = sorted([r for r in todo if not r.timed], key=key)
         if self.mixed:
             with ThreadPoolExecutor(max_workers=self.timed_slots) as et, \
                     ThreadPoolExecutor(max_workers=self.untimed_slots) as eu:
@@ -275,6 +340,12 @@ def main(argv=None):
     ap.add_argument("--gen-slots", type=int, default=4)
     ap.add_argument("--mixed", action="store_true",
                     help="run untimed jobs alongside timed ones (only if no interference)")
+    ap.add_argument("--timeout", type=float, default=1800.0,
+                    help="per-run wall-clock limit in s (killed, recorded as 'timeout', not retried)")
+    ap.add_argument("--no-launch-after", default=None,
+                    help="UTC time YYYY-MM-DDTHH:MM after which no run is started "
+                         "(recorded as 'not-launched')")
+    ap.add_argument("--order", choices=["priority", "longest"], default="priority")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--only-gen", action="store_true")
     ap.add_argument("--filter", help="only runs whose <exp>/<workload>__<label>__seed<k> "
@@ -286,7 +357,12 @@ def main(argv=None):
     for c in a.configs:
         _, rs = load_runs(c, a.filter)
         runs += rs
-    pl = Pipeline(a.timed_slots, a.untimed_slots, a.mixed, a.dry_run)
+    deadline = None
+    if a.no_launch_after:
+        deadline = datetime.strptime(a.no_launch_after, "%Y-%m-%dT%H:%M").replace(
+            tzinfo=timezone.utc)
+    pl = Pipeline(a.timed_slots, a.untimed_slots, a.mixed, a.dry_run, timeout=a.timeout,
+                  deadline=deadline, order=a.order)
     pl.generate(runs, a.gen_slots)
     if a.only_gen:
         return 0

@@ -59,6 +59,8 @@ def main():
     fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 1.03),
                handlelength=1.6, columnspacing=1.1)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
+    S.missing_note(fig, ["E1", "E3", "E4", "E5"],
+                   lambda w: any(sel(w) for _, sel, _ in PANELS), S.ORDER)
     S.save(fig, "F2_latency_vs_size")
 
 

@@ -1,0 +1,113 @@
+exp,family,label,stat,x,n_points,slope,intercept,r2,x_min,x_max,workloads
+E1,WTwoSEight,drb-id,Med,|K_0|,5,0.27278,0.516443,0.982144,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,drb-id,Amort,|K_0|,5,0.292281,0.47945,0.992446,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,drb-id-rb,Med,|K_0|,5,0.258631,0.596321,0.977657,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,drb-id-rb,Amort,|K_0|,5,0.278447,0.556906,0.989399,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,full-id,Med,|K_0|,5,1.03857,-2.0729,0.99903,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,full-id,Amort,|K_0|,5,1.03453,-2.04008,0.99908,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,full-morse,Med,|K_0|,5,1.1421,-2.12652,0.993914,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,full-morse,Amort,|K_0|,5,1.14157,-2.11076,0.994165,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,gudhi,Med,|K_0|,5,1.05694,-0.812546,0.999434,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,gudhi,Amort,|K_0|,5,1.05385,-0.787781,0.999262,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,mmhm,Med,|K_0|,5,0.240351,0.744474,0.980959,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,mmhm,Amort,|K_0|,5,0.234145,0.82166,0.998298,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,mmhm-norb,Med,|K_0|,5,0.265299,0.605633,0.977311,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,mmhm-norb,Amort,|K_0|,5,0.294259,0.518091,0.925597,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E2,WTwoNTwentyTwo,drb-id,Med,s,7,0.887058,1.25589,0.996181,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,drb-id,Amort,s,7,0.847545,1.36574,0.992087,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,drb-id-rb,Med,s,7,0.876054,1.25578,0.997016,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,drb-id-rb,Amort,s,7,0.8305,1.3708,0.99126,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,full-id,Med,s,7,0.0618388,3.51538,0.799233,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,full-id,Amort,s,7,0.0649622,3.52248,0.806598,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,full-morse,Med,s,7,0.0695997,3.99164,0.782487,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,full-morse,Amort,s,7,0.0711832,4.00607,0.788308,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,mmhm,Med,s,7,0.903506,1.28373,0.997236,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,mmhm,Amort,s,7,0.86943,1.36281,0.992425,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,mmhm-norb,Med,s,7,0.900541,1.27248,0.998223,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E2,WTwoNTwentyTwo,mmhm-norb,Amort,s,7,0.852535,1.37785,0.990354,1,64,w2_N22_s1 w2_N22_s2 w2_N22_s4 w2_N22_s8 w2_N22_s16 w2_N22_s32 w2_N22_s64
+E3,WThree,drb-id,Med,|K_0|,3,0.109126,2.85845,0.227127,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,drb-id,Amort,|K_0|,3,0.204883,2.57152,0.312827,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,drb-id-rb,Med,|K_0|,3,0.213083,2.00377,0.942648,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,drb-id-rb,Amort,|K_0|,3,0.278402,1.82225,0.951227,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,full-id,Med,|K_0|,3,1.04783,-1.7404,0.999056,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,full-id,Amort,|K_0|,3,1.02939,-1.64741,0.999349,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,full-morse,Med,|K_0|,3,1.1376,-1.90825,0.998299,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,full-morse,Amort,|K_0|,3,1.13524,-1.88856,0.99838,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,gudhi,Med,|K_0|,3,0.928043,-0.0585635,0.980518,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,gudhi,Amort,|K_0|,3,0.92366,-0.0276717,0.98342,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,mmhm,Med,|K_0|,3,0.157559,2.16928,0.992177,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,mmhm,Amort,|K_0|,3,0.197649,2.13231,0.990979,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,mmhm-norb,Med,|K_0|,3,0.00837058,3.23602,0.00532711,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,mmhm-norb,Amort,|K_0|,3,0.0689509,3.12144,0.116958,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E4,WFourPlaneDTwo,drb-id,Med,|K_0|,3,0.140441,1.35806,0.999154,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,drb-id,Amort,|K_0|,3,0.138302,1.48073,0.999764,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,drb-id-rb,Med,|K_0|,3,0.150096,1.30924,0.990385,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,drb-id-rb,Amort,|K_0|,3,0.134481,1.50608,0.980594,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,full-id,Med,|K_0|,3,0.968496,-1.17934,0.99867,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,full-id,Amort,|K_0|,3,0.971204,-1.18574,0.998062,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,full-morse,Med,|K_0|,3,1.14083,-1.78959,0.999409,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,full-morse,Amort,|K_0|,3,1.13446,-1.74333,0.999149,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,gudhi,Med,|K_0|,3,1.24961,-1.46832,0.999992,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,gudhi,Amort,|K_0|,3,1.24698,-1.4493,0.999985,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,mmhm,Med,|K_0|,3,0.0463376,1.75495,0.971593,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,mmhm,Amort,|K_0|,3,0.0143067,2.0274,0.923018,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,mmhm-norb,Med,|K_0|,3,0.0222374,1.83047,0.504583,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,mmhm-norb,Amort,|K_0|,3,0.00750887,2.00495,0.195153,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E5,WOneSphere,drb-id,Med,|K_0|,4,0.832991,-1.17968,0.992155,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,drb-id,Amort,|K_0|,4,1.08472,-1.90983,0.996956,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,drb-id-rb,Med,|K_0|,4,1.00723,-2.21621,0.99167,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,drb-id-rb,Amort,|K_0|,4,1.25221,-2.87842,0.998696,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,euler,Med,|K_0|,4,0.286771,-0.190358,0.952928,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,euler,Amort,|K_0|,4,0.246087,0.0252752,0.960564,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,full-id,Med,|K_0|,4,1.02279,-1.6814,0.999483,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,full-id,Amort,|K_0|,4,1.0279,-1.6862,0.999677,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,full-morse,Med,|K_0|,4,1.17608,-2.3339,0.995782,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,full-morse,Amort,|K_0|,4,1.17045,-2.2788,0.996136,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,gudhi,Med,|K_0|,4,1.08628,-1.05284,0.99826,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,gudhi,Amort,|K_0|,4,1.0855,-1.04477,0.998009,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,mmhm,Med,|K_0|,4,0.986075,-2.17313,0.99593,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,mmhm,Amort,|K_0|,4,1.05971,-2.13038,0.999661,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,mmhm-norb,Med,|K_0|,4,0.800822,-1.03276,0.976484,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,mmhm-norb,Amort,|K_0|,4,0.847144,-0.912755,0.973717,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneTorus,drb-id,Med,|K_0|,4,0.813428,-1.09956,0.960152,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,drb-id,Amort,|K_0|,4,0.975636,-1.40113,0.998253,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,drb-id-rb,Med,|K_0|,4,1.05772,-2.4663,0.995658,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,drb-id-rb,Amort,|K_0|,4,1.20725,-2.68309,0.998804,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,euler,Med,|K_0|,4,0.265305,-0.0945163,0.959367,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,euler,Amort,|K_0|,4,0.233801,0.0711778,0.953401,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,full-id,Med,|K_0|,4,0.965136,-1.46527,0.995688,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,full-id,Amort,|K_0|,4,0.989769,-1.56365,0.997855,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,full-morse,Med,|K_0|,4,1.19486,-2.44297,0.997903,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,full-morse,Amort,|K_0|,4,1.18207,-2.34664,0.998034,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,gudhi,Med,|K_0|,4,1.08226,-1.06651,0.998673,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,gudhi,Amort,|K_0|,4,1.07926,-1.04306,0.998449,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,mmhm,Med,|K_0|,4,1.02574,-2.34288,0.991225,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,mmhm,Amort,|K_0|,4,1.08533,-2.19186,0.999394,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,mmhm-norb,Med,|K_0|,4,0.860572,-1.35818,0.964974,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,mmhm-norb,Amort,|K_0|,4,0.930233,-1.26062,0.996578,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E6,WFiveCycle,drb-id,Med,L,7,1.16593,-3.01307,0.998436,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,drb-id,Amort,L,7,1.0633,-2.27233,0.998969,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,drb-id-rb,Med,L,7,1.16134,-2.99153,0.997851,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,drb-id-rb,Amort,L,7,1.09779,-2.45839,0.999827,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,full-id,Med,L,7,1.05729,-1.84247,0.999268,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,full-id,Amort,L,7,1.05387,-1.81778,0.999032,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,gudhi,Med,L,7,1.09653,-1.04061,0.999663,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,gudhi,Amort,L,7,1.09084,-1.00823,0.999376,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,mmhm,Med,L,7,1.0285,-1.98676,0.998433,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,mmhm,Amort,L,7,1.09497,-2.25693,0.999471,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,mmhm-norb,Med,L,7,0.987011,-1.80634,0.994825,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveCycle,mmhm-norb,Amort,L,7,1.09008,-2.23476,0.999556,1000,1e+06,w5a_L1000 w5a_L3000 w5a_L10000 w5a_L30000 w5a_L100000 w5a_L300000 w5a_L1000000
+E6,WFiveSphere,drb-id,Med,n_2,6,1.17314,-3.01829,0.999622,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,drb-id,Amort,n_2,6,1.1189,-2.50086,0.999521,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,drb-id-rb,Med,n_2,6,1.15637,-2.93029,0.997644,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,drb-id-rb,Amort,n_2,6,1.10357,-2.41782,0.999278,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,euler,Med,n_2,6,0.00825357,-1.03645,0.0655739,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,euler,Amort,n_2,6,0.138697,-1.41879,0.978266,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,full-id,Med,n_2,6,1.05977,-1.17926,0.998411,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,full-id,Amort,n_2,6,1.04764,-1.1393,0.999424,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,gudhi,Med,n_2,6,1.09685,-0.593052,0.998998,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,gudhi,Amort,n_2,6,1.09229,-0.567676,0.998857,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,mmhm,Med,n_2,6,1.25236,-3.28138,0.998178,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,mmhm,Amort,n_2,6,1.16378,-2.66689,0.999645,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,mmhm-norb,Med,n_2,6,1.23606,-3.18153,0.996829,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8
+E6,WFiveSphere,mmhm-norb,Amort,n_2,6,1.16266,-2.6533,0.998786,1280,1.31072e+06,w5b_L3 w5b_L4 w5b_L5 w5b_L6 w5b_L7 w5b_L8

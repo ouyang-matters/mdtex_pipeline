@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """F4: behaviour over time (seed 0) for the four DRB methods.
-Top row: per-update latency, mean over a sliding window of 50 updates (so the
-cost of a rebuild is spread over its window), with a rug of rebuild events
+Top row: per-update latency, mean over a sliding window of the last 50 updates
+(plotted from t = 50; the cost of a rebuild is spread over its window), with a
+rug of rebuild events
 (mmhm, drb-id-rb; default policy alpha = 1, period off). Bottom row:
 nnz(R) + nnz(V) after each update. Columns: W2 N = 22 (E1), W3 N = 20 (E3),
 W1 torus 256x256 (E5); on W1 a grey rug marks the updates after which every
@@ -46,10 +47,10 @@ def main():
             except FileNotFoundError:
                 continue
             u = df[df.t > 0]
-            roll = (u.time_ns / 1e3).rolling(WIN, min_periods=1).mean()
+            roll = (u.time_ns / 1e3).rolling(WIN, min_periods=WIN).mean()  # from t = WIN
             at.plot(u.t, roll, color=S.COLOR[m], lw=1.1, label=m)
             # sparse markers as secondary encoding
-            idx = np.arange(100, len(u), 400) + 40 * METHODS.index(m)
+            idx = np.arange(150, len(u), 400) + 40 * METHODS.index(m)
             idx = idx[idx < len(u)]
             at.plot(u.t.iloc[idx], roll.iloc[idx], ls="none", marker=S.MARKER[m], ms=4,
                     color=S.COLOR[m], mec="white", mew=0.5)
@@ -67,10 +68,10 @@ def main():
             except FileNotFoundError:
                 continue
             rb = df[df.rebuild == 1].t
-            yy = hi * (0.62 if k == 0 else 0.42)
+            yy = hi * (2.0 if k == 0 else 1.45)
             at.plot(rb, np.full(len(rb), yy), ls="none", marker="|", ms=6, mew=1.2,
                     color=S.COLOR[m])
-        at.set_ylim(lo, hi * 1.0)
+        at.set_ylim(lo, hi * 2.8)  # headroom above the data for the rebuild rugs
         S.log_axis(at, "y")
         if w.startswith("w1"):
             bpath = os.path.join(S.RES, exp, f"{w}__full-id__seed0.betti.gz")
@@ -95,6 +96,8 @@ def main():
     fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 1.04),
                handlelength=1.6, columnspacing=1.2)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
+    S.missing_note(fig, [e for e, _, _ in COLS], lambda w: w in [x for _, x, _ in COLS],
+                   METHODS + ["full-id"])
     S.save(fig, "F4_time_series")
 
 

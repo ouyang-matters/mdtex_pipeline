@@ -67,6 +67,15 @@ def main():
                 k = np.clip(np.searchsorted(xs, gx, side="right") - 1, 0, len(xs) - 1)
                 ax.plot(gx, ys[k], ls="none", marker=S.MARKER[m], ms=4, color=S.COLOR[m],
                         mec="white", mew=0.5)
+            # say so where a rebuilding method never rebuilt and coincides with its twin
+            same = []
+            for a, b in (("mmhm", "mmhm-norb"), ("drb-id-rb", "drb-id")):
+                va, vb = pooled(exp, w, a, col), pooled(exp, w, b, col)
+                if len(va) and len(va) == len(vb) and np.array_equal(va, vb):
+                    same.append(f"{a} = {b}")
+            if same and i == 0:
+                ax.text(0.03, 0.03, "identical (no rebuild fired):\n" + "\n".join(same),
+                        transform=ax.transAxes, fontsize=6.3, color=S.INK2, va="bottom")
             ax.set_xscale("log")
             ax.set_yscale("log")
             S.log_axis(ax, "x")
@@ -81,6 +90,7 @@ def main():
     fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 1.04),
                handlelength=1.8, columnspacing=1.4)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
+    S.missing_note(fig, [e for e, _, _ in COLS], lambda w: w in [x for _, x, _ in COLS], METHODS)
     S.save(fig, "F5_footprint_ccdf")
 
 

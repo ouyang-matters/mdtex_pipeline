@@ -32,3 +32,12 @@ Seeds and repetition counts are recorded per configuration in `experiments/confi
 * Seeds 0, 1, 2 for every configuration (`configs/E*.json`); T = 2000 updates,
   except `gudhi` above 3e5 simplices (prefix T′ = 200). Timed exact runs use
   `--verify-every 50` (verification is not timed).
+* Hard limits (set while the sweep ran): per-run wall-clock limit 30 min
+  (killed, recorded as `timeout`, never retried) and no launches after 09:00
+  UTC (`run.py --timeout 1800 --no-launch-after 2026-10-11T09:00`), with the
+  remaining runs reordered small/mid sizes and seed 0 first, the largest
+  instances and the E7 grid last. The runner was restarted once to apply them
+  (two in-flight runs were discarded and re-run from scratch). No run hit
+  either limit: the sweep (1,236 runs) ran 04:04–06:37 UTC, and
+  `results/NOT_RUN.csv` is empty. The longest single run took 6.6 min
+  (`full-id` on W5b level 8).

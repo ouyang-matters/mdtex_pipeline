@@ -49,6 +49,8 @@ def main():
     fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 1.06),
                handlelength=1.6, columnspacing=1.2)
     fig.tight_layout(rect=(0, 0, 1, 0.92))
+    S.missing_note(fig, ["E2"], None, METHODS)
+    S.missing_note(fig, ["E1"], lambda w: w == "w2_N22_s8", METHODS, y=-0.06)
     S.save(fig, "F3_latency_vs_edit_size")
 
 

@@ -57,6 +57,7 @@ def main():
     fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 1.04),
                handlelength=2.4, columnspacing=1.3)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
+    S.missing_note(fig, ["E7"])
     S.save(fig, "F7_rebuild_sensitivity")
 
 

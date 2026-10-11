@@ -53,9 +53,14 @@ def main():
         ax.set_xlabel(xlab)
         ax.set_ylabel(r"amortized latency per toggle ($\mu$s)")
         ax.set_title(title, loc="left")
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=6.6,
+        h, l = ax.get_legend_handles_labels()
+        from matplotlib.lines import Line2D
+        h.append(Line2D([], [], ls="none", marker="o", ms=6, mfc="white", mec=S.MUTED))
+        l.append("hollow: prefix $T'=200$")
+        ax.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=6.6,
                   handlelength=1.5, columnspacing=1.0)
     fig.tight_layout()
+    S.missing_note(fig, ["E6"], None, METHODS, y=-0.12)
     S.save(fig, "F6_nonlocality")
 
 
