@@ -10,10 +10,11 @@ Python 3 standard library.
 | `drb_ref.py` | `.seq` reader (§6.1), DRB insert (§2.1) and delete Case A/B (§2.2), collapse matching + Morse order (§3), static reduction with clearing tracking `V` (§4), methods `drb-id`, `mmhm`, `mmhm-norb`, `full-id`, `full-morse`, `lcr` (§5, incl. the §5.1 rebuild policy), Betti writer (§6.2) |
 | `check_props.py` | randomized checks of Theorem 1, Lemma 2 and its corollaries, Proposition 4, and the searches that produce the E1/E2 counterexamples of the erratum |
 | `counterexamples.json` | output of `check_props.py --write counterexamples.json` (seed 20250817): every recorded instance below, machine-readable |
+| `check_props_numbers.tex` | output of `check_props.py --write-tex check_props_numbers.tex`: the `\Ref…` macros that `paper/sections/erratum.tex` cites (enumeration counts, ρ bounds) |
 
 ```
 python3 drb_ref.py --seq FILE --method mmhm [--period M] [--alpha A] [--betti-out OUT] [--check-invariants]
-python3 check_props.py [--quick] [--seed S] [--write counterexamples.json]
+python3 check_props.py [--quick] [--seed S] [--write counterexamples.json] [--write-tex check_props_numbers.tex]
 ```
 `check_props.py` takes about 18 s (`--quick`: 2 s) and exits non-zero on any
 failure. `--check-invariants` makes `drb_ref.py` verify (I1)–(I3) after every
@@ -90,6 +91,11 @@ pivot of `{0,1}`; `R_{12}` stays 0 although `{1,2}` no longer lies on a cycle.
 change and v1's "re-initialise the pivot map when rows change" clause does not
 apply.
 
+Note: these two instances refute the *rule* (as `lcr` implements it). They are
+too small to refute v1 *as specified*: on them v1's locality ratio ρ_t
+exceeds τ = 0.3 and v1 would recompress. See (f) for instances where no
+safeguard of v1 fires.
+
 **(d) E2 — the affected set `critical ∩ directly modified` is wrong.**
 Matching = collapse matching of SPEC §3; edit = deletion of a maximal cell `y`
 that is the upper cell of a gradient pair `(x, y)`; maintenance convention =
@@ -118,6 +124,46 @@ vertex. True Betti after: (1, 1, 0, 0); v1's stale critical complex:
 with the critical edge is such an edit (702 edits in total), as proved in the
 erratum: the two gradient paths from the critical edge's endpoints are the two
 arcs to the critical vertex, and deleting a matched edge cuts one of them.
+
+The 4-cycle and 3×3-torus instances above show that the Morse boundary of a
+distant critical cell changes, but they are *illustrations only*: deleting the
+matched cell gives v1's locality ratio ρ₁ ≤ 1.00 (4-cycle) and 0.80 (3×3 torus)
+under the counting of (f), at least τ = 0.3, so v1 would recompress and be
+correct. The instances of (f) replace them in the paper.
+
+**(f) Version 1 as specified — no safeguard fires.** v1 recompresses when
+t ≡ 0 (mod m = 32), when ρ_t = Σ|R^C_k(t)| / max(1, Σ|C^C_k(t)|) ≥ τ = 0.30, or
+when a gate precondition fails (gates are optional; v1 ran P2 without them, and
+the instances are not connected 2-manifolds, so they use v1 without gates).
+`v1_rho` bounds ρ_t from above with the most generous numerator any local
+reading allows (every cell critical before *or* after the update in the closed
+star, before or after, of a vertex of an edited simplex) over the critical cells
+before the update; the check requires this bound < 0.30 at every update, at most
+4 updates, and wrong v1 Betti numbers. Matching maintenance between
+recompressions (unspecified in v1): keep every pair not involving a deleted
+cell; partners of deleted matched cells and inserted cells are critical.
+
+* *E1:* K₀ = 20 isolated vertices 0..19 (every matching on K₀ is empty), then
+  updates `+01`, `+02`, `+12`, `−01`. Inserted cells stay critical, so B^C = B
+  and v1's localized reducer is `lcr`. ρ_t ≤ 0.15, 0.24, 0.27, 0.26. After the
+  last update v1 reports (β₀, β₁) = (19, 1); truth and DRB (18, 0). The failure
+  occurs for all 6 orders of the rows 0, 1, 2. No vertex is inserted or deleted,
+  so the row-set clause does not apply. (Under the reading of v1 §2.5 in which
+  r_k is recomputed from scratch whenever a column changes, E1 does not occur.)
+* *E2, graph:* two disjoint 8-cycles on 0..7 and 8..15; critical `{0,1}`,
+  `{8,9}`, `{5}`, `{13}`. Update 1 deletes the matched edge `{2,3}` (partner
+  `{2}`): ∂ᴹ{0,1} changes from 0 to `{2}+{5}`; ρ₁ ≤ 1/4 (strict count 0).
+  v1 reports (3, 2); truth (2, 1).
+* *E2, critical triangle:* the 5×5 grid torus on 1..25 (vertex (i,j) ↦ 1+5i+j)
+  plus the cone with apex 0 over the meridian 1–6–11–16–21; critical `{0,1,6}`,
+  `{1,2,7}`, `{4,10}`, `{15,16}`, `{24}`. Update 1 deletes the matched triangle
+  `{8,13,14}` (partner edge `{8,13}`): ∂ᴹ{1,2,7} changes from 0 to `{8,13}`;
+  ρ₁ ≤ 1/5. v1 reports (1, 2, 1); truth (1, 1, 0).
+
+For both E2 instances the stored column of the distant critical cell is never
+replaced, so the error is the same whether the pivot map is re-initialised,
+r_k is recomputed from the stored critical matrix, or only the new critical
+column is inserted incrementally.
 
 **(e) Proposition 4 — W5 non-locality.** Cycle graph `C_L` toggling edge
 `{0,1}`, and the bipyramid sphere over an `L/2`-cycle (`n₂ = L` triangles)

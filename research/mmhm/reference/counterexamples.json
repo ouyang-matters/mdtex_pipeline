@@ -754,6 +754,225 @@
   ],
   "edits": 702
  },
+ "v1_faithful": {
+  "tau": 0.3,
+  "m": 32,
+  "E1": {
+   "n_isolated_padding": 17,
+   "K0_vertices": 20,
+   "updates": [
+    {
+     "t": 1,
+     "update": "+01",
+     "rho_gen": 0.15,
+     "rho_strict": 0.1,
+     "v1_betti": [
+      19,
+      0
+     ],
+     "true_betti": [
+      19,
+      0
+     ],
+     "drb_betti": [
+      19,
+      0
+     ]
+    },
+    {
+     "t": 2,
+     "update": "+02",
+     "rho_gen": 0.2381,
+     "rho_strict": 0.0952,
+     "v1_betti": [
+      18,
+      0
+     ],
+     "true_betti": [
+      18,
+      0
+     ],
+     "drb_betti": [
+      18,
+      0
+     ]
+    },
+    {
+     "t": 3,
+     "update": "+12",
+     "rho_gen": 0.2727,
+     "rho_strict": 0.0909,
+     "v1_betti": [
+      18,
+      1
+     ],
+     "true_betti": [
+      18,
+      1
+     ],
+     "drb_betti": [
+      18,
+      1
+     ]
+    },
+    {
+     "t": 4,
+     "update": "-01",
+     "rho_gen": 0.2609,
+     "rho_strict": 0.1304,
+     "v1_betti": [
+      19,
+      1
+     ],
+     "true_betti": [
+      18,
+      0
+     ],
+     "drb_betti": [
+      18,
+      0
+     ]
+    }
+   ],
+   "rho_gen_max": 0.2727,
+   "row_orders_failing": 6,
+   "row_orders": 6
+  },
+  "E2_cycles": {
+   "instance": "two disjoint 8-cycles on 0..7 and 8..15",
+   "n_cells": 32,
+   "critical": [
+    [
+     0,
+     1
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     5
+    ],
+    [
+     13
+    ]
+   ],
+   "deleted_matched_cell": [
+    2,
+    3
+   ],
+   "partner_now_critical": [
+    2
+   ],
+   "far_critical_changed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "morse_boundary_before": {
+    "[0, 1]": []
+   },
+   "morse_boundary_after": {
+    "[0, 1]": [
+     [
+      2
+     ],
+     [
+      5
+     ]
+    ]
+   },
+   "t": 1,
+   "rho_gen": 0.25,
+   "rho_strict": 0.0,
+   "true_betti_after": [
+    2,
+    1,
+    0,
+    0
+   ],
+   "v1_betti_after": [
+    3,
+    2,
+    0,
+    0
+   ]
+  },
+  "E2_torus": {
+   "instance": "5x5 grid torus on 1..25 + cone with apex 0 over meridian 1-6-11-16-21",
+   "n_cells": 161,
+   "critical": [
+    [
+     0,
+     1,
+     6
+    ],
+    [
+     1,
+     2,
+     7
+    ],
+    [
+     4,
+     10
+    ],
+    [
+     15,
+     16
+    ],
+    [
+     24
+    ]
+   ],
+   "deleted_matched_cell": [
+    8,
+    13,
+    14
+   ],
+   "partner_now_critical": [
+    8,
+    13
+   ],
+   "far_critical_changed": [
+    [
+     1,
+     2,
+     7
+    ]
+   ],
+   "morse_boundary_before": {
+    "[1, 2, 7]": []
+   },
+   "morse_boundary_after": {
+    "[1, 2, 7]": [
+     [
+      8,
+      13
+     ]
+    ]
+   },
+   "t": 1,
+   "rho_gen": 0.2,
+   "rho_strict": 0.0,
+   "true_betti_after": [
+    1,
+    1,
+    0,
+    0
+   ],
+   "v1_betti_after": [
+    1,
+    2,
+    1,
+    0
+   ]
+  },
+  "illustrations_rho_at_least_tau": {
+   "4-cycle, delete [2,3]": 1.0,
+   "3x3 torus + disk, delete [6,7,9]": 0.8
+  }
+ },
  "prop4": [
   {
    "family": "cycle",

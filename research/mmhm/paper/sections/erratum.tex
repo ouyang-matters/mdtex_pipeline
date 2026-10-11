@@ -1,31 +1,51 @@
 % sections/erratum.tex -- erratum to version 1 (arXiv:2508.14429v1).
-% Intended to be \input right after sections/theory.tex: it is the last
-% subsection of the theory section (change \subsection to \section if it is
-% placed elsewhere). Every instance below is produced and checked by
-% research/mmhm/reference/check_props.py (recorded in reference/README.md and
-% reference/counterexamples.json).
+% \input after sections/theory.tex. Every instance below is produced and checked
+% by research/mmhm/reference/check_props.py (checks (c), (d) and (f)); see
+% reference/README.md and reference/counterexamples.json. The numbers marked
+% \Ref... come from reference/check_props_numbers.tex, written by
+% `check_props.py --write-tex`.
 
-\subsection{Erratum to version 1}\label{sec:erratum}
+\IfFileExists{../reference/check_props_numbers.tex}%
+  {\input{../reference/check_props_numbers.tex}}{}
+\providecommand{\RefEOneCountsShort}{\textbf{??}}
+\providecommand{\RefEOneCountSeven}{\textbf{??}}
+\providecommand{\RefEOneFailSeven}{\textbf{??}}
+\providecommand{\RefEOneVOnePad}{\textbf{??}}
+\providecommand{\RefEOneVOneRhoMax}{\textbf{??}}
+\providecommand{\RefEOneVOneRowOrders}{\textbf{??}}
+\providecommand{\RefETwoCycleRho}{\textbf{??}}
+\providecommand{\RefETwoTorusRho}{\textbf{??}}
+
+\section{Erratum to version 1}\label{sec:erratum}
 
 This paper replaces version~1~\cite{ouyang2025mmhm_v1}. The update rule of
 version~1 does not maintain exact Betti numbers. We state what version~1
-specified, give counterexamples to its two exactness claims, and record an
-inconsistency in its experiment P2. Section and figure numbers below refer to
-version~1.
+specified, give instances on which it fails although none of its safeguards
+applies, and record an inconsistency in its experiment P2. Section and figure
+numbers below refer to version~1.
 
 \paragraph{What version 1 specified.}
 An acyclic matching on $K$ defines critical cells, critical chain groups
 $C_k^C$ and a critical boundary $\bd_k^C$ ``induced by the matching via
-$V$-paths (Forman's gradient flow)'', with matrices $\Bm{k}^C$; Betti numbers
-are read off from $r_k=\rank\Bm{k}^C$ and the numbers of critical cells
-(\S2.2, \S2.5). The matching is computed at initialisation and at
-\emph{recompression events}: every $m$ updates, when the fraction $\rho_t$ of
-affected critical cells reaches a threshold $\tau$, or when a gate precondition
-fails (typical choices $m=32$, $\tau=0.30$). No rule is given for updating the
-matching between recompressions. For an edit, $R_k\subseteq\Kc{k}$ is the set of
-$k$-simplices ``whose incidences in the boundary operators are affected by the
-modification'', computed by comparing the stars of the modified region before
-and after the update, and the affected critical columns are
+$V$-paths (Forman's gradient flow)'', with matrices $\Bm{k}^C$. Betti numbers
+are read off from $r_k=\rank\Bm{k}^C$ and the numbers $n_k^C$ of critical cells
+(\S2.2, \S2.5). The matching is computed by a discrete Morse reduction at
+initialisation and again at \emph{recompression events} (\S2.2), which are
+triggered by any of: the periodic trigger $t\equiv0\pmod m$; the locality
+trigger $\rho_t\ge\tau$, where
+\[
+  \rho_t=\frac{\sum_k|R_k^C(t)|}{\max\bigl(1,\sum_k|C_k^C(t)|\bigr)},
+\]
+$C_k^C(t)$ being the critical $k$-cells before update $t$ and
+$R_k^C(t)\subseteq C_k^C(t)$ those ``whose column incidences change due to
+update $t$''; and a validity trigger when a precondition of a combinatorial gate
+fails. Typical values are $m=32$ and $\tau=0.30$. The gates are optional
+(``No combinatorial gate is used in P2'', \S3.3). No rule is given for updating
+the matching between recompressions. For an edit, $R_k\subseteq\Kc{k}$ is the set
+of $k$-simplices ``whose incidences in the boundary operators are affected by
+the modification'', computed ``via a face-difference procedure that compares
+the pre-update and post-update stars of the modified region'', and the affected
+critical columns are
 \[
   R_k^C=\{\,j : \sigma_j^k\in C_k^C\ \text{and}\ \sigma_j^k\in R_k\,\}
 \]
@@ -34,11 +54,31 @@ incidence patterns, ``followed by reapplying column-reduction operations only to
 these affected columns and to any columns whose pivots conflict with them'';
 ``when a column is replaced, its pivot assignment is cleared, the column is
 re-reduced against existing pivots, and any resulting pivot conflicts are
-propagated in a localized manner''. If the row set of $\Bm{k}^C$ changes, the
-pivot map of that dimension is re-initialised. Version~1 states that this
-``ensures that the rank of $\Bm{k}^C$ is updated exactly'' (\S2.3) and
-``guarantees exact Betti numbers'' (\S2.5). Both statements are false, for two
-independent reasons, E1 and E2.
+propagated in a localized manner''. Two further clauses concern rows and
+ranks. \S2.3: ``If the update inserts or deletes $(k{-}1)$-simplices (thus
+changing the row set of $\Bm{k}^C$), the pivot map of $\Bm{k}^C$ is
+re-initialized for that dimension.'' \S2.5: $r_k$ is recomputed ``if either the
+column set of $\Bm{k}^C$ changes ($R_k^C\ne\emptyset$) or the row set of
+$\Bm{k}^C$ changes'', and ``if a localized reducer is available in dimension
+$k^*$, the rank $r_{k^*}$ is updated incrementally by reassigning pivots in the
+column-reduced form (over $\Z$), avoiding any operation on unaffected columns''.
+Version~1 states that its rule ``ensures that the rank of $\Bm{k}^C$ is updated
+exactly'' (\S2.3) and ``guarantees exact Betti numbers'' (\S2.5). Both
+statements are false, for two independent reasons, E1 and E2.
+
+\paragraph{What counts as a counterexample.}
+An instance refutes version~1 as specified only if none of its safeguards
+applies. All instances below have at most four updates, so the periodic trigger
+does not fire. For the locality trigger we bound $\rho_t$ from above with the
+most generous numerator that any local reading of $R_k^C(t)$ allows: every cell
+that is critical before \emph{or} after update $t$ and lies in the closed star of
+a vertex of an edited simplex, before or after the update; the denominator is
+the number of critical cells before the update, as defined above. We require
+this bound to be below $\tau=0.30$ at every update. The gate preconditions
+(connected $2$-manifolds) fail on these complexes, so with gates enabled the
+validity trigger would request a recompression; the instances therefore use
+version~1 without gates, which is how it ran P2. Finally, we
+check each instance against the row and rank clauses quoted above.
 
 \paragraph{E1: a reduced column records the columns it absorbed.}
 In a column reduction $R=BV$, a reduced column $R_b=\bd b+\bd a_1+\dots$ is
@@ -58,33 +98,48 @@ conflict; $R_b=0$ is not touched. The reported rank is $1$; the rank of
 $[\,e_2\mid e_1\,]$ is $2$.
 \end{example}
 
-\begin{example}[E1, shortest simplicial instance]\label{ex:e1-simplicial}
-The empty matching is admissible in version~1 (every simplex in at most one pair,
-no closed $V$-path); then $\Bm{k}^C=\Bm{k}$. Apply, one edit per update, with keys
-in insertion order,
+\begin{example}[E1 for version 1 as specified]\label{ex:e1-simplicial}
+Let $K_0$ consist of \RefEOneVOnePad{} isolated vertices $0,1,\dots$. Every
+matching on $K_0$ is empty, since $K_0$ has no pair of incident cells, so the
+Morse reduction at initialisation leaves every cell critical. Version~1 gives no
+rule for matching inserted cells; we keep them critical, so $\Bm{k}^C=\Bm{k}$
+throughout and the localized reducer acts on $\Bm{1}$ itself. Apply four
+updates of one edit each, with rows and columns in index order:
 \[
-  +\{0\},\ +\{1\},\ +\{2\},\ +\{0,1\},\ +\{0,2\},\ +\{1,2\},\ -\{0,1\}.
+  t=1{:}\ {+}\{0,1\},\qquad t=2{:}\ {+}\{0,2\},\qquad t=3{:}\ {+}\{1,2\},\qquad
+  t=4{:}\ {-}\{0,1\}.
 \]
-After $+\{1,2\}$ the reduction gives $R_{01}=\{0,1\}$, $R_{02}=\{0,2\}$ and
-$R_{12}=\{1,2\}+\{0,2\}+\{0,1\}=0$, so $\beta=(1,1)$. Deleting $\{0,1\}$ clears
-its pivot and drops its column; $R_{12}=0$ stays. Reported: $r_1=1$,
-$\beta=(2,1)$. True: the path $1$--$2$--$0$, $r_1=2$, $\beta=(1,0)$. The DRB has
-$V_{12}=\{\{1,2\},\{0,2\},\{0,1\}\}$, so $\occ(\{0,1\})$ contains the slots of
-$\{0,1\}$ and $\{1,2\}$; Case A applies with $z$ the slot of $\{1,2\}$, sets
-$V_{01}\gets\{\{1,2\},\{0,2\}\}$ (still $\bd V_{01}=\{0,1\}=R_{01}$), removes
-slot $z$, and reports $r_1=2$.
-This is a shortest instance. An exhaustive enumeration of the valid edit
-sequences on at most four vertices, up to relabelling (1, 2, 5, 15, 61 and 263
-sequences of lengths 1 to 6, and 1250 of length 7), finds no failure of length
-at most 6 and 18 of length 7; a sequence of length at most 6 on five or more
-vertices contains at most one edit of positive dimension and cannot fail. The failing
-edit deletes an edge, so the row set of $\Bm{1}$ is unchanged and the
-re-initialisation clause does not apply. Adding $N\ge5$ isolated vertices, which
-are critical under every matching and untouched by the edits, makes
-$\rho_1\le 3/(6+N)<0.3$; with $m=32$ and gates disabled (as in version~1's P2),
-no recompression is triggered, and the reported $\beta_0$ is one too large and
-$\beta_1=1$ instead of~$0$.
+After $t=3$ the reduction gives $R_{01}=\{0,1\}$, $R_{02}=\{0,2\}$ and
+$R_{12}=\{1,2\}+\{0,2\}+\{0,1\}=0$. At $t=4$ the column of $\{0,1\}$ releases its
+pivot and is dropped, and $R_{12}=0$ stays. The reported Betti numbers are
+$(\beta_0,\beta_1)=(19,1)$; the truth is $(18,0)$, because $\{0,2\}$ and
+$\{1,2\}$ form a path. The DRB has $V_{12}=\{\{1,2\},\{0,2\},\{0,1\}\}$, so
+$\occ(\{0,1\})$ contains the slots of $\{0,1\}$ and $\{1,2\}$; Case A sets
+$V_{01}\gets\{\{1,2\},\{0,2\}\}$ (still $\bd V_{01}=\{0,1\}=R_{01}$), removes the
+slot of $\{1,2\}$, and reports $(18,0)$.
+\emph{Safeguards.} The bound on $\rho_t$ is $0.15$, $0.24$, $0.27$ and $0.26$
+for $t=1,\dots,4$ (at most \RefEOneVOneRhoMax). No update inserts or deletes a
+vertex, and no vertex changes its critical status, so neither the literal
+row-set clause nor a broader reading of it applies to $\Bm{1}^C$. The failure
+does not depend on the order of the rows $0,1,2$: it occurs for
+\RefEOneVOneRowOrders{} of the 6 orders.
+\emph{The rank clause.} If ``$r_k$ is recomputed'' in \S2.5 is read as a
+recomputation of $\rank\Bm{1}^C$ from scratch whenever a column of $\Bm{1}^C$
+changes, then E1 does not occur, but every such update is then a full rank
+computation of $\Bm{1}^C$. Version~1 presents the localized reducer, which
+updates $r_k$ ``incrementally by reassigning pivots'', as its method; E1 refutes
+that reducer. E2 below fails under every reading.
 \end{example}
+
+Without the padding, the same seven edits ($+\{0\},+\{1\},+\{2\}$ followed by
+the four updates above) are the shortest edit sequence on which the rule fails.
+An exhaustive enumeration of the valid edit sequences on at most four
+vertices, up to relabelling (\RefEOneCountsShort{} sequences of lengths 1 to 6,
+and \RefEOneCountSeven{} of length 7), finds no failure of length at most 6 and
+\RefEOneFailSeven{} of length 7; a sequence of length at most 6 on five or more
+vertices contains at most one edit of positive dimension and cannot fail. On so
+small a complex, however, $\rho_t$ exceeds $\tau$, which is why the instance above
+is padded.
 
 \paragraph{E2: the affected set misses distant critical columns.}
 The critical boundary is a sum over gradient paths, $\dM c=\flow(\bd c)$
@@ -98,59 +153,102 @@ deleted cell; the partner of a deleted matched cell, and every inserted cell,
 becomes critical. The restriction of an acyclic matching is acyclic, so this is
 a valid matching. (Under this convention insertions are harmless: a new cell is
 maximal and critical and lies on no gradient path. Deleting a matched cell is
-not.)
+not.) In the two examples below the stored column of the distant critical cell
+is never replaced, so the error is the same under the three readings of the row
+and rank clauses: re-initialising the pivot map rebuilds it from the stored,
+stale columns; recomputing $r_k$ computes the rank of the stored, stale matrix;
+and the incremental reducer only inserts the column of the new critical cell.
 
-\begin{example}[E2 on cycle graphs]\label{ex:e2-cycle}
-Let $K=C_L$, $L\ge4$, with the collapse matching of
-Definition~\ref{def:collapse}. The collapse removes one critical edge $c$, then
-collapses the remaining path completely, leaving one critical vertex $r$. The
-gradient paths from the two endpoints of $c$ are the two arcs of $C_L\setminus c$
-from those endpoints to $r$; together they contain every matched edge exactly
-once, and $\dM c=r+r=0$. Delete a matched edge $y=V(x)$: now $x$ is critical,
-the arc through $y$ ends at $x$, and $\dM c=r+x\ne0$. When $y$ shares no vertex
-with $c$, the column $c$ is not in $R_1^C$ and stays $0$; the critical complex
-then reports $\beta=(2,1)$ instead of $(1,0)$. Such $y$ exist at graph distance
-up to about $L/2$ from $c$. The smallest case, $L=4$ with edges
-$\{0,1\},\{1,2\},\{2,3\},\{0,3\}$: the collapse gives $c=\{0,1\}$, $r=\{3\}$ and
-pairs $(\{1\},\{1,2\})$, $(\{0\},\{0,3\})$, $(\{2\},\{2,3\})$; deleting $\{2,3\}$
-changes $\dM\{0,1\}$ from $0$ to $\{2\}+\{3\}$.
+\begin{example}[E2 on a graph]\label{ex:e2-cycle}
+Let $K_0$ be two disjoint $8$-cycles, on the vertices $0,\dots,7$ and
+$8,\dots,15$, with the collapse matching of Definition~\ref{def:collapse}. Its
+critical cells are the edges $c=\{0,1\}$ and $\{8,9\}$ and the vertices
+$r=\{5\}$ and $\{13\}$, and $\dM c=r+r=0$: the gradient paths from the two
+endpoints of $c$ are the two arcs of the first cycle from those endpoints to
+$r$. At $t=1$ delete the matched edge $y=\{2,3\}$, whose partner is $\{2\}$. Now
+$\{2\}$ is critical, the arc through $y$ ends at $\{2\}$, and
+$\dM c=\{2\}+\{5\}$. The edge $c$ shares no vertex with $y$, so its column is not
+in $R_1^C$ and stays $0$. The reported Betti numbers are $(3,2)$; the truth is
+$(2,1)$.
+\emph{Safeguards.} The closed stars of the vertices $2$ and $3$ contain no
+critical cell before the update, and after it only $\{2\}$, so
+$\rho_1\le1/4=\RefETwoCycleRho$. No vertex is inserted or deleted, so the literal
+row-set clause does not apply to $\Bm{1}^C$; under a broader reading the new
+critical row $\{2\}$ re-initialises the pivot map of $\Bm{1}^C$, which leaves the
+stored column of $c$ at $0$.
+More generally, on a cycle $C_L$ the collapse leaves one critical edge $c$ and
+one critical vertex $r$, the two arcs from the endpoints of $c$ to $r$ contain
+every matched edge exactly once, and deleting any matched edge $y=\mu(x)$ makes
+$\dM c=r+x\ne0$; when $y$ avoids $c$ and $r$, version~1 does not see the change.
+A second component (or padding by isolated vertices) is needed only to keep
+$\rho_t$ below $\tau$.
 \end{example}
 
 \begin{example}[E2 with a critical triangle]\label{ex:e2-torus}
-Let $K$ be the $3\times3$ grid torus on the vertices $1,\dots,9$, in which
-vertex $(i,j)$, $i,j\in\mathbb{Z}/3$, is labelled $1+3i+j$ and the triangles are
+Let $K_0$ be the $5\times5$ grid torus on the vertices $1,\dots,25$, in which
+vertex $(i,j)$, $i,j\in\mathbb{Z}/5$, is labelled $1+5i+j$ and the triangles are
 \[
   \{(i,j),(i{+}1,j),(i{+}1,j{+}1)\},\qquad \{(i,j),(i,j{+}1),(i{+}1,j{+}1)\},
 \]
-together with the cone with apex $0$ over the meridian $1$--$4$--$7$;
-$\beta(K)=(1,1,1)$. The collapse matching (FIFO queue) has critical cells
-$\{0,1,4\}$, $\{1,2,5\}$, $\{3,4\}$, $\{3,8\}$, $\{9\}$, and $\dM\{1,2,5\}=0$.
-Deleting the matched triangle $\{6,7,9\}$, paired with the edge $\{6,9\}$,
-changes $\dM\{1,2,5\}$ to $\{6,9\}$, although $\{1,2,5\}$ and $\{6,7,9\}$ share no
-vertex. The stale critical complex reports $\beta=(1,2,1)$; the truth is
-$(1,1,0)$.
+together with the cone with apex $0$ over the meridian $1$--$6$--$11$--$16$--$21$;
+$\beta(K_0)=(1,1,1)$. The collapse matching (first-in-first-out queue) has the
+critical cells $\{0,1,6\}$, $\{1,2,7\}$, $\{4,10\}$, $\{15,16\}$ and $\{24\}$, and
+$\dM\{1,2,7\}=0$. At $t=1$ delete the matched triangle $\{8,13,14\}$, paired with
+the edge $\{8,13\}$. This changes $\dM\{1,2,7\}$ to $\{8,13\}$, although
+$\{1,2,7\}$ and $\{8,13,14\}$ share no vertex. The reported Betti numbers are
+$(1,2,1)$; the truth is $(1,1,0)$.
+\emph{Safeguards.} The only cell that is critical before or after the update
+and lies in the closed stars of $8$, $13$ and $14$ is $\{8,13\}$, so
+$\rho_1\le1/5=\RefETwoTorusRho$. The update deletes a $2$-simplex, so the literal
+row-set clause concerns $\Bm{3}^C$, which has no columns; under a broader
+reading the new critical row $\{8,13\}$ re-initialises the pivot map of
+$\Bm{2}^C$, which leaves the stored column of $\{1,2,7\}$ at $0$.
 \end{example}
+
+Smaller complexes show the same change of $\dM c$, for instance a single
+$4$-cycle or a $3\times3$ torus with a disk, but on them $\rho_1\ge\tau$ under
+the counting above, so version~1 would recompress and return correct Betti
+numbers. They illustrate the defect of the affected set but do not refute
+version~1 as specified.
+
+\paragraph{The ablation \method{lcr}.}
+The method \method{lcr} of the experiments (\cref{sec:exp-methods}) applies
+version~1's re-reduction rule to the full boundary matrices, without basis
+tracking. It isolates defect~E1 and is not a reimplementation of version~1: it
+forms no Morse complex (so E2 cannot occur), never recompresses, and has no
+gates. Its error rates therefore measure E1, not version~1 as a whole. In
+particular, on the connected surfaces of W1, gates of the kind version~1
+describes would return correct Betti numbers (Remark~\ref{rem:surfaces}) where
+\method{lcr} is wrong, and a periodic recompression would restore a correct
+state every $m$ updates, after which errors can occur again. We did not run a
+variant with recompression or gates, so we make no quantitative claim about
+version~1 itself.
 
 \paragraph{P2: an inconsistent workload description.}
 Version~1, \S3.3, defines the P2 sequence as alternating a refinement and ``its
 exact inverse'', $\textsc{Refine}(R_t)$ followed by $\textsc{Coarsen}(R_t)$. Under
-that definition $|K_t|$ takes at most two values. The same section states that
-each step injects $O(1)$ new simplices, ``thus $|C_t|=\Theta(t)$'', and
-Figures~4 and~5 of version~1 show sizes growing linearly over 500 updates. The
-two descriptions cannot hold for the same sequence, and version~1 does not
-determine which sequence produced its P2 timings. The workload W2 of this paper
-lets the size perform a random walk around its initial value and records it.
+that definition $|K_t|$ is bounded and returns to $|K_0|$ after every
+coarsening. The same section states that each step injects $O(1)$ new
+simplices, ``thus $|C_t|=\Theta(t)$'', and Figures~4 and~5 of version~1 show
+sizes growing linearly over 500 updates. The two descriptions cannot hold for
+the same sequence, and version~1 does not determine which sequence produced its
+P2 timings. The workload W2 of this paper lets the size perform a random walk
+around its initial value and records it.
 
-\paragraph{Why the experiments of version 1 did not reveal E1 and E2.}
-P1 (an octahedron with a two-triangle window) and P3 (a connected genus-$0$
-shell with ports) are connected surfaces with known connectivity, whose Betti
-numbers follow from $\chi$, $\beta_0=1$ and the boundary-edge criterion without
-any matrix (Remark~\ref{rem:surfaces}); version~1's gates (\S2.4) are these
-formulas. P2 has the constant Betti numbers $(1,0,0)$. None of the three
-experiments can therefore distinguish a correct update from an incorrect one.
-In this paper every exact method is compared with independent recomputations
-(Section~\ref{sec:exp-correctness}), also on three-dimensional and
-non-manifold complexes whose Betti numbers change.
+\paragraph{What the experiments of version 1 checked.}
+Version~1 shows Betti traces for P1 and P3 (its Figures~2(b) and~7(b)) and
+states that they match the specification (P1) and agree across methods (P3).
+Both are connected surfaces with
+known connectivity, whose Betti numbers follow from $\chi$, $\beta_0=1$ and the
+boundary-edge criterion without any matrix (Remark~\ref{rem:surfaces}), the
+formulas behind version~1's gates; version~1 does not state whether its gates
+were enabled there. For P2, the one experiment run without gates, version~1
+reports no Betti numbers and does not compare its output with an independent
+computation. Such a comparison would have exposed E1 even though the Betti
+numbers of P2 are constant: on the analogous workload W2, \method{lcr} reports
+wrong Betti numbers after almost every update, for the first time at update
+\NumLcrWTwoNFifteenSEightFirstWrong{} (\cref{sec:e0}, \cref{tab:correctness}). In this paper every exact method is compared with independent
+recomputations (\cref{sec:exp-correctness}).
 
 \paragraph{Cost claims.}
 Version~1, \S2.6, states a local reduction cost of

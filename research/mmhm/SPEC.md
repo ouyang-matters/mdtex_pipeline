@@ -59,7 +59,8 @@ appearing and disappearing only while zero.
 
 ## 2. Dynamic reduced basis (DRB) — the exact core
 
-Each cell `x` carries an **order key** `ord(x)` (unique 64-bit integer). For a
+Each cell `x` carries an **order key** `ord(x)` (unique integer; the engine
+uses dense 32-bit keys, renumbered `0..N−1` at every (re)build). For a
 non-empty Z2 chain `c` (a set of cells of one dimension), `low(c)` is the cell
 of `c` with maximal `ord`. Keys are fixed between rebuilds (§4); a newly
 inserted cell receives a key larger than every key in use.
@@ -91,7 +92,7 @@ else:        pivot[low(R_j)] := j  (r_k += 1, β_{k-1} decreases by 1)
 O := occ[σ]                        -- non-empty by (I3)
 Z := { j ∈ O : R_j = 0 }
 if Z ≠ ∅:                          -- Case A: σ lies on a k-cycle
-    z := argmin_{j∈Z} |V_j|        -- heuristic; any choice is correct
+    z := argmin_{j∈Z} |V_j|        -- heuristic; any choice is correct; ties: smallest slot id
     for j ∈ O \ {z}:  V_j ^= V_z   -- R_j unchanged because ∂V_z = 0
     remove slot z                  -- r_k unchanged, β_k decreases by 1
 else:                              -- Case B: σ on no k-cycle
@@ -109,9 +110,15 @@ only adds `R_p` to columns whose low is strictly larger. The row σ of
 
 Vertices (`k = 0`) need no DRB: they only change `n_0`.
 
-**Cost (output-sensitive, no locality promise).** Insert: `Σ (|R_p| + |V_p|)`
-over the reduction chain. Delete: `|O| · (|V_z|)` in Case A, `|O| · (|R_p| +
-|V_p|)` in Case B, plus `occ` maintenance. We call `occ[σ]` the **footprint**
+**Cost (output-sensitive, no locality promise; paper Proposition 3).** With
+chains as ordered sets: insert `Σ (|R_p| + |V_p|)` over the reduction chain;
+delete `|O| · |V_z|` in Case A, `|O| · (|R_p| + |V_p|)` in Case B, plus `occ`
+maintenance (each up to a log factor). With chains as sorted arrays (the
+engine), every addition is a merge that also reads the target: delete costs
+`Σ_{j∈O} (|V_j| + |V_z|)` in Case A and `Σ_{j∈O} (|R_j| + |V_j| + |R_p| +
+|V_p|)` in Case B; insertion pays the working column's size per merge unless it
+switches to the heap mode. The CSV columns `chain_adds`, `footprint_sum` and
+`nnz_*` are proxies (counts of terms, not chain sizes), not these costs. We call `occ[σ]` the **footprint**
 of σ. These are bounded by local quantities only when footprints and reduction
 chains are local; Section 6 (W5) exhibits families where they are Θ(n).
 
@@ -157,6 +164,11 @@ Consequences proved in the paper:
   cell traces its gradient flow"; it needs the highest-dimension rule for
   critical cells, Lemma 2 does not.
 
+> Spec note (revision): Lemma 2(c) now follows in one line from consecutive
+> removal times (`ord(τ) = ord(σ) − 1`) plus the filtration property: a facet and
+> a coface adjacent in a filtration order are always an apparent pair. This is
+> folklore and related to Bauer–Roll (SoCG 2024); the paper says so.
+>
 > Spec note (theory pass): the previous wording said the Lemma 2 proof "uses
 > only that every facet of σ other than τ is removed after σ"; that fact gives
 > `τ = low(∂σ)` but not apparentness, which also needs the free-face condition

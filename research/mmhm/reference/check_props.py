@@ -707,6 +707,127 @@ def e2_cycles(Ls):
     return n_edits
 
 
+# ---------------------------------------------------------------------------
+# v1 as specified: locality ratio and recompression triggers (erratum)
+# ---------------------------------------------------------------------------
+
+V1_TAU = 0.30   # v1 section 2.2: recompress when rho_t >= tau (typical tau = 0.30)
+V1_M = 32       # v1 section 2.2: recompress when t = 0 (mod m) (typical m = 32)
+
+
+def closed_star(cells, verts):
+    """All faces of the simplices of `cells` that contain a vertex of `verts`."""
+    out = set()
+    for s in cells:
+        if set(s) & verts:
+            for r in range(1, len(s) + 1):
+                out.update(itertools.combinations(s, r))
+    return out
+
+
+def v1_rho(cells_before, cells_after, crit_before, crit_after, edited):
+    """v1's locality ratio rho_t = sum_k |R^C_k(t)| / max(1, sum_k |C^C_k(t)|)
+    (v1 section 2.2), with the most generous numerator any local reading of v1
+    allows: every cell that is critical before OR after the update and lies in
+    the closed star (before or after) of a vertex of an edited simplex. The
+    denominator counts the critical cells before the update, as v1 defines it.
+    Also returns the strict ratio: critical cells (before) among the edited
+    simplices and their facets."""
+    verts = {v for s in edited for v in s}
+    region = closed_star(cells_before, verts) | closed_star(cells_after, verts)
+    gen = len((set(crit_before) | set(crit_after)) & region) / max(1, len(crit_before))
+    direct = set(edited) | {f for s in edited for f in facets(s)}
+    strict = len(set(crit_before) & direct) / max(1, len(crit_before))
+    return gen, strict
+
+
+def v1_e1_instance(n_pad=17):
+    """E1 as v1 specified it. K_0 = n_pad + 3 isolated vertices, so the matching
+    computed at initialisation is empty (K_0 has no pair of incident cells);
+    inserted cells stay critical (no rule in v1), so B^C = B and v1's localized
+    rule is exactly lcr. Updates (one edit each): +01, +02, +12, -01."""
+    verts = [(v,) for v in range(n_pad + 3)]
+    updates = [[("+", (0, 1))], [("+", (0, 2))], [("+", (1, 2))], [("-", (0, 1))]]
+    m = Method("lcr", 1)
+    m.build([("+", v) for v in verts])
+    S = SimplicialDRB(1)
+    for v in verts:
+        S.insert(v)
+    K = set(verts)
+    rows = []
+    for t, upd in enumerate(updates, start=1):
+        before = set(K)
+        for sign, s in upd:
+            m.apply(sign, s)
+            (S.insert if sign == "+" else S.delete)(s)
+            (K.add if sign == "+" else K.discard)(s)
+        gen, strict = v1_rho(before, K, before, K, [s for _, s in upd])  # every cell critical
+        rows.append({"t": t, "update": " ".join(f"{sg}{''.join(map(str, s))}" for sg, s in upd),
+                     "rho_gen": round(gen, 4), "rho_strict": round(strict, 4),
+                     "v1_betti": m.betti()[:2], "true_betti": brute_betti(K)[:2],
+                     "drb_betti": S.betti()[:2]})
+    ok = (all(r["rho_gen"] < V1_TAU for r in rows) and len(updates) < V1_M
+          and rows[-1]["v1_betti"] != rows[-1]["true_betti"]
+          and all(r["drb_betti"] == r["true_betti"] for r in rows)
+          and all(r["v1_betti"] == r["true_betti"] for r in rows[:-1]))
+    expect(ok, f"E1 v1-faithful instance: {rows}")
+    # robustness: the failure does not depend on the order of the rows 0, 1, 2
+    perms_fail = 0
+    for perm in itertools.permutations((0, 1, 2)):
+        rk = {(v,): i for i, v in enumerate(perm)}
+        lcr = ColumnLCR(rk.__getitem__)
+        for e in ((0, 1), (0, 2), (1, 2)):
+            lcr.insert(e, [(e[0],), (e[1],)])
+        lcr.delete((0, 1))
+        perms_fail += lcr.rank() == 1          # true rank of {02, 12} is 2
+    return {"n_isolated_padding": n_pad, "K0_vertices": n_pad + 3, "updates": rows,
+            "rho_gen_max": max(r["rho_gen"] for r in rows),
+            "row_orders_failing": perms_fail, "row_orders": 6}
+
+
+def v1_e2_instance(cells, label):
+    """E2 as v1 specified it: collapse matching at initialisation, update t = 1
+    deletes one matched maximal cell (partner becomes critical, other pairs
+    kept), v1 replaces only critical columns among the deleted cell and its
+    facets. Returns the first deletion (in pair order) with rho_gen < tau whose
+    stale critical complex reports wrong Betti numbers. The stale rank is the
+    same under v1's three readings: incremental (only the new critical column
+    is inserted), pivot-map re-initialisation, and recomputing r_k from the
+    stored critical matrices, because no stored column of the far critical cell
+    is replaced in any of them."""
+    K = Complex(max(len(s) for s in cells) - 1)
+    for s in by_dim(cells):
+        K.add(s)
+    rm, pairs, critical = collapse(K)
+    for r in e2_on(cells, pairs, critical):
+        y, x = r["deleted"], r["partner_now_critical"]
+        gen, strict = v1_rho(cells, cells - {y}, critical, list(critical) + [x], [y])
+        if gen < V1_TAU and r["v1_stale_betti"] != r["true_betti"]:
+            return {"instance": label, "n_cells": len(cells), "critical": [list(c) for c in critical],
+                    "deleted_matched_cell": list(y), "partner_now_critical": list(x),
+                    "far_critical_changed": [list(c) for c in r["far_changed"]],
+                    "morse_boundary_before": {str(list(c)): [list(v) for v in vs] for c, vs in r["mb_before"].items()},
+                    "morse_boundary_after": {str(list(c)): [list(v) for v in vs] for c, vs in r["mb_after"].items()},
+                    "t": 1, "rho_gen": round(gen, 4), "rho_strict": round(strict, 4),
+                    "true_betti_after": r["true_betti"], "v1_betti_after": r["v1_stale_betti"]}
+    expect(False, f"E2 v1-faithful: no instance on {label}")
+    return None
+
+
+def v1_rho_of_deletion(cells, y):
+    """rho bound (generous, strict) for deleting the matched maximal cell y at t = 1."""
+    K = Complex(max(len(s) for s in cells) - 1)
+    for s in by_dim(cells):
+        K.add(s)
+    rm, pairs, critical = collapse(K)
+    (x,) = [a for a, b in pairs if b == y]
+    return v1_rho(cells, cells - {y}, critical, list(critical) + [x], [y])
+
+
+def two_cycles(L):
+    return closure([tuple(sorted((off + i, off + (i + 1) % L))) for off in (0, L) for i in range(L)])
+
+
 def fmt_instance(item):
     if item is None:
         return None
@@ -773,11 +894,37 @@ def check_prop4(sizes):
 
 # ---------------------------------------------------------------------------
 
+def write_tex(path, report):
+    """Numbers cited in paper/sections/erratum.tex (\\providecommand, so that
+    the erratum's fallbacks never clash)."""
+    e1 = report["E1"]["simplicial"]
+    counts = e1["sequences_checked"]
+    v1 = report["v1_faithful"]
+    short = [str(counts[L]) for L in range(1, 7)]
+    macros = {
+        "RefEOneCountsShort": ", ".join(short[:-1]) + " and " + short[-1],
+        "RefEOneCountSeven": f"{counts[7]:,}".replace(",", "{,}"),
+        "RefEOneFailSeven": str(e1["n_failing_sequences_at_min_length"]),
+        "RefEOneVOnePad": str(v1["E1"]["K0_vertices"]),
+        "RefEOneVOneRhoMax": f"{v1['E1']['rho_gen_max']:.2f}",
+        "RefEOneVOneRowOrders": str(v1["E1"]["row_orders_failing"]),
+        "RefETwoCycleRho": f"{v1['E2_cycles']['rho_gen']:.2f}",
+        "RefETwoTorusRho": f"{v1['E2_torus']['rho_gen']:.2f}",
+        "RefLcrRandomWrong": f"{report['theorem1']['lcr_wrong_updates']:,}".replace(",", "{,}"),
+        "RefLcrRandomUpdates": f"{report['theorem1']['lcr_updates']:,}".replace(",", "{,}"),
+    }
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("% Generated by reference/check_props.py --write-tex; do not edit.\n")
+        for k, v in macros.items():
+            fh.write(f"\\providecommand{{\\{k}}}{{{v}}}\n")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=20250817)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--write", help="write recorded counterexamples as JSON")
+    ap.add_argument("--write-tex", help="write the numbers cited by the erratum as TeX macros")
     a = ap.parse_args()
     rng = random.Random(a.seed)
     T0 = time.time()
@@ -844,6 +991,31 @@ def main():
     report["E2 cycles"] = {"L": [5, 40], "edits": ne}
     print(f"    [{time.time() - t:.1f}s]")
 
+    print("(f) Version 1 as specified: instances on which no recompression fires")
+    t = time.time()
+    f1 = v1_e1_instance()
+    print(f"    E1: K_0 = {f1['K0_vertices']} isolated vertices; updates "
+          + ", ".join(f"t={r['update']} rho<={r['rho_gen']}" for r in f1["updates"]))
+    print(f"      after t=4: v1 {f1['updates'][-1]['v1_betti']}  true {f1['updates'][-1]['true_betti']}"
+          f"  drb {f1['updates'][-1]['drb_betti']}; fails for {f1['row_orders_failing']}/6 row orders")
+    f2 = v1_e2_instance(two_cycles(8), "two disjoint 8-cycles on 0..7 and 8..15")
+    f3 = v1_e2_instance(torus_with_disks(1, 5), "5x5 grid torus on 1..25 + cone with apex 0 over meridian 1-6-11-16-21")
+    for f in (f2, f3):
+        if f:
+            print(f"    E2 {f['instance']} ({f['n_cells']} cells): critical {f['critical']}")
+            print(f"      t=1: delete {f['deleted_matched_cell']} (partner {f['partner_now_critical']}); "
+                  f"far {f['far_critical_changed']} {f['morse_boundary_before']} -> {f['morse_boundary_after']}; "
+                  f"rho <= {f['rho_gen']} (strict {f['rho_strict']}); v1 {f['v1_betti_after']} true {f['true_betti_after']}")
+    # the smaller illustrations (4-cycle, 3x3 torus + disk) would trigger v1's recompression
+    small = {"4-cycle, delete [2,3]": v1_rho_of_deletion(closure([(0, 1), (1, 2), (2, 3), (0, 3)]), (2, 3)),
+             "3x3 torus + disk, delete [6,7,9]": v1_rho_of_deletion(torus_with_disks(1, 3), (6, 7, 9))}
+    for k, (g, st) in small.items():
+        expect(g >= V1_TAU, f"small instance {k} unexpectedly below tau: {g}")
+        print(f"    illustration only: {k}: rho <= {g:.2f} (strict {st:.2f}) >= tau, v1 would recompress")
+    report["v1_faithful"] = {"tau": V1_TAU, "m": V1_M, "E1": f1, "E2_cycles": f2, "E2_torus": f3,
+                             "illustrations_rho_at_least_tau": {k: round(g, 4) for k, (g, st) in small.items()}}
+    print(f"    [{time.time() - t:.1f}s]")
+
     print("(e) Proposition 4: W5 toggles (work = elementary chain/occ operations)")
     t = time.time()
     rows = check_prop4([8, 16, 32, 64] if a.quick else [8, 16, 32, 64, 128])
@@ -858,6 +1030,8 @@ def main():
         with open(a.write, "w", encoding="utf-8") as fh:
             json.dump(report, fh, indent=1, default=str)
             fh.write("\n")
+    if a.write_tex:
+        write_tex(a.write_tex, report)
     return 1 if FAILURES else 0
 
 

@@ -6,7 +6,8 @@ supported it. Fields that no result confirmed were **omitted**, never guessed.
 The "Source" column gives the URL(s) returned by the search that carried the
 confirming data.
 
-Checked on 2026-10-11.
+Checked on 2026-10-11; revision entries (`bauer2024wrapping`, `skoldberg2006morse`,
+`jollenbeck2009minimal`) checked the same day with web search only.
 
 | Key | Verified (fields) | Omitted / caveats | Source |
 |---|---|---|---|
@@ -52,6 +53,9 @@ Checked on 2026-10-11.
 | `maria2024discrete` | Discrete Morse preprocessing for zigzag (Morse + insert/delete) | authors, title, DCG 71(2), 708–737, 2024 (DBLP); WADS 2019 conf. version (pp. 538–552) | DOI not confirmed, omitted | https://dblp1.uni-trier.de/pid/194/3156.html ; https://graz.elsevierpure.com/de/publications/discrete-morse-theory-for-computing-zigzag-persistence-2 |
 | `dey2014simplicial` | Z2 annotations maintained under elementary inclusions and collapses | authors, title, SoCG 2014 (30th) | Pages and DOI not confirmed, omitted | https://www.arxiv.org/abs/1208.5018 ; https://www.cs.purdue.edu/homes/tamaldey/SimPers/Simpers.html |
 | `eppstein2003dynamic` | Dynamic tree–cotree / fundamental-group generators for surface-embedded graphs | author, title, SODA 2003 (14th), pp. 599–608 | — | https://ics.uci.edu/~eppstein/pubs/p-dyngen.html ; https://arxiv.org/abs/cs/0207082 |
+| `bauer2024wrapping` | Revision (referee M13): prior work relating gradient pairs of a discrete Morse function to apparent pairs; cited in theory.tex (Remark on known results) and related.tex | authors (Ulrich Bauer, Fabian Roll), title, SoCG 2024, LIPIcs 293, 15:1–15:16, editors Mulzer and Phillips, DOI 10.4230/LIPIcs.SoCG.2024.15; full version arXiv:2212.02345 | The content is cited only as "relates the gradient pairs of a (generalised) discrete Morse function to the zero-persistence apparent pairs of a lexicographically refined order". Search summaries place this in its Sec. 4.1 (Lemma 2, Prop. 7, building on Lemma 9 of Bauer–Roll SoCG 2022); the full text could not be fetched here (arxiv.org and drops.dagstuhl.de unreachable), so no proposition number is cited | https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.SoCG.2024.15 ; https://arxiv.org/abs/2212.02345 ; https://portal.fis.tum.de/en/publications/wrapping-cycles-in-delaunay-complexes-bridging-persistent-homolog/ |
+| `skoldberg2006morse` | Revision (referee M13): algebraic Morse theory, cited where theory.tex and related.tex describe the Morse complex as elimination of matched pairs | author (Emil Sköldberg), title, Trans. AMS 358(1), 115–129, 2006 | DOI not confirmed, omitted; one repository dates the online version August 2005 | https://research.universityofgalway.ie/en/publications/morse-theory-from-an-algebraic-viewpoint-5/ ; https://researchrepository.universityofgalway.ie/entities/publication/6c2848df-1cfb-496c-953a-7a3bbc8ce5a5 |
+| `jollenbeck2009minimal` | Revision (referee M13): algebraic discrete Morse theory (independent of Sköldberg), same citation sites | authors (Michael Jöllenbeck, Volkmar Welker), title, Mem. AMS 197(923), 2009, vi+74 pp. | DOI not confirmed, omitted; an AMS e-book edition dated 2012 also exists | https://bookstore.ams.org/MEMO/197/923 ; https://www.sudoc.fr/13114829X ; https://web3.arxiv.org/pdf/math/0501179 |
 
 `dlotko2011coreduction` and `mrozek2010coreduction` are v1 references kept for
 the coreduction paragraph (listed in the main table).
@@ -68,3 +72,8 @@ the coreduction paragraph (listed in the main table).
   out.
 - Bauer & Roll, SoCG 2022 (apparent pairs in Rips filtrations), and Kerber &
   Schreiber, barcodes of towers: verified but not needed for the argument.
+  (In the revision, Bauer & Roll's SoCG 2024 paper `bauer2024wrapping` was added
+  instead, at the referee's request; see the table above.)
+- Kozlov, *Combinatorial Algebraic Topology*: a standard algebraic Morse theory
+  reference, not added because Sköldberg and Jöllenbeck–Welker were verified and
+  suffice.

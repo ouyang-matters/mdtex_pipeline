@@ -29,7 +29,10 @@ our \method{full-*} baselines rerun it, without~$V$, after every update.
 \paragraph{Discrete Morse theory and coreductions.}
 Forman's discrete Morse theory \cite{forman1998morse,forman2002user} replaces
 a complex by a chain-homotopy-equivalent Morse complex on the critical cells
-of an acyclic matching. Algorithmically, matchings are built by collapses or
+of an acyclic matching. Algebraic Morse theory
+\cite{skoldberg2006morse,jollenbeck2009minimal} extends the construction to
+chain complexes of free modules and obtains the Morse complex by eliminating the
+matched pairs, whose incidences are invertible. Algorithmically, matchings are built by collapses or
 coreductions and used to shrink the input before any linear algebra:
 coreduction homology \cite{mrozek2009coreduction}, extended to regular CW
 complexes \cite{dlotko2011coreduction}, to maps
@@ -48,10 +51,18 @@ boundaries of critical cells far from the edit; this is one of the two defects
 that invalidated the localised update of version~1 \cite{ouyang2025mmhm_v1}.
 Instead we use the matching only to choose the total order of the
 \emph{unreduced} boundary matrix, so that every gradient pair is an apparent
-pair. This is the converse of the observation in \cite{bauer2021ripser}
-that apparent pairs form a discrete gradient: the order is designed so that a
-given matching is recovered as apparent pairs, which concentrates reduction
-work on the critical cells.
+pair. This step is elementary and close to known results: the collapse removes
+each paired coface immediately before its face, so the two are adjacent in the
+reverse removal order, and a facet and a coface that are adjacent in a
+filtration order always form an apparent pair. In the other direction, the
+apparent pairs of any simplexwise filtration form a discrete gradient
+\cite{bauer2021ripser}, and Bauer and Roll \cite{bauer2024wrapping} relate the
+gradient pairs of a (generalised) discrete Morse function to the
+zero-persistence apparent pairs of a lexicographically refined filtration
+order. What we add is the consequence for the static reduction with clearing:
+all column additions happen in the columns of critical cells, and on critical
+rows and columns the reduction performs exactly the reduction of the Morse
+complex (\cref{cor:critical-work,cor:morse-reduction}).
 
 \paragraph{Updating persistence.}
 Vineyards \cite{cohensteiner2006vines} maintain the decomposition $R = DV$ of
@@ -120,8 +131,9 @@ already answers our query. In zigzag, vineyard and warm-start methods,
 however, the cell order is the filtration itself and is fixed by the input.
 We report only the current Betti numbers after each update, so the order
 carries no meaning in our output; it is a computational device that we are
-free to choose (the Morse order, under which gradient pairs are apparent pairs
-and the stored basis stays sparse) and to replace at a rebuild. We claim no
+free to choose (the Morse order, under which gradient pairs are apparent pairs,
+chosen in the hope of a sparser stored basis; its measured effect is mixed,
+\cref{sec:e8}) and to replace at a rebuild. We claim no
 locality theorem. Costs are stated in output-sensitive terms (reduction-chain
 lengths and deletion footprints), we measure them, and we exhibit families on
 which they grow linearly with the size of the complex. For $\beta_0$ alone,
