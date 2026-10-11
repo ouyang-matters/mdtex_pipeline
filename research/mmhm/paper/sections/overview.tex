@@ -1,0 +1,21 @@
+% sections/overview.tex -- Figure 1 (F1): schematic of the method.
+% \input at the end of sections/intro.tex; the TikZ source is figures/f1_method.tex.
+\begin{figure}[t]
+  \centering
+  \input{figures/f1_method}
+  \caption{The method. \emph{Top:} an update is processed one atomic edit at a
+    time on the dynamic reduced basis of each boundary matrix
+    (\cref{sec:drb}). An insertion reduces the new column against the pivots; a
+    deletion rewrites every slot in the footprint $\occ(\sigma)$ of the deleted
+    simplex, by a cycle (Case~A) or by the slot with the smallest low (Case~B).
+    The Betti numbers are exact after every edit, whatever the order of the
+    cells. \emph{Bottom, dashed:} a rebuild replaces the order by the Morse
+    order of a collapse matching and recomputes the basis by the static
+    reduction with clearing (\cref{sec:morse}). Under that order every gradient
+    pair is an apparent pair and all column additions happen in columns of
+    critical cells. Between rebuilds the Morse order is only a heuristic for
+    sparsity (\cref{rem:morse-scope}). The ablations of \cref{sec:exp-methods}
+    change the bottom path: \method{drb-id-rb} rebuilds in insertion order, and
+    \method{drb-id} and \method{mmhm-norb} never rebuild.}
+  \label{fig:method}
+\end{figure}

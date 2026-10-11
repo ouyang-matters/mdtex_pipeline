@@ -1,0 +1,119 @@
+% sections/intro.tex -- introduction.
+\section{Introduction}\label{sec:intro}
+
+The Betti numbers $\beta_0,\beta_1,\beta_2,\beta_3$ of a simplicial complex count
+its connected components, independent loops, enclosed voids and, in dimension
+three, independent $3$-cycles; over a field they are determined by the ranks of
+the boundary matrices~\cite{munkres1984elements,hatcher2002algebraic,edelsbrunner2010computational}.
+In many uses the complex is not fixed. Adaptive meshes are refined and
+coarsened by local moves~\cite{pachner1991pl}, cavities are carved into a volume
+mesh and refilled, holes are opened in a surface and closed again, and the
+proximity complex of a point cloud changes as the points
+move~\cite{carlsson2009topology}. After each modification one wants to know
+whether it changed the topology: whether it created a void, closed a tunnel or
+disconnected a component. Recomputing the Betti numbers from scratch answers
+this, but it reads the whole complex after every modification, however small
+the modification is.
+
+Over a field, $\beta_k=n_k-r_k-r_{k+1}$, where $n_k$ is the number of
+$k$-simplices and $r_k$ the rank of the $k$-th boundary matrix~$\Bm{k}$.
+Maintaining Betti numbers therefore means maintaining ranks, and the problem has
+more structure than general dynamic rank: the boundary of a simplex does not
+change while the simplex exists, so each atomic edit inserts or deletes one
+column of one boundary matrix, and rows appear and disappear only while they are
+zero (\cref{obs:structural}). Insertions alone are handled by reducing the new
+column against the existing pivots, as in the standard persistence
+algorithm~\cite{edelsbrunner2002topological,zomorodian2005computing}: each
+inserted simplex either creates a cycle or destroys
+one~\cite{delfinado1995incremental}. Deletions are the difficulty. After reduction, a column is a sum of original
+columns; when one of these is deleted, every reduced column that absorbed it
+becomes invalid, and the reduced matrix alone does not record which columns
+these are.
+
+\paragraph{Version 1 and this version.}
+Version~1 of this paper~\cite{ouyang2025mmhm_v1} reduced the complex once to the
+critical cells of a discrete Morse matching~\cite{forman1998morse,forman2002user},
+re-reduced after each edit only the critical columns directly affected by it,
+recompressed periodically, and bypassed linear algebra with combinatorial gates
+where Betti numbers follow from counts. It stated that this yields exact Betti
+numbers at a cost governed by the size of the edit. The update rule is not
+exact, for two independent reasons. It re-reduces a replaced column but not the
+reduced columns that had absorbed it, which is the deletion problem described
+above; and its set of affected critical columns misses columns whose Morse
+boundary changes through gradient paths that end far from the edit. Its
+experiments could not reveal either defect, because in each of them the Betti
+numbers were constant or followed from the Euler characteristic.
+\Cref{sec:erratum} states what version~1 specified and gives concrete
+counterexamples to both exactness claims. This version replaces the method, its
+analysis and its experiments. It keeps the title because discrete Morse theory
+still has a role, though a different one.
+
+\paragraph{Approach.}
+For each dimension $k$ we store a reduced matrix $R=\Bm{k}V$ together with the
+invertible change of basis~$V$, and for every simplex $\sigma$ the set
+$\occ(\sigma)$ of columns of $V$ that contain it, the \emph{footprint}
+of~$\sigma$ (\cref{fig:method}). An insertion reduces the new column. A deletion
+rewrites every column in the footprint of the deleted simplex: if one of them is
+a cycle, that cycle is added to the others (Case~A); otherwise the column with
+the smallest pivot is added to the others (Case~B). This keeps the Betti numbers
+exact after every atomic edit, for every order of the cells. The order affects
+only the cost, and this is where discrete Morse theory enters. When the
+structure is built or rebuilt, we compute an acyclic matching by collapses and
+order the cells by reverse removal time. Under this order every gradient pair is
+an apparent pair, so the static reduction performs all its column additions in
+the columns of critical cells, and on these columns, after following the
+gradient flow, it performs exactly the additions of the reduction of the Morse
+complex. The Morse complex itself is never formed; its boundary is what an edit
+can change far away from the edit.
+
+\paragraph{Contributions.}
+\begin{enumerate}[label=(\roman*),leftmargin=2.2em]
+\item An exact \emph{dynamic reduced basis} (DRB) for the $\Z$ Betti numbers of
+  a simplicial complex under insertions and deletions of simplices, implemented
+  for dimension at most three, with complete proofs
+  (\cref{thm:exact,cor:rebuild}; the arguments hold in every dimension).
+  Insertion is the standard incremental reduction. The deletion step is the
+  rank-only specialisation of the deletion updates used for zigzag persistence
+  and for warm-started $R=DV$
+  factorisations~\cite{carlsson2009zigzag,luo2023warmstart,giunti2026pruning};
+  we prove it in a self-contained way because the basis tracking it relies on is
+  what version~1 omitted.
+\item The Morse order as a sparsifier. Ordering the cells by reverse removal
+  time of a collapse makes every gradient pair an apparent pair
+  (\cref{lem:apparent}); hence, at a rebuild, all column additions take place in
+  columns of critical cells (\cref{cor:critical-work}), and there they coincide
+  with the reduction of the Morse boundary matrices
+  (\cref{cor:morse-reduction}). Between rebuilds the order is a heuristic, and we
+  measure its effect.
+\item Output-sensitive costs instead of a locality theorem: the cost of an edit
+  in terms of footprints and reduction chains (\cref{prop:cost}), and explicit
+  families, a cycle graph and a triangulated sphere with one toggled simplex, on
+  which every update of size one costs this data structure $\Omega(n)$
+  operations (\cref{prop:nonlocal}).
+\item An evaluation on five workload families (punctured surfaces; refinement,
+  coarsening and cavities in a $3$-ball; flag complexes of moving points;
+  non-locality witnesses) against static recomputation, including
+  GUDHI~\cite{maria2014gudhi}, and against ablations of the order and of the
+  rebuild policy. Every exact method is checked against three independent
+  oracles (\cref{sec:experiments}).
+\item An erratum to version~1 with concrete counterexamples to its update rule
+  for each of its two defects, and a reimplementation of the rule whose error
+  rate we measure (\cref{sec:erratum,sec:e0}).
+\end{enumerate}
+
+\paragraph{What we do not claim.}
+All statements are over $\Z$; we say nothing about integer homology or torsion.
+We prove no bound on the cost of an update in terms of its size, and
+\cref{prop:nonlocal} shows that none holds for this data structure. The
+maintained basis yields ranks and a basis of each cycle space, but no
+persistence pairing. Between rebuilds we make no sparsity claim.
+
+\paragraph{Outline.}
+\Cref{sec:related} reviews related work. \Cref{sec:theory} defines the dynamic
+reduced basis and proves its exactness, introduces the Morse order, analyses the
+cost of an update, proves that no locality bound holds, and ends with the
+erratum to version~1 (\cref{sec:erratum}). \Cref{sec:experiments} describes the
+experimental setup and results, \cref{sec:discussion} discusses limitations and
+alternatives, and \cref{sec:conclusion} concludes.
+
+\input{sections/overview}

@@ -1,0 +1,512 @@
+% sections/experiments.tex -- experimental setup (complete) and results (skeleton).
+% Sources: SPEC.md sections 5-8, experiments/PLAN.md, experiments/ENVIRONMENT.md,
+% workloads/README.md, engine/README.md. Measured numbers only via \Num macros
+% (generated/numbers.tex), tables via generated/tab_*.tex, figures ../figures/F*.pdf.
+\section{Experiments}\label{sec:experiments}
+
+The experiments answer nine questions, E0 to E8 (\cref{tab:sweeps}): whether the
+exact methods are exact and how often the rule of version~1 is wrong (E0); how
+the cost of an update depends on the size of the complex and on the size of the
+update (E1, E2); how the methods behave on genuine three-dimensional topology
+changes, on non-manifold complexes and on surfaces (E3--E5); where locality fails
+(E6); how much the rebuild policy matters (E7); and what the Morse order buys
+(E8). \Cref{sec:exp-platform,sec:exp-methods,sec:exp-workloads,sec:exp-timing,sec:exp-correctness}
+describe the setup and \crefrange{sec:e0}{sec:e8} the results. Every number,
+table and figure in the results is produced by a script from the raw
+per-update records of the runs; none is typed by hand.
+
+\subsection{Implementation and platform}\label{sec:exp-platform}
+
+\paragraph{Engine.}
+All methods except \method{gudhi} are implemented in one C++17 program and share
+its complex store, which maps the sorted vertex tuple of a simplex to a record
+of its facets and immediate cofaces and validates every atomic edit (all facets
+present on insertion, no coface present on deletion). Order keys are dense
+32-bit integers: a build or rebuild assigns $0,\dots,N-1$ in the chosen order,
+and every later insertion takes the next unused key, which is larger than every
+key in use, as \cref{sec:drb} requires. A chain $R_j$ or $V_j$ is a strictly
+increasing array of keys, so its low is the last entry and a $\Z$ addition is a
+linear merge; arrays of up to four keys are stored inline, so boundaries and
+apparent columns need no allocation. When a reduction adds short chains to a
+long working column, the column switches to a max-heap with lazy cancellation,
+so that a reduction step costs $O(|R_p|+|V_p|)$ up to a logarithmic factor, as
+in the cost model of \cref{prop:cost}, rather than the length of the working
+column. The footprint index keeps, for every simplex~$\sigma$, the exact count
+$|\occ(\sigma)|$ and a list of slot identifiers that is appended to when
+$\sigma$ enters a chain $V_j$ and filtered when $\sigma$ is deleted; a list is
+compacted when it exceeds twice the count plus a constant, so its length is
+linear in the footprint up to amortisation. In Case~A the engine chooses the
+cycle $V_z$ with the fewest cells. The collapse of \cref{def:collapse} uses a
+first-in-first-out queue initialised in increasing order of (dimension, vertex
+tuple) and visits facets in a fixed order, so the matching depends only on the
+complex as a set of simplices, not on the history of edits. Debug builds check (I1)--(I3), the pivot table and the
+footprint index after every operation on the dynamic reduced basis.
+
+\paragraph{Platform.}
+All runs use one cloud virtual machine with an Intel Xeon processor at
+2.10\,GHz (4~cores, one thread per core; 48\,KiB L1 data and 2\,MiB L2 cache per
+core, 260\,MiB shared L3 cache) and 15\,GiB of memory, running Ubuntu 24.04.5
+LTS with Linux~6.18. The engine is compiled by g++~13.3.0 (CMake 3.28.3) with
+\texttt{-O2 -DNDEBUG} and no machine-specific tuning. The GUDHI baseline and
+oracle run under Python~3.13.16 with GUDHI~3.13.0 and numpy~2.5.3. Every method
+runs single-threaded.
+
+\subsection{Methods}\label{sec:exp-methods}
+
+\Cref{tab:methods} lists the methods; the names are those used in the code, the
+raw data and the figures.
+
+\begin{table}[t]
+  \centering
+  \caption{Methods. \emph{Order}: the key order of the cells. \emph{$V$,
+    $\occ$}: whether the change of basis and the footprint index are stored.
+    \emph{Policy}: the rebuild policy of \cref{sec:drb}. All methods except
+    \method{gudhi} run in the same engine and share its complex store.}
+  \label{tab:methods}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l l l l l >{\raggedright\arraybackslash}X@{}}
+    \toprule
+    Method & Order & $V$, $\occ$ & Rebuilds & Exact & Role \\
+    \midrule
+    \method{full-id}    & insertion         & no       & every update & yes & static recomputation with clearing, ranks only \\
+    \method{full-morse} & Morse, recomputed & no       & every update & yes & static recomputation in the Morse order of a new collapse matching \\
+    \method{gudhi}      & GUDHI's own       & ---      & every update & yes & external static baseline: GUDHI simplex tree, persistence over $\Z$ \\
+    \method{drb-id}     & insertion         & yes      & never        & yes & ablation: neither Morse order nor rebuilds \\
+    \method{drb-id-rb}  & insertion         & yes      & policy       & yes & ablation: rebuilds without the Morse order \\
+    \method{mmhm}       & Morse             & yes      & policy       & yes & the method of \cref{sec:theory} \\
+    \method{mmhm-norb}  & Morse of $K_0$    & yes      & never        & yes & ablation: no rebuilds \\
+    \midrule
+    \method{lcr}        & Morse of $K_0$    & $R$ only & never        & no  & update rule of version~1 (defect E1); error rate only \\
+    \method{euler}      & ---               & ---      & ---          & on surfaces & counters of \cref{rem:surfaces}; surfaces only \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\paragraph{Static baselines.}
+\method{full-id} and \method{full-morse} recompute all ranks after every update
+by the static reduction with clearing (\cref{sec:drb}), without storing~$V$:
+\method{full-id} in insertion order, \method{full-morse} in the Morse order of a
+collapse matching computed anew after every update. \method{full-morse} is the
+``coreduction-only'' baseline of version~1, done exactly: by
+\cref{cor:critical-work,cor:morse-reduction} its column additions all occur in
+critical columns and, after the gradient-flow steps, are those of the reduction
+of the Morse complex, but it pays for a collapse after every update. Both share the store and
+the reduction code with the dynamic methods, so differences between them and the
+dynamic methods reflect the algorithms rather than the implementations.
+\method{gudhi} replays the same edits on a GUDHI simplex
+tree~\cite{maria2014gudhi} through its Python interface and, after every update,
+calls \texttt{compute\_persistence} with the arguments
+\texttt{homology\_coeff\_field=2} and \texttt{persistence\_dim\_max=True}, and then
+\texttt{betti\_numbers}. The second argument is required: without it GUDHI omits
+the top dimension and reports $(1,0)$ for the boundary of a tetrahedron. GUDHI
+computes persistence pairs, a richer output than Betti numbers, and is not
+designed for this task. We include it as a reference point for static
+recomputation with a widely used library, and as an oracle.
+
+\paragraph{Dynamic methods.}
+\method{mmhm} is the method of \cref{sec:theory}: a dynamic reduced basis built
+in the Morse order and rebuilt in a fresh Morse order under the rebuild policy of
+\cref{sec:drb}, with $m=\infty$ and $\alpha=1$ unless stated otherwise (E7
+varies both). Three ablations separate its ingredients. \method{drb-id} uses
+insertion keys and never rebuilds. \method{mmhm-norb} uses the Morse order of
+$K_0$ and never rebuilds. \method{drb-id-rb} rebuilds under the same policy and
+parameters as \method{mmhm}, but its rebuild reruns the static reduction with
+clearing in the current insertion order (the keys in use, renumbered) instead
+of computing a new matching. Thus \method{mmhm} versus \method{drb-id-rb}
+isolates the order used at a rebuild, and \method{mmhm} versus
+\method{mmhm-norb} isolates rebuilding.
+
+\paragraph{Version 1's rule and the surface counters.}
+\method{lcr} implements the update rule of version~1 without basis tracking
+(defect E1 of \cref{sec:erratum}): an inserted column is reduced against the
+existing pivots, and a deleted column releases its pivot and is dropped. It
+uses exactly the order of \method{mmhm-norb} and differs from it only in not
+storing $V$ and $\occ$, so its errors are caused by E1 alone. It works on the
+full boundary matrices, so defect E2, which concerns the Morse complex, does not
+arise. \method{lcr} is not exact and is run only to measure how often it is
+wrong. \method{euler} maintains $\chi$ and the numbers of edges with one, two or
+more cofaces in $O(1)$ per atomic edit and returns the Betti numbers of
+\cref{rem:surfaces}. At the end of every update it checks that the complex has a
+triangle, no tetrahedron, and no edge outside one or two triangles, and aborts
+otherwise; connectivity and the absence of pinched vertices are assumed, not
+checked.
+
+\subsection{Workloads}\label{sec:exp-workloads}
+
+Five generators produce the update sequences (\cref{tab:workloads}). Each is
+deterministic given its parameters and seed, emits only valid atomic edits
+(checked again by an independent validator), lists deletions top-down and
+insertions bottom-up, and records its parameters, the sizes of all states and
+the number of edits per update. For W1, W2, W3 and W5 the Betti numbers of every
+state are known in closed form and are written next to the sequence. Distances
+are graph distances in the base mesh.
+
+\begin{table}[t]
+  \centering
+  \caption{Workload families. $s_t$: atomic edits per update. ``Closed form'':
+    the Betti numbers of every state are known and written by the generator.
+    Generation rules are given in \cref{sec:exp-workloads}.}
+  \label{tab:workloads}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X l >{\raggedright\arraybackslash}p{3.3cm}@{}}
+    \toprule
+    & Complex $K_0$ & One update & $s_t$ & Betti numbers \\
+    \midrule
+    W1  & icosphere of frequency $2^L$, or $n\times m$ grid torus & open a disk-shaped hole, or close one & ${\le}\,61$ & closed form; $\beta_1,\beta_2$ vary \\
+    W2  & Freudenthal triangulation of $N^3$ cubes, with $8s$ subdivisions & $s$ stellar $1\to4$ subdivisions, or $s$ inverses & $16s$ & $(1,0,0,0)$ \\
+    W3  & Freudenthal triangulation of $N^3$ cubes & carve a ball (cavity or dent), or refill one & hundreds & closed form; $\beta_2$ varies \\
+    W4  & flag complex of $n$ points, truncated at dimension $D$ & move one point: delete its star, reinsert it & varies & not known; all vary \\
+    W5a & cycle graph $C_L$ & toggle one edge & $1$ & closed form; $\beta_1$ toggles \\
+    W5b & icosphere of frequency $2^L$ & toggle one triangle & $1$ & closed form; $\beta_2$ toggles \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\paragraph{W1: punctured surfaces.}
+The base surface is the geodesic icosphere of frequency $f=2^L$, with $10f^2+2$
+vertices, $30f^2$ edges and $20f^2$ triangles, or the $n\times m$ periodic grid
+torus with every square split along one diagonal, with $nm$ vertices, $3nm$
+edges and $2nm$ triangles. For a vertex $v$, the patch $P(v,k)$ is the set of
+triangles incident to a vertex at distance at most $k-1$ from~$v$; we use $k=2$.
+When $v$ and its neighbours have degree six, $P(v,2)$ has $24$ triangles and
+opening it takes $61$ atomic edits; no vertex of our surfaces has a larger
+degree, so no update has more edits. A patch around a
+random vertex is used only if its closure is a disk and its vertices are at
+distance more than one from the vertices of every existing hole. Opening a hole
+deletes the triangles of the patch, then its edges, then the vertices left
+without cofaces; closing a hole is the exact reverse of its opening. With $h$
+holes, the generator opens a hole if $h=0$; otherwise it opens one with
+probability $0.75$, $0.5$ or $0.25$ when $h$ is below, at or above the target
+$3$, and closes one otherwise or when no valid patch is found. The Betti numbers
+are $(1,\max(h-1,0),[h=0],0)$ for the sphere and $(1,2+\max(h-1,0),[h=0],0)$ for
+the torus, where $[h=0]$ is $1$ if $h=0$ and $0$ otherwise.
+W1 is the setting of \cref{rem:surfaces}, which E5 examines. It also contains
+the phenomenon of \cref{prop:nonlocal}: when no hole is open, the surface is a
+connected closed surface, so the deletion that opens the first hole costs every
+DRB method $\Omega(n_2)$ operations by \cref{prop:nonlocal}(a), and the last
+triangle inserted when the last hole closes costs $\Omega(n_2)$ by
+\cref{prop:nonlocal}(b).
+
+\paragraph{W2: refinement and coarsening in a 3-ball.}
+The base complex is the Freudenthal (Kuhn) triangulation of a grid of
+$N\times N\times N$ cubes, each split into six tetrahedra; it has $(N+1)^3$
+vertices and about $26N^3$ simplices. A refinement applies $s$ stellar $1\to4$
+subdivisions to $s$ tetrahedra collected breadth-first over face adjacency from
+a uniformly random tetrahedron; tetrahedra created by earlier subdivisions may
+be subdivided again. A coarsening undoes $s$ leaf subdivisions, those whose four
+tetrahedra are all still present: a uniformly random one and the $s-1$ nearest
+to it, measured by the Euclidean distance between the inserted vertices. A
+subdivision and its inverse each consist of $16$ atomic edits, so $s_t=16s$.
+Because coarsening can only undo subdivisions, $K_0$ already contains $8s$ live
+subdivisions, and with $x$ live subdivisions the generator refines with
+probability $\min\bigl(0.95,\max(0.05,\,0.5-0.5(x-8s)/(8s))\bigr)$, and always
+when fewer than $s$ leaf subdivisions exist. Since $|K|=|K_{\mathrm{base}}|+14x$,
+the size performs a random walk around its initial value instead of growing
+linearly (compare experiment P2 of version~1, \cref{sec:erratum}). The Betti
+numbers are $(1,0,0,0)$ after every update, but not within an update: by
+\cref{thm:exact}(d) every atomic edit changes one Betti number by one.
+
+\paragraph{W3: cavities in a 3-ball.}
+The base complex is that of W2. A centre $v$ is drawn uniformly among the
+interior vertices, and the ball $B(v,k)$ is the set of tetrahedra incident to a
+vertex at distance at most $k-1$ from~$v$; we use $k=2$. Carving deletes the
+tetrahedra of $B$ and then, top-down, every face left without cofaces. A ball is
+accepted only if it is more than one ring away from every carved ball, its
+boundary is a $2$-sphere, and it meets the boundary of the cube in no triangle (a
+cavity: $\beta_2$ grows by one) or in one disk (a dent: no change); other
+contacts, which could bore a tunnel, are rejected. Refilling is the exact
+reverse of a carving. The number of carved balls follows the same walk as the
+number of holes in W1, with target $4$. The Betti numbers are $(1,0,c,0)$, where
+$c$ is the number of cavities.
+
+\paragraph{W4: flag complexes of moving points.}
+$n$ points are drawn uniformly in the unit square or the unit cube. A radius
+$\varepsilon$ is calibrated on the initial points so that the
+$\varepsilon$-neighbourhood graph has exactly $5n$ edges (mean degree $10$), and
+$K$ is the flag complex of this graph truncated at dimension $D\in\{2,3\}$. An
+update moves one uniformly random point by adding to each coordinate an
+independent offset drawn uniformly from $[-\varepsilon/4,\varepsilon/4]$,
+reflected at the border of the domain, and keeps its vertex identifier: it
+deletes the closed star of the vertex top-down and inserts the vertex and its new
+star bottom-up. The complexes are not manifolds and all Betti numbers vary; they
+are not known in closed form and are checked against the oracles only.
+
+\emph{Caveat: truncation.} In a flag complex truncated at dimension $D$, the
+vertices of a clique of size $D+2$ span a $(D+1)$-simplex that is not in~$K$, so
+its boundary is a $D$-cycle that is never filled. Hence $\beta_D$ is large: at
+INIT, $\beta_D/n$ lies between \NumWFourBetaDRatioMin{} and
+\NumWFourBetaDRatioMax{} in our W4 instances. This is genuine linear algebra on
+a non-manifold complex, but $\beta_D$ is dominated by the truncation, not by the
+shape of the point cloud. We use W4 as an algebraic stress test and draw no
+conclusion about the topology of point clouds from it.
+
+\paragraph{W5: non-locality witnesses.}
+(a) The cycle graph $C_L$, whose updates toggle the edge $\{0,1\}$: odd-numbered
+updates delete it and even-numbered ones insert it again. (b) The icosphere of
+frequency $2^L$, whose updates toggle one triangle chosen from the seed in the
+same way. By \cref{prop:nonlocal}, every toggle costs every DRB method
+$\Omega(L)$, respectively $\Omega(n_2)$, operations; once the states alternate,
+a toggle costs $O(L+\nnz(R)+\nnz(V))$, respectively $O(n_2+\nnz(R)+\nnz(V))$.
+\method{euler} needs $O(1)$ per toggle on (b) and does not apply to (a), which
+is a graph and not a surface.
+
+\paragraph{Sweeps.}
+\Cref{tab:sweeps} lists the workloads, parameters and methods of each experiment.
+Unless stated otherwise every timed configuration is run with three seeds.
+
+\begin{table}[t]
+  \centering
+  \caption{Experiments. All sweeps use the generator defaults of
+    \cref{sec:exp-workloads} for the parameters not listed. ``as E1'':
+    \method{full-id}, \method{full-morse}, \method{gudhi} (for
+    $|K|\le{}$\NumGudhiSizeMax), \method{drb-id}, \method{drb-id-rb},
+    \method{mmhm}, \method{mmhm-norb}. ``DRB methods'': the last four.
+    \method{lcr} is added, untimed, for E0.}
+  \label{tab:sweeps}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}p{3.1cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{4.4cm}@{}}
+    \toprule
+    & Workload & Sweep & Methods \\
+    \midrule
+    E0 & committed samples, all timed runs & --- & all \\
+    E1 & W2, $s=8$ & $N\in\{7,10,15,22,33\}$ & as E1 \\
+    E2 & W2, $N=22$ & $s\in\{1,2,4,\dots,64\}$ & DRB methods, \method{full-id}, \method{full-morse} \\
+    E3 & W3, $k=2$ & $N\in\{14,20,27\}$ & as E1 \\
+    E4 & W4 & $D=2$: $n\in\{1000,4000,16000\}$; $D=3$: $n\in\{1000,4000\}$ & as E1 \\
+    E5 & W1 & sphere $L\in\{4,5,6,7\}$; torus $n=m\in\{64,128,256,500\}$ & as E1, and \method{euler} \\
+    E6 & W5a, W5b & $L\in\{10^3,10^4,10^5\}$ (a); $L\in\{3,5,7\}$ (b) & as E1, and \method{euler} (b) \\
+    E7 & W2, W3, W4, one size each & $\alpha\in\{0.25,0.5,1,2,4,\infty\}$, $m\in\{\infty,64,256\}$ & \method{mmhm}, \method{drb-id-rb} \\
+    E8 & W2, W3, W4 & runs of E1, E3, E4 & DRB methods \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Timing protocol}\label{sec:exp-timing}
+
+The input sequence is parsed completely before timing starts. For the engine
+methods, the time of update $t$ is the wall-clock time
+(\texttt{std::chrono::steady\_clock}) of processing its block of atomic edits:
+the store updates, the work of the method for each edit, the recomputation of
+the static baselines, and any rebuild, which is charged to the update that
+triggers it. Verification and output are excluded. Building the structure for
+$K_0$ is timed separately and reported as build time. For \method{gudhi}, the
+time of an update covers the simplex-tree edits, \texttt{compute\_persistence}
+and \texttt{betti\_numbers}, again without parsing.
+
+All runs are single-threaded. At most two timed runs execute concurrently on
+the four-core machine, and untimed runs (\method{lcr}, oracle passes) never
+share the machine with timed ones. Each configuration is run with three seeds,
+which change the generated workload. We report the median and the interquartile
+range of the per-update latency over all updates of the three seeds, and the
+\emph{amortised latency}: the total processing time of all updates, rebuilds
+included, divided by their number. Each timed run processes $T={}$\NumUpdates{}
+updates. Where a static baseline cannot afford $T$ updates at the largest sizes,
+it runs on the first $T'={}$\NumPrefix{} updates, and the captions say so.
+
+Besides time, every run records per update the number of column additions
+(dynamic additions and those of rebuilds separately), the footprints
+$|\occ(\sigma)|$ of the deleted simplices, and $\nnz(R)+\nnz(V)$. These are the
+quantities of \cref{prop:cost}, and they do not depend on the machine.
+
+\subsection{Correctness protocol}\label{sec:exp-correctness}
+
+Three oracles that share no reduction code check the Betti numbers: (1) the
+engine's \method{full-id}, a static recomputation that shares the parser and the
+complex store with the dynamic methods but none of their reduction code;
+(2) GUDHI, an independent library in another language, which replays the same
+sequence; and (3) a pure-Python implementation of the dynamic reduced basis and
+of the Morse order, written from the specification and sharing no code with the
+engine, together with a dense $\Z$ elimination for small complexes. For W1,
+W2, W3 and W5 the closed-form Betti numbers give a fourth check.
+
+On the committed sample of every workload variant, every exact method is
+compared with \method{full-id} after every update, and the three oracles are
+required to agree on every state. On every timed run, the engine compares the Betti numbers of the
+method with \method{full-id} after $K_0$, after every $50$th update and after
+the last update, outside the timed region; a separate untimed pass compares
+every update with GUDHI where this is affordable. A mismatch of an exact method
+aborts the run and stops the whole pipeline. \method{lcr} runs untimed, with a
+comparison after every update; its \emph{error rate} is the fraction of updates
+after which at least one of its Betti numbers is wrong. \Cref{tab:correctness}
+lists, for each workload, the updates compared with each oracle, and marks the
+runs in which an oracle could afford only the first $T'$ updates.
+
+The implementations are also tested below the level of outputs. The engine's
+randomised differential tests compare every exact method, under several rebuild
+settings, with a brute-force rank computation after every update of random edit
+sequences on random complexes of dimension up to three, and check (I1)--(I3)
+explicitly. The reference implementation checks (I1)--(I3) and the footprint
+index after every atomic edit of random sequences; checks the statements of
+\cref{lem:apparent,cor:critical-work,cor:morse-reduction} on random complexes,
+also with randomly chosen queue disciplines in the collapse; checks
+\cref{prop:nonlocal} on the W5 families; and produced the counterexamples of
+\cref{sec:erratum}.
+
+% ---------------------------------------------------------------------------
+% Results (skeleton). One subsection per question of experiments/PLAN.md.
+% ---------------------------------------------------------------------------
+
+\subsection{E0: Are the exact methods exact, and how wrong is version~1's rule?}\label{sec:e0}
+
+\pendingblock{E0}{\Cref{tab:correctness}: per workload and oracle, the updates
+compared and the mismatches of the exact methods (the pipeline stops on any
+mismatch, so the expected entry is zero), with runs restricted to $T'$ marked.
+Totals: \NumVerifiedStates{} states compared, \NumExactMismatches{} mismatches.
+Then the error rate of \method{lcr} per workload (largest:
+\NumLcrErrMax\,\%), the first wrong update, and which Betti numbers are wrong.
+Note that W2 has constant Betti numbers, so any \method{lcr} error there is an
+error of the algebra alone.}
+
+\begin{table}[t]
+  \centering
+  \caption{Correctness (E0). For each workload: updates compared with each
+    oracle and mismatches of the exact methods; error rate of \method{lcr}.
+    \pending{caption to be completed with the column definitions of the
+    generated table}}
+  \label{tab:correctness}
+  \small
+  \generatedtable{tab_correctness}
+\end{table}
+
+\subsection{E1: Does the per-update cost depend on the size of the complex at a fixed edit size?}\label{sec:e1}
+
+\pendingblock{E1}{\Cref{fig:latency-size}(a): median and interquartile range of
+the per-update latency against $|K|$ on W2 with $s=8$, log--log, every method of
+E1, with fitted slopes. \Cref{tab:summary}: median and amortised latency and
+build time per method and workload (E1--E5). Number of rebuilds of
+\method{mmhm} and \method{drb-id-rb}. State whether the latency of the DRB
+methods is flat in $|K|$ and how the static baselines scale, and give the ratio
+of static to dynamic latency at the largest size as measured, in whichever
+direction it goes.}
+
+\begin{figure}[t]
+  \centering
+  \resultfigure{F2_latency_vs_size}{5.5cm}
+  \caption{Per-update latency against the number of simplices $|K_0|$ at a
+    fixed edit size (log--log; median over all updates of three seeds, band:
+    interquartile range). (a)~W2 with $s=8$ (E1); (b)~W3 (E3); (c)~W4 in the
+    square with $D=2$ (E4); (d)~W1 punctured sphere (E5).
+    \pending{state where static baselines ran on the prefix $T'$}}
+  \label{fig:latency-size}
+\end{figure}
+
+\begin{table}[t]
+  \centering
+  \caption{Summary of E1--E5: median per-update latency (interquartile range),
+    amortised latency including rebuilds, and build time of $K_0$, per method
+    and workload. \pending{caption to be completed with the sizes shown and the
+    units of the generated table}}
+  \label{tab:summary}
+  \small
+  \generatedtable{tab_summary}
+\end{table}
+
+\subsection{E2: How does the cost scale with the edit size?}\label{sec:e2}
+
+\pendingblock{E2}{\Cref{fig:latency-s}: latency against $s$ on W2 with $N=22$
+for the methods of E2, log--log, with fitted slopes; amortised latency per atomic
+edit as $s$ grows; the edit size, if any, at which a static recomputation
+becomes competitive with the DRB methods.}
+
+\begin{figure}[t]
+  \centering
+  \resultfigure{F3_latency_vs_edit_size}{5cm}
+  \caption{Cost against the number $s$ of subdivisions per update (E2; W2,
+    $N=22$, $s_t=16s$; log--log). (a)~Per-update latency, median and
+    interquartile range; (b)~amortised latency per atomic edit.}
+  \label{fig:latency-s}
+\end{figure}
+
+\subsection{E3: What does an update cost when the three-dimensional topology changes?}\label{sec:e3}
+
+\pendingblock{E3}{\Cref{fig:latency-size}(b): latency against $|K|$ on W3.
+\Cref{fig:timeseries}: latency and $\nnz(R)+\nnz(V)$ over time on W2 and W3,
+with rebuilds marked. Cost of carving a cavity versus refilling it; footprints of
+the deletions that create a cavity.}
+
+\begin{figure}[t]
+  \centering
+  \resultfigure{F4_time_series}{6cm}
+  \caption{Behaviour over time of the four DRB methods (seed~0). Top:
+    per-update latency, averaged over a sliding window of 50 updates, with
+    rebuilds of \method{mmhm} and \method{drb-id-rb} marked. Bottom:
+    $\nnz(R)+\nnz(V)$ after each update. Columns: W2 with $N=22$ (E1), W3 with
+    $N=20$ (E3), W1 torus $256\times256$ (E5), on which the updates after which
+    no hole is open are marked.}
+  \label{fig:timeseries}
+\end{figure}
+
+\subsection{E4: How do the methods behave on non-manifold complexes in which every Betti number varies?}\label{sec:e4}
+
+\pendingblock{E4}{\Cref{fig:latency-size}(c): latency against $|K|$ on W4 for
+$D=2$ and $D=3$; reduction-chain lengths and footprints per moved point. Recall
+the truncation caveat of \cref{sec:exp-workloads}: conclusions concern the
+algebra, not the point cloud.}
+
+\subsection{E5: On surfaces, what does linear algebra cost compared with combinatorial invariants?}\label{sec:e5}
+
+\pendingblock{E5}{W1 sphere and torus: latency of \method{euler} against the
+DRB methods and the static baselines (\cref{fig:latency-size}(d), rows of
+\cref{tab:summary}); growth of $\nnz(R)+\nnz(V)$ on the torus
+(\cref{fig:timeseries}, right). The
+distribution of per-update latency, separating the updates that open the first
+hole or close the last one, which cost $\Omega(n_2)$ by \cref{prop:nonlocal},
+and how often they occur.}
+
+\subsection{E6: Where does locality fail?}\label{sec:e6}
+
+\pendingblock{E6}{\Cref{fig:nonlocality}: cost per toggle against $L$ (W5a) and
+against $n_2$ (W5b), log--log, with fitted slopes, for the DRB methods, the
+static baselines and, on W5b, \method{euler}; compare the slopes
+with the $\Theta(n)$ of \cref{prop:nonlocal}. Also the additions and footprints
+per toggle.}
+
+\begin{figure}[t]
+  \centering
+  \resultfigure{F6_nonlocality}{5cm}
+  \caption{Amortised latency per toggle on the non-locality witnesses (E6):
+    (a)~W5a against the cycle length $L$; (b)~W5b against the number of
+    triangles $n_2$ (log--log, three seeds pooled; the legend gives the
+    least-squares slope of each method).}
+  \label{fig:nonlocality}
+\end{figure}
+
+\subsection{E7: How sensitive is \texorpdfstring{\method{mmhm}}{mmhm} to the rebuild policy?}\label{sec:e7}
+
+\pendingblock{E7}{\Cref{fig:rebuild}: amortised and 99th-percentile latency
+of \method{mmhm} and \method{drb-id-rb} for each growth threshold $\alpha$ and
+period $m$, on one size each of W2, W3 and W4; number of rebuilds. Whether a
+rebuild in the Morse order pays off against a rebuild in insertion order and
+against no rebuild.}
+
+\begin{figure}[t]
+  \centering
+  \resultfigure{F7_rebuild_sensitivity}{6cm}
+  \caption{Rebuild policy (E7): amortised latency (top) and 99th-percentile
+    per-update latency (bottom) of \method{mmhm} and \method{drb-id-rb} against
+    the growth threshold $\alpha$, one line per period $m$, on (a)~W2 with
+    $N=22$, $s=8$, (b)~W3 with $N=20$ and (c)~W4 in the square with $n=16000$,
+    $D=2$; three seeds pooled. With $\alpha=m=\infty$ the methods never rebuild
+    and coincide with \method{mmhm-norb} and \method{drb-id}.}
+  \label{fig:rebuild}
+\end{figure}
+
+\subsection{E8: What does the Morse order buy?}\label{sec:e8}
+
+\pendingblock{E8}{\Cref{fig:footprint}: distributions of per-update footprints
+and column additions for the four DRB methods on W2, W3 and W4;
+$\nnz(R)+\nnz(V)$ over time (\cref{fig:timeseries}). State whether the Morse order gives smaller footprints and
+shorter chains than insertion order between rebuilds, and by how much, as
+measured.}
+
+\begin{figure}[t]
+  \centering
+  \resultfigure{F5_footprint_ccdf}{6cm}
+  \caption{What the Morse order buys (E8): complementary cumulative
+    distributions, over the updates without a rebuild (three seeds pooled), of
+    the per-update footprint $\sum|\occ(\sigma)|$ over the deleted simplices
+    and of the per-update number of column additions, for the four DRB methods
+    (log--log). Columns: W2 with $N=22$ (E1), W3 with $N=20$ (E3), W4 in the
+    square with $n=16000$, $D=2$ (E4).}
+  \label{fig:footprint}
+\end{figure}

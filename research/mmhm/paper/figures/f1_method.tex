@@ -1,0 +1,107 @@
+% figures/f1_method.tex -- F1: schematic of the method (TikZ, grey-scale only).
+% \input inside the figure environment of sections/overview.tex. Uses the
+% notation of macros.tex and the TikZ libraries loaded in main.tex
+% (arrows.meta, positioning, calc, fit, backgrounds).
+% Top: the update path (every update, one atomic edit at a time).
+% Bottom, dashed, right to left: the rebuild path.
+\begin{tikzpicture}[
+    font=\footnotesize,
+    >={Stealth[length=2mm,width=1.6mm]},
+    box/.style={draw=black!80, rounded corners=1.5pt, align=flush left,
+      fill=white, inner sep=3pt},
+    op/.style={box, fill=black!12, text width=#1},
+    out/.style={box, text width=#1},
+    lane/.style={box, text width=#1, minimum height=2.3cm},
+    flow/.style={->, semithick},
+    rb/.style={->, semithick, dashed},
+    lbl/.style={font=\scriptsize, inner sep=1.5pt},
+  ]
+
+  % ----- dynamic reduced basis: insertion -----------------------------------
+  \node[op=6.7cm] (ins) at (0,0) {%
+    \textbf{Insert} $\sigma\in\Kc{k}$ (all facets present): new slot
+    $V_j=\{\sigma\}$, $R_j=\bd\sigma$;\\
+    while $p=\pivot(\low R_j)$ exists: $R_j\gets R_j+R_p$,
+    $V_j\gets V_j+V_p$};
+  \node[out=3.15cm, anchor=north west, minimum height=1.05cm] (pos)
+    at ($(ins.south west)+(0,-2.5mm)$) {%
+    $R_j=0$: $\sigma$ is \emph{positive}, $V_j$ is a new cycle;
+    $\beta_k$ grows by~$1$};
+  \node[out=3.15cm, anchor=north east, minimum height=1.05cm] (neg)
+    at ($(ins.south east)+(0,-2.5mm)$) {%
+    $R_j\ne0$: $\sigma$ is \emph{negative}, $\pivot(\low R_j)\gets j$;
+    $\beta_{k-1}$ drops by~$1$};
+  \draw[flow] (ins.south -| pos.north) -- (pos.north);
+  \draw[flow] (ins.south -| neg.north) -- (neg.north);
+
+  % ----- dynamic reduced basis: deletion ------------------------------------
+  \node[op=6.7cm, anchor=north west] (del) at ($(pos.south west)+(0,-6mm)$) {%
+    \textbf{Delete} $\sigma\in\Kc{k}$ (no cofaces present): footprint
+    $O=\occ(\sigma)$, the slots whose $V_j$ contains $\sigma$;
+    $Z=\{j\in O: R_j=0\}$};
+  \node[out=3.15cm, anchor=north west, minimum height=1.75cm] (caseA)
+    at ($(del.south west)+(0,-2.5mm)$) {%
+    \textbf{Case A}, $Z\ne\emptyset$ ($\sigma$ lies on a $k$-cycle):
+    pick $z\in Z$; $V_j\gets V_j+V_z$ for $j\in O\setminus\{z\}$;
+    remove slot $z$; $\beta_k$ drops by~$1$};
+  \node[out=3.15cm, anchor=north east, minimum height=1.75cm] (caseB)
+    at ($(del.south east)+(0,-2.5mm)$) {%
+    \textbf{Case B}, $Z=\emptyset$: $p\in O$ with the smallest low;
+    $(R_j,V_j)\gets(R_j{+}R_p,V_j{+}V_p)$ for $j\in O\setminus\{p\}$;
+    remove slot $p$; $\beta_{k-1}$ grows by~$1$};
+  \draw[flow] (del.south -| caseA.north) -- (caseA.north);
+  \draw[flow] (del.south -| caseB.north) -- (caseB.north);
+
+  % ----- frame of the DRB ----------------------------------------------------
+  \node[anchor=south west, align=flush left, inner sep=0pt, text width=6.9cm] (drblabel)
+    at ($(ins.north west)+(0,2.5mm)$) {%
+    \textbf{Dynamic reduced basis} of $\Bm{k}$, $k=1,2,3$:\\
+    slots $(R_j,V_j)$ satisfying (I1)--(I3) of \cref{def:drb}};
+  \begin{scope}[on background layer]
+    \node[draw=black!60, rounded corners=3pt, fill=black!3, inner sep=2.5mm,
+      fit=(drblabel)(ins)(pos)(neg)(del)(caseA)(caseB)] (drb) {};
+  \end{scope}
+
+  % ----- input side ------------------------------------------------------------
+  \node[box, text width=2.1cm, anchor=east] (atom) at ($(drb.west)+(-4mm,0)$) {%
+    \textbf{Atomic edits}, one at a time: $\Ins(\sigma)$ or $\Del(\sigma)$,
+    \mbox{$k=\dim\sigma\ge1$}};
+  \node[box, text width=1.45cm, anchor=east] (upd) at ($(atom.west)+(-4mm,0)$) {%
+    \textbf{Update} $u_t$: a batch of $s_t$ atomic edits};
+  \draw[flow] (upd.east) -- (atom.west);
+  \draw[flow] (atom.east) -- ++(3.2mm,0) |- (ins.west);
+  \draw[flow] (atom.east) -- ++(3.2mm,0) |- (del.west);
+  \draw[flow] ($(drb.north west)+(1.2cm,0)$) -- ++(0,4mm)
+    -| node[lbl, pos=0.25, above] {next atomic edit of $u_t$} (atom.north);
+
+  % ----- output side -----------------------------------------------------------
+  \node[box, text width=3.3cm, anchor=west] (betti) at ($(drb.east)+(4mm,0)$) {%
+    \textbf{Betti numbers} after $u_t$:\\
+    $\beta_k=n_k-r_k-r_{k+1}$,\\
+    $r_k=\#\{j: R_j\ne0\}$; a vertex edit changes only $n_0$.
+    Exact for every order of the cells (\cref{thm:exact})};
+  \draw[flow] (drb.east) -- (betti.west);
+
+  % ----- rebuild path (right to left) -----------------------------------------
+  \coordinate (lane) at ($(drb.south)+(0,-11mm)$);
+  \node[lane=3.3cm, anchor=north west] (trig) at (betti.west |- lane) {%
+    \textbf{Rebuild?} At INIT, and after $u_t$ if $t-t_{\mathrm{last}}\ge m$
+    or\\ \mbox{$\nnz(R)+\nnz(V)>{}$}\\
+    \mbox{$(1{+}\alpha)\max(\nnz_{\mathrm{last}},|K|)$}};
+  \node[lane=2.6cm, anchor=north east] (coll) at ($(drb.east |- lane)+(-2.5mm,0)$) {%
+    \textbf{Collapse matching}: pair a free face with its only coface; if no
+    face is free, a cell of top dimension becomes critical
+    (\cref{def:collapse})};
+  \node[lane=1.9cm, anchor=north east] (morse) at ($(coll.north west)+(-4mm,0)$) {%
+    \textbf{Morse order}:\\ $\ord=-\rmt$, reverse removal time};
+  \node[lane=4.0cm, anchor=north east] (static) at ($(morse.north west)+(-4mm,0)$) {%
+    \textbf{Static reduction} with clearing, tracking $V$; new $\pivot$ and
+    $\occ$. Every gradient pair is apparent and every column addition is in
+    a critical column (\cref{lem:apparent,cor:critical-work,cor:morse-reduction})};
+  \draw[flow] (betti.south) -- node[lbl, right] {after $u_t$} (trig.north);
+  \draw[rb] (trig.west) -- node[lbl, above] {yes} (trig.west -| coll.east);
+  \draw[rb] (coll.west) -- (coll.west -| morse.east);
+  \draw[rb] (morse.west) -- (morse.west -| static.east);
+  \coordinate (up) at ($(static.north east)+(-0.6,0)$);
+  \draw[rb] (up) -- node[lbl, left] {fresh DRB, new keys} (up |- drb.south);
+\end{tikzpicture}

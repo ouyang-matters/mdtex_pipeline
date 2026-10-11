@@ -1,0 +1,254 @@
+% main.tex -- Morse-based Modular Homology for Evolving Simplicial Complexes, version 2.
+% Build: latexmk -pdf main.tex   (settings in ./latexmkrc)
+%
+% Inputs written by other parts of the project (never edit them by hand):
+%   generated/numbers.tex          \Num... macros (experiments/aggregate.py)
+%   generated/tab_correctness.tex  body of the correctness table (a tabular)
+%   generated/tab_summary.tex      body of the summary table (a tabular)
+%   ../figures/F*.pdf              result figures (figures/*.py)
+% Every one of them is optional: a missing file renders as a visible
+% placeholder, so the document always compiles.
+\documentclass[10pt]{article}
+
+% ---------------------------------------------------------------------------
+% Page layout and fonts: the preprint look of version 1 (its arxiv style),
+% rebuilt here because arxiv.sty is not part of the TeX distribution.
+% ---------------------------------------------------------------------------
+\usepackage[letterpaper,textwidth=6.5in,textheight=9in,top=1in,
+            headheight=14pt,headsep=25pt,footskip=30pt]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\renewcommand{\rmdefault}{ptm}            % Times for text; math stays Computer Modern
+\usepackage[scaled=0.9]{helvet}           % sans serif (method names)
+\usepackage[protrusion=true,expansion=true]{microtype}
+
+\makeatletter
+% Font sizes with the tight leading of version 1 (10/11pt body).
+\renewcommand{\normalsize}{%
+  \@setfontsize\normalsize\@xpt\@xipt
+  \abovedisplayskip 7\p@ \@plus 2\p@ \@minus 5\p@
+  \abovedisplayshortskip \z@ \@plus 3\p@
+  \belowdisplayskip \abovedisplayskip
+  \belowdisplayshortskip 4\p@ \@plus 3\p@ \@minus 3\p@}
+\normalsize
+\renewcommand{\small}{\@setfontsize\small\@ixpt\@xpt}
+\renewcommand{\footnotesize}{\@setfontsize\footnotesize\@ixpt\@xpt}
+\renewcommand{\scriptsize}{\@setfontsize\scriptsize\@viipt\@viiipt}
+\renewcommand{\tiny}{\@setfontsize\tiny\@vipt\@viipt}
+\renewcommand{\large}{\@setfontsize\large\@xiipt{14}}
+\renewcommand{\Large}{\@setfontsize\Large\@xivpt{16}}
+\renewcommand{\LARGE}{\@setfontsize\LARGE\@xviipt{20}}
+
+% Paragraphs: no indentation, space between paragraphs.
+\setlength{\parindent}{\z@}
+\setlength{\parskip}{5.5\p@}
+\widowpenalty=10000
+\clubpenalty=10000
+
+% Section headings.
+\renewcommand{\section}{\@startsection{section}{1}{\z@}%
+  {-2.0ex \@plus -0.5ex \@minus -0.2ex}{1.5ex \@plus 0.3ex \@minus 0.2ex}%
+  {\large\bfseries\raggedright}}
+\renewcommand{\subsection}{\@startsection{subsection}{2}{\z@}%
+  {-1.8ex \@plus -0.5ex \@minus -0.2ex}{0.8ex \@plus 0.2ex}%
+  {\normalsize\bfseries\raggedright}}
+\renewcommand{\subsubsection}{\@startsection{subsubsection}{3}{\z@}%
+  {-1.5ex \@plus -0.5ex \@minus -0.2ex}{0.5ex \@plus 0.2ex}%
+  {\normalsize\bfseries\raggedright}}
+\renewcommand{\paragraph}{\@startsection{paragraph}{4}{\z@}%
+  {1.5ex \@plus 0.5ex \@minus 0.2ex}{-1em}{\normalsize\bfseries}}
+
+% Floats.
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.4}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.7}
+\setlength{\textfloatsep}{12\p@ \@plus 2\p@ \@minus 2\p@}
+\setlength{\floatsep}{12\p@ \@plus 2\p@ \@minus 2\p@}
+\renewcommand{\footnoterule}{\kern-3\p@ \hrule width 12pc \kern 2.6\p@}
+
+% Title block: rules above and below a small-caps title, "A Preprint" under it,
+% centred author tabular whose first row (the name) is bold.
+\newcommand{\shorttitle}{Morse-based Modular Homology for Evolving Simplicial Complexes}
+\renewcommand{\@maketitle}{%
+  \vbox{%
+    \hsize\textwidth
+    \linewidth\hsize
+    \vskip 0.1in
+    \hrule height 2\p@
+    \vskip 0.25in
+    \vskip -\parskip
+    \centering
+    {\LARGE\scshape \@title\par}
+    \vskip 0.29in
+    \vskip -\parskip
+    \hrule height 2\p@
+    \vskip 0.09in
+    {\scshape A Preprint}\par
+    \vskip 0.1in
+    \begin{tabular}[t]{c}\bfseries\rule{\z@}{24\p@}\ignorespaces\@author\end{tabular}\par
+    \vskip 0.4in \@minus 0.1in
+    {\@date\par}
+    \vskip 0.2in
+  }%
+}
+\renewcommand{\maketitle}{\par\begingroup\@maketitle\endgroup
+  \thispagestyle{empty}\setcounter{footnote}{0}}
+
+% Abstract and keywords as in version 1.
+\renewenvironment{abstract}%
+  {\centerline{\large\bfseries\scshape Abstract}\begin{quote}}%
+  {\end{quote}}
+\newcommand{\keywords}[1]{\par\addvspace\medskipamount
+  {\rightskip=\z@ \@plus 1cm\noindent{\bfseries\itshape Keywords}\enspace
+   \ignorespaces#1\par}}
+\makeatother
+
+% Running head: title centred, "A Preprint" right, rule below.
+\usepackage{fancyhdr}
+\fancyhf{}
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyheadoffset{0pt}
+\fancyhead[C]{\shorttitle}
+\fancyhead[R]{\scshape A Preprint}
+\fancyfoot[C]{\thepage}
+
+% ---------------------------------------------------------------------------
+% Packages
+% ---------------------------------------------------------------------------
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\graphicspath{{../figures/}{figures/}}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage[table]{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+\usepackage[font=small,labelfont=bf,skip=6pt]{caption}
+\usepackage{enumitem}
+\setlist{topsep=2pt,itemsep=1pt,parsep=1pt}
+\usepackage[numbers,square,sort&compress]{natbib}
+\usepackage{url}
+\usepackage[hyperfootnotes=false]{hyperref}
+% Link colours echo the link boxes of version 1 (red: internal, green:
+% citations, cyan: URLs), darkened so that they print well in grey.
+\definecolor{linkred}{rgb}{0.55,0.05,0.05}
+\definecolor{citegreen}{rgb}{0.05,0.42,0.10}
+\definecolor{urlcyan}{rgb}{0.0,0.30,0.50}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=linkred,
+  citecolor=citegreen,
+  urlcolor=urlcyan,
+  pdftitle={Morse-based Modular Homology for Evolving Simplicial Complexes},
+  pdfauthor={Anqiao Ouyang},
+  pdfkeywords={simplicial homology, Betti numbers, dynamic algorithms,
+    discrete Morse theory, matrix reduction},
+}
+\usepackage{doi}
+\usepackage[capitalise,noabbrev,nameinlink]{cleveref}
+
+% Shared notation and theorem environments (after cleveref, so that theorem,
+% lemma and proposition, which share a counter, keep their own names).
+\input{macros}
+\crefname{observation}{Observation}{Observations}
+\crefname{conjecture}{Conjecture}{Conjectures}
+\crefname{claim}{Claim}{Claims}
+\crefname{remark}{Remark}{Remarks}
+\crefname{example}{Example}{Examples}
+\crefname{definition}{Definition}{Definitions}
+\crefname{corollary}{Corollary}{Corollaries}
+
+% ---------------------------------------------------------------------------
+% Placeholders for results that are not in yet. Each use is visible in the
+% PDF and leaves a "Package mmhm Warning" in the log, so a final build can be
+% checked for leftovers with:  grep 'Package mmhm Warning' main.log
+% ---------------------------------------------------------------------------
+\makeatletter
+% inline: [pending: ...]
+\DeclareRobustCommand{\pending}[1]{%
+  \PackageWarning{mmhm}{Placeholder (pending result)}%
+  {\sffamily\bfseries[pending:}\,{\itshape #1}{\sffamily\bfseries]}}
+% block: a framed paragraph
+\newcommand{\pendingblock}[2]{% #1 tag, #2 text
+  \PackageWarning{mmhm}{Placeholder block #1}%
+  \par\noindent
+  \fcolorbox{black!55}{black!5}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
+    \small\sffamily\textbf{Results pending (#1).}\ \rmfamily #2}}\par}
+% a missing figure file
+\newcommand{\figpending}[2]{% #1 file stem, #2 height
+  \PackageWarning{mmhm}{Figure file ../figures/#1.pdf not found}%
+  \fcolorbox{black!55}{black!5}{\parbox[c][#2][c]{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
+    \centering\small\sffamily Figure pending:
+    \texttt{figures/\detokenize{#1}.pdf}}}}
+% include a result figure if it exists
+\newcommand{\resultfigure}[3][\linewidth]{% [width] {file stem} {placeholder height}
+  \IfFileExists{../figures/#2.pdf}%
+    {\includegraphics[width=#1]{#2.pdf}}%
+    {\figpending{#2}{#3}}}
+% include a generated table body if it exists
+\newcommand{\generatedtable}[1]{% #1 file stem in generated/
+  \IfFileExists{generated/#1.tex}%
+    {\input{generated/#1}}%
+    {\PackageWarning{mmhm}{Generated table generated/#1.tex not found}%
+     \fcolorbox{black!55}{black!5}{\parbox{0.8\linewidth}{\centering\small\sffamily
+       Table pending: \texttt{generated/\detokenize{#1}.tex}}}}}
+
+% Measured numbers: generated/numbers.tex defines \Num... macros. Every macro
+% used in the text gets a fallback that prints a bold "??" and warns.
+% Contract: the text uses every \Num macro in text mode, never inside $...$,
+% so a generated value may be plain text (2000, 1.2{,}345) or contain math.
+\IfFileExists{generated/numbers.tex}{\input{generated/numbers}}{}
+\DeclareRobustCommand{\NumMissing}[1]{%
+  \PackageWarning{mmhm}{Number \string\Num#1\space undefined (generated/numbers.tex)}%
+  \textbf{??}}
+\newcommand{\NumFallback}[1]{%
+  \expandafter\providecommand\csname Num#1\endcsname{\NumMissing{#1}}}
+% Protocol parameters that are fixed by the experiment configs.
+\NumFallback{Updates}          % T: updates per timed run
+\NumFallback{Prefix}           % T': prefix length for static baselines at the largest sizes
+\NumFallback{GudhiSizeMax}     % largest |K| at which the gudhi baseline is timed
+\NumFallback{SizeMax}          % largest |K| in a timed run
+% Correctness (E0).
+\NumFallback{VerifiedStates}   % (method, run, state) triples compared with an oracle, all exact methods
+\NumFallback{ExactMismatches}  % mismatches of exact methods (all oracles)
+\NumFallback{LcrErrMax}        % lcr: largest per-workload percentage of updates with a wrong Betti number
+% W4 truncation effect.
+\NumFallback{WFourBetaDRatioMin} % min over W4 instances of beta_D / n at INIT
+\NumFallback{WFourBetaDRatioMax} % max over W4 instances of beta_D / n at INIT
+\makeatother
+
+% ---------------------------------------------------------------------------
+\title{Morse-based Modular Homology for Evolving Simplicial Complexes}
+\author{%
+  Anqiao Ouyang\\
+  Mount Boucherie Secondary School\\
+  West Kelowna, British Columbia, Canada\\[11pt]
+  Department of Aerospace Engineering\\
+  San Diego State University\\
+  San Diego, California, USA\\
+  \texttt{aouyang@sdsu.edu}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{sections/abstract}
+
+\keywords{Simplicial Homology, Betti Numbers, Dynamic Homology Computation,
+  Discrete Morse Theory, Boundary Matrix Reduction, Computational Algebraic Topology}
+
+\input{sections/intro}
+\input{sections/related}
+\input{sections/theory}
+\input{sections/erratum}
+\input{sections/experiments}
+\input{sections/discussion}
+\input{sections/conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

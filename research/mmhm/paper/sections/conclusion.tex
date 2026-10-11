@@ -1,0 +1,31 @@
+% sections/conclusion.tex -- conclusion (draft; quantitative claims only via
+% \Num macros or \pending placeholders).
+\section{Conclusion}\label{sec:conclusion}
+
+We have replaced the localised update of version~1, which is not exact, by a
+dynamic reduced basis that maintains the $\Z$ Betti numbers of a simplicial
+complex exactly under insertions and deletions of simplices. Insertion is the
+standard reduction step; deletion corrects every basis chain that contains the
+deleted simplex, which is the rank-only form of known zigzag and warm-start
+updates. Exactness holds for every order of the cells. Discrete Morse theory
+enters through the order chosen at a rebuild: ordering cells by reverse removal
+time in a collapse makes every gradient pair an apparent pair, confines the
+column additions of the rebuild to critical columns, and makes the reduction of
+those columns coincide with the reduction of the Morse complex. The cost of an
+update is bounded by footprints and reduction chains; it cannot be bounded by the
+size of the update, and we exhibit families on which it is linear in the size of
+the complex. The erratum gives concrete counterexamples to the rule of
+version~1, and every exact method in our experiments was checked against three
+independent oracles. \pending{two sentences with the main measured results of
+E1--E8, stated with \textbackslash Num macros, including the cases in which the
+method does not help}
+
+Several questions remain open: maintaining the matching between rebuilds, so
+that the guarantees of \cref{lem:apparent} hold at all times; rebuild policies
+with provable guarantees; bounds on footprints and reduction chains for
+structured families of complexes and edits; coefficients other than $\Z$; and a
+comparison with implementations of zigzag persistence.
+
+\paragraph{Code and data.} \pending{repository or archive with the engine,
+generators, oracles, raw per-update records and the scripts that produce every
+number, table and figure}
