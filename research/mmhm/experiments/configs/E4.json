@@ -1,0 +1,141 @@
+{
+ "exp": "E4",
+ "question": "Non-manifold, all Betti numbers vary (W4 truncated flag complexes)",
+ "T": 2000,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "verify_every": 50,
+ "instances": [
+  {
+   "workload": "w4_2d_n1000_D2",
+   "gen": [
+    "w4",
+    "--n",
+    "1000",
+    "--ambient",
+    "2",
+    "--D",
+    "2"
+   ],
+   "stem": "w4_2d_n1000_deg10_D2_T2000_seed{seed}",
+   "K0_approx": 16081
+  },
+  {
+   "workload": "w4_2d_n4000_D2",
+   "gen": [
+    "w4",
+    "--n",
+    "4000",
+    "--ambient",
+    "2",
+    "--D",
+    "2"
+   ],
+   "stem": "w4_2d_n4000_deg10_D2_T2000_seed{seed}",
+   "K0_approx": 63911
+  },
+  {
+   "workload": "w4_2d_n16000_D2",
+   "gen": [
+    "w4",
+    "--n",
+    "16000",
+    "--ambient",
+    "2",
+    "--D",
+    "2"
+   ],
+   "stem": "w4_2d_n16000_deg10_D2_T2000_seed{seed}",
+   "K0_approx": 254203
+  },
+  {
+   "workload": "w4_2d_n1000_D3",
+   "gen": [
+    "w4",
+    "--n",
+    "1000",
+    "--ambient",
+    "2",
+    "--D",
+    "3"
+   ],
+   "stem": "w4_2d_n1000_deg10_D3_T2000_seed{seed}",
+   "K0_approx": 28413
+  },
+  {
+   "workload": "w4_2d_n4000_D3",
+   "gen": [
+    "w4",
+    "--n",
+    "4000",
+    "--ambient",
+    "2",
+    "--D",
+    "3"
+   ],
+   "stem": "w4_2d_n4000_deg10_D3_T2000_seed{seed}",
+   "K0_approx": 111763
+  },
+  {
+   "workload": "w4_3d_n1000_D3",
+   "gen": [
+    "w4",
+    "--n",
+    "1000",
+    "--ambient",
+    "3",
+    "--D",
+    "3"
+   ],
+   "stem": "w4_3d_n1000_deg10_D3_T2000_seed{seed}",
+   "K0_approx": 22803
+  },
+  {
+   "workload": "w4_3d_n4000_D3",
+   "gen": [
+    "w4",
+    "--n",
+    "4000",
+    "--ambient",
+    "3",
+    "--D",
+    "3"
+   ],
+   "stem": "w4_3d_n4000_deg10_D3_T2000_seed{seed}",
+   "K0_approx": 85207
+  }
+ ],
+ "methods": [
+  {
+   "label": "full-id",
+   "method": "full-id"
+  },
+  {
+   "label": "full-morse",
+   "method": "full-morse"
+  },
+  {
+   "label": "gudhi",
+   "method": "gudhi"
+  },
+  {
+   "label": "drb-id",
+   "method": "drb-id"
+  },
+  {
+   "label": "drb-id-rb",
+   "method": "drb-id-rb"
+  },
+  {
+   "label": "mmhm",
+   "method": "mmhm"
+  },
+  {
+   "label": "mmhm-norb",
+   "method": "mmhm-norb"
+  }
+ ]
+}

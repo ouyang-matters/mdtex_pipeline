@@ -2,7 +2,7 @@
 
 C++17 implementation of SPEC.md §2–§5 and §7: the dynamic reduced basis (DRB),
 the collapse-based Morse order, static reduction with clearing, the exact
-methods `full-id`, `full-morse`, `drb-id`, `mmhm`, `mmhm-norb`, and the
+methods `full-id`, `full-morse`, `drb-id`, `drb-id-rb`, `mmhm`, `mmhm-norb`, and the
 baselines `lcr` (v1's rule, inexact on purpose) and `euler` (surfaces only).
 `gudhi` is not part of the engine (see `../oracle/`).
 
@@ -50,7 +50,7 @@ produced by `../workloads/`, not by this tool.
   a mismatch; `lcr` sets `mismatch = 1` in the row and continues. The stderr
   summary line reports totals (updates, init/update ms, rebuilds, verified,
   mismatches).
-* `--period` / `--alpha` only affect `mmhm` (warning otherwise). Defaults:
+* `--period` / `--alpha` only affect `mmhm` and `drb-id-rb` (warning otherwise). Defaults:
   period off, alpha 1.0. `off` (or `inf`) disables a trigger.
 * Exit codes: 0 ok, 1 usage, 2 invalid input, 3 mismatch, 4 `euler`
   precondition violated, 5 internal error / out of memory.
@@ -65,8 +65,8 @@ produced by `../workloads/`, not by this tool.
 | `ops` | atomic edits in the block (`s_t`; for `t = 0` the number of INIT simplices) |
 | `n0..n3` | simplex counts after the block |
 | `b0..b3` | Betti numbers reported by the method after the block |
-| `time_ns` | `steady_clock` time of processing the block. `t = 0`: store insertion + build. `t ≥ 1`: every atomic edit (store update + method hook) + per-update recomputation (`full-*`) + rebuild (`mmhm`, if triggered). Verification and CSV output are excluded. |
-| `rebuild` | 1 iff `mmhm` rebuilt at the end of this update (never at `t = 0`) |
+| `time_ns` | `steady_clock` time of processing the block. `t = 0`: store insertion + build. `t ≥ 1`: every atomic edit (store update + method hook) + per-update recomputation (`full-*`) + rebuild (`mmhm`, `drb-id-rb`, if triggered). Verification and CSV output are excluded. |
+| `rebuild` | 1 iff `mmhm` / `drb-id-rb` rebuilt at the end of this update (never at `t = 0`) |
 | `rebuild_ns` | duration of that rebuild; **included** in `time_ns` |
 | `nnz_R`, `nnz_V` | `Σ|R_j|`, `Σ|V_j|` over all slots of all dimensions after the row (after its rebuild). `full-*`: entries of the non-zero reduced columns of the recomputation, `nnz_V = 0`. `lcr`: `Σ|R|`, `nnz_V = 0`. `euler`: 0. |
 | `footprint_sum` | DRB methods: `Σ |occ[σ]|` over the deletions of simplices of dimension ≥ 1 in the block (exact sizes, after filtering the lazy lists). 0 for other methods. |
@@ -147,7 +147,10 @@ free face is read off directly. The matching depends only on `K` as a set
 **Methods** (`methods.hpp`). `full-id`/`full-morse` recompute after every
 update. `drb-id` builds in insertion order at INIT and never rebuilds.
 `mmhm-norb` builds in Morse order at INIT and never rebuilds. `mmhm` adds the
-§5.1 policy, evaluated after each update. `lcr` uses the same order as
+§5.1 policy, evaluated after each update. `drb-id-rb` is `drb-id` with the
+same policy and flags; its rebuild reassigns keys by insertion counter — the
+order of the keys already in use, renumbered `0..N−1` — and reruns the static
+reduction with `V` (it keeps the store's insertion index for that). `lcr` uses the same order as
 `mmhm-norb` and keeps only `R` per column. `euler` maintains `χ` and the
 numbers of edges with 1 / 2 / other coface counts, O(1) per atomic edit, and
 checks its preconditions at the end of each update (SPEC §5 note).
@@ -218,10 +221,10 @@ Observations worth checking on the real workloads:
   complexes, complexes reached by edits, a 4³ ball and its boundary sphere.
 * `random_*`: randomized differential tests (random closed complexes up to
   dim 3, random valid batches; INIT deliberately shuffled): after every update
-  every exact method (including `mmhm` with α ∈ {0, 0.05, 0.25, 1, off} ×
-  period ∈ {off, 1, 2, 5}) equals the dense brute-force Z2 rank computation,
+  every exact method (including `mmhm` and `drb-id-rb` with α ∈ {0, 0.05,
+  0.25, 1, off} × period ∈ {off, 1, 2, 5}) equals the dense brute-force Z2 rank computation,
   and `Drb::check` passes. Asserts that Case A, Case B and rebuilds occur.
 * `cli_*`: generated ball and torus sequences through the binary for every
   method with `--verify-every 1`, with and without verification, identical
-  Betti files, `mmhm` with aggressive rebuilds, `check`, and `euler`'s refusal
+  Betti files, `mmhm` and `drb-id-rb` with aggressive rebuilds, `check`, and `euler`'s refusal
   of a 3-complex.

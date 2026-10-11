@@ -1,0 +1,82 @@
+{
+ "exp": "E3",
+ "question": "Genuine 3D topology changes (W3 cavities, k = 2)",
+ "T": 2000,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "verify_every": 50,
+ "instances": [
+  {
+   "workload": "w3_N14_k2",
+   "gen": [
+    "w3",
+    "--N",
+    "14",
+    "--k",
+    "2"
+   ],
+   "stem": "w3_N14_k2_c4_T2000_seed{seed}",
+   "K0_approx": 74957
+  },
+  {
+   "workload": "w3_N20_k2",
+   "gen": [
+    "w3",
+    "--N",
+    "20",
+    "--k",
+    "2"
+   ],
+   "stem": "w3_N20_k2_c4_T2000_seed{seed}",
+   "K0_approx": 215321
+  },
+  {
+   "workload": "w3_N27_k2",
+   "gen": [
+    "w3",
+    "--N",
+    "27",
+    "--k",
+    "2"
+   ],
+   "stem": "w3_N27_k2_c4_T2000_seed{seed}",
+   "K0_approx": 525043,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  }
+ ],
+ "methods": [
+  {
+   "label": "full-id",
+   "method": "full-id"
+  },
+  {
+   "label": "full-morse",
+   "method": "full-morse"
+  },
+  {
+   "label": "gudhi",
+   "method": "gudhi"
+  },
+  {
+   "label": "drb-id",
+   "method": "drb-id"
+  },
+  {
+   "label": "drb-id-rb",
+   "method": "drb-id-rb"
+  },
+  {
+   "label": "mmhm",
+   "method": "mmhm"
+  },
+  {
+   "label": "mmhm-norb",
+   "method": "mmhm-norb"
+  }
+ ]
+}

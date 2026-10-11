@@ -1,0 +1,188 @@
+{
+ "exp": "E6",
+ "question": "Where locality fails (W5a cycle toggle, W5b sphere puncture toggle)",
+ "T": 2000,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "verify_every": 50,
+ "instances": [
+  {
+   "workload": "w5a_L1000",
+   "gen": [
+    "w5a",
+    "--L",
+    "1000"
+   ],
+   "stem": "w5a_cycle_L1000_T2000_seed{seed}",
+   "K0_approx": 2000
+  },
+  {
+   "workload": "w5a_L3000",
+   "gen": [
+    "w5a",
+    "--L",
+    "3000"
+   ],
+   "stem": "w5a_cycle_L3000_T2000_seed{seed}",
+   "K0_approx": 6000
+  },
+  {
+   "workload": "w5a_L10000",
+   "gen": [
+    "w5a",
+    "--L",
+    "10000"
+   ],
+   "stem": "w5a_cycle_L10000_T2000_seed{seed}",
+   "K0_approx": 20000
+  },
+  {
+   "workload": "w5a_L30000",
+   "gen": [
+    "w5a",
+    "--L",
+    "30000"
+   ],
+   "stem": "w5a_cycle_L30000_T2000_seed{seed}",
+   "K0_approx": 60000
+  },
+  {
+   "workload": "w5a_L100000",
+   "gen": [
+    "w5a",
+    "--L",
+    "100000"
+   ],
+   "stem": "w5a_cycle_L100000_T2000_seed{seed}",
+   "K0_approx": 200000
+  },
+  {
+   "workload": "w5a_L300000",
+   "gen": [
+    "w5a",
+    "--L",
+    "300000"
+   ],
+   "stem": "w5a_cycle_L300000_T2000_seed{seed}",
+   "K0_approx": 600000,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  },
+  {
+   "workload": "w5a_L1000000",
+   "gen": [
+    "w5a",
+    "--L",
+    "1000000"
+   ],
+   "stem": "w5a_cycle_L1000000_T2000_seed{seed}",
+   "K0_approx": 2000000,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  },
+  {
+   "workload": "w5b_L3",
+   "gen": [
+    "w5b",
+    "--level",
+    "3"
+   ],
+   "stem": "w5b_sphere_L3_T2000_seed{seed}",
+   "K0_approx": 3842
+  },
+  {
+   "workload": "w5b_L4",
+   "gen": [
+    "w5b",
+    "--level",
+    "4"
+   ],
+   "stem": "w5b_sphere_L4_T2000_seed{seed}",
+   "K0_approx": 15362
+  },
+  {
+   "workload": "w5b_L5",
+   "gen": [
+    "w5b",
+    "--level",
+    "5"
+   ],
+   "stem": "w5b_sphere_L5_T2000_seed{seed}",
+   "K0_approx": 61442
+  },
+  {
+   "workload": "w5b_L6",
+   "gen": [
+    "w5b",
+    "--level",
+    "6"
+   ],
+   "stem": "w5b_sphere_L6_T2000_seed{seed}",
+   "K0_approx": 245762
+  },
+  {
+   "workload": "w5b_L7",
+   "gen": [
+    "w5b",
+    "--level",
+    "7"
+   ],
+   "stem": "w5b_sphere_L7_T2000_seed{seed}",
+   "K0_approx": 983042,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  },
+  {
+   "workload": "w5b_L8",
+   "gen": [
+    "w5b",
+    "--level",
+    "8"
+   ],
+   "stem": "w5b_sphere_L8_T2000_seed{seed}",
+   "K0_approx": 3932162,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  }
+ ],
+ "methods": [
+  {
+   "label": "full-id",
+   "method": "full-id"
+  },
+  {
+   "label": "gudhi",
+   "method": "gudhi"
+  },
+  {
+   "label": "drb-id",
+   "method": "drb-id"
+  },
+  {
+   "label": "drb-id-rb",
+   "method": "drb-id-rb"
+  },
+  {
+   "label": "mmhm",
+   "method": "mmhm"
+  },
+  {
+   "label": "mmhm-norb",
+   "method": "mmhm-norb"
+  },
+  {
+   "label": "euler",
+   "method": "euler",
+   "only": [
+    "w5b"
+   ]
+  }
+ ]
+}

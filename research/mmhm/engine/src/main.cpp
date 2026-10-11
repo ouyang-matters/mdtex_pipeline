@@ -42,8 +42,8 @@ void usage() {
                "methods:");
   for (const auto& n : method_names()) std::fprintf(stderr, " %s", n.c_str());
   std::fprintf(stderr,
-               "\n--period m: rebuild every m updates (mmhm only; default off)\n"
-               "--alpha a : growth trigger (mmhm only; default 1.0; 'off' or 'inf' disables)\n");
+               "\n--period m: rebuild every m updates (mmhm, drb-id-rb; default off)\n"
+               "--alpha a : growth trigger (mmhm, drb-id-rb; default 1.0; 'off' or 'inf' disables)\n");
 }
 
 bool parse_u64(const char* s, uint64_t& out) {
@@ -189,8 +189,8 @@ int cmd_run(const Args& a) {
     usage();
     return 1;
   }
-  if ((a.period_given || a.alpha_given) && a.method != "mmhm")
-    std::fprintf(stderr, "warning: --period/--alpha only affect mmhm; ignored for %s\n",
+  if ((a.period_given || a.alpha_given) && a.method != "mmhm" && a.method != "drb-id-rb")
+    std::fprintf(stderr, "warning: --period/--alpha only affect mmhm and drb-id-rb; ignored for %s\n",
                  a.method.c_str());
 
   // ---- parse everything before timing starts

@@ -63,7 +63,7 @@ DrbMethod::DrbMethod(int maxdim, Order o, bool rebuild, const MethodOptions& opt
 }
 
 const char* DrbMethod::name() const {
-  if (order_ == Order::Insertion) return "drb-id";
+  if (order_ == Order::Insertion) return rebuild_ ? "drb-id-rb" : "drb-id";
   return rebuild_ ? "mmhm" : "mmhm-norb";
 }
 
@@ -179,8 +179,8 @@ void EulerMethod::betti(int64_t b[4]) {
 // --------------------------------------------------------------- factory ----
 
 const std::vector<std::string>& method_names() {
-  static const std::vector<std::string> names = {"full-id", "full-morse", "drb-id", "mmhm",
-                                                 "mmhm-norb", "lcr", "euler"};
+  static const std::vector<std::string> names = {"full-id", "full-morse", "drb-id", "drb-id-rb",
+                                                 "mmhm",    "mmhm-norb",  "lcr",    "euler"};
   return names;
 }
 
@@ -188,6 +188,7 @@ std::unique_ptr<Method> make_method(const std::string& name, int maxdim, const M
   if (name == "full-id") return std::make_unique<FullMethod>(maxdim, Order::Insertion);
   if (name == "full-morse") return std::make_unique<FullMethod>(maxdim, Order::Morse);
   if (name == "drb-id") return std::make_unique<DrbMethod>(maxdim, Order::Insertion, false, opt);
+  if (name == "drb-id-rb") return std::make_unique<DrbMethod>(maxdim, Order::Insertion, true, opt);
   if (name == "mmhm") return std::make_unique<DrbMethod>(maxdim, Order::Morse, true, opt);
   if (name == "mmhm-norb") return std::make_unique<DrbMethod>(maxdim, Order::Morse, false, opt);
   if (name == "lcr") return std::make_unique<LcrMethod>(maxdim);

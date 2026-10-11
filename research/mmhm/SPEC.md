@@ -197,6 +197,7 @@ FULL baselines skip `V` tracking (ranks only). DRB rebuilds keep `V` and build
 | `full-morse` | per update: collapse matching + Morse order + clearing (v1's "coreduction-only", done properly) | yes |
 | `gudhi` | per update: GUDHI SimplexTree `compute_persistence(homology_coeff_field=2, persistence_dim_max=True)` (external static baseline, Python). The flag is required: without it GUDHI silently omits the top dimension (hollow tetrahedron → `[1, 0]`) | yes |
 | `drb-id` | DRB, insertion order, never rebuilt | yes |
+| `drb-id-rb` | DRB, insertion order, same rebuild policy and flags as `mmhm` (§5.1); a rebuild keeps the current insertion-order keys (ablation: rebuilding at all vs. rebuilding in Morse order) | yes |
 | `mmhm` | DRB + Morse order + rebuild policy (§5.1) — **the method** | yes |
 | `mmhm-norb` | DRB + Morse order at build only, never rebuilt (ablation) | yes |
 | `lcr` | v1 localized column re-reduction **without** basis tracking (E1); deletion = clear the column's pivot and drop it; insertion = reduce new column | **no** — used only to measure error rate |
@@ -222,6 +223,10 @@ triggers it. Report both per-update latency and amortized latency.
 Here `n_cells = n0 + n1 + n2 + n3` and `nnz_at_last_rebuild` is measured right
 after the last rebuild (the INIT build counts as the rebuild at `t = 0`). The
 engine accepts `--period off` / `--alpha off` to disable either trigger.
+`drb-id-rb` uses the same triggers and flags, but its rebuild is the static
+reduction with clearing (§4, `V` tracked, `occ` rebuilt) in the current
+insertion order (the order of the keys in use, renumbered `0..N−1`) instead
+of a fresh collapse matching.
 
 ## 6. Workloads (`.seq` generators in `workloads/`)
 

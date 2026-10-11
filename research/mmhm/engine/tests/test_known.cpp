@@ -108,7 +108,7 @@ TEST_CASE(known_brute_oracle) {
 TEST_CASE(known_init_all_methods) {
   for (const Known& k : knowns()) {
     const auto K = t::closure(k.tops);
-    for (const char* m : {"full-id", "full-morse", "drb-id", "mmhm", "mmhm-norb", "lcr"}) {
+    for (const char* m : {"full-id", "full-morse", "drb-id", "drb-id-rb", "mmhm", "mmhm-norb", "lcr"}) {
       const B4 b = init_betti(m, K, k.dim);
       CHECK_MSG(b == k.betti, k.name << " / " << m << ": got " << t::str(b));
     }

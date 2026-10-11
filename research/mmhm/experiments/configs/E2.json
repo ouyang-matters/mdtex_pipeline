@@ -1,0 +1,116 @@
+{
+ "exp": "E2",
+ "question": "How does cost scale with edit size? (W2, N = 22, s = 1..64; s = 8 is E1's N = 22 instance)",
+ "T": 2000,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "verify_every": 50,
+ "instances": [
+  {
+   "workload": "w2_N22_s1",
+   "gen": [
+    "w2",
+    "--N",
+    "22",
+    "--s",
+    "1"
+   ],
+   "stem": "w2_N22_s1_T2000_seed{seed}",
+   "K0_approx": 285805
+  },
+  {
+   "workload": "w2_N22_s2",
+   "gen": [
+    "w2",
+    "--N",
+    "22",
+    "--s",
+    "2"
+   ],
+   "stem": "w2_N22_s2_T2000_seed{seed}",
+   "K0_approx": 285917
+  },
+  {
+   "workload": "w2_N22_s4",
+   "gen": [
+    "w2",
+    "--N",
+    "22",
+    "--s",
+    "4"
+   ],
+   "stem": "w2_N22_s4_T2000_seed{seed}",
+   "K0_approx": 286141
+  },
+  {
+   "workload": "w2_N22_s16",
+   "gen": [
+    "w2",
+    "--N",
+    "22",
+    "--s",
+    "16"
+   ],
+   "stem": "w2_N22_s16_T2000_seed{seed}",
+   "K0_approx": 287485
+  },
+  {
+   "workload": "w2_N22_s32",
+   "gen": [
+    "w2",
+    "--N",
+    "22",
+    "--s",
+    "32"
+   ],
+   "stem": "w2_N22_s32_T2000_seed{seed}",
+   "K0_approx": 289277
+  },
+  {
+   "workload": "w2_N22_s64",
+   "gen": [
+    "w2",
+    "--N",
+    "22",
+    "--s",
+    "64"
+   ],
+   "stem": "w2_N22_s64_T2000_seed{seed}",
+   "K0_approx": 292861
+  }
+ ],
+ "methods": [
+  {
+   "label": "full-id",
+   "method": "full-id"
+  },
+  {
+   "label": "full-morse",
+   "method": "full-morse"
+  },
+  {
+   "label": "drb-id",
+   "method": "drb-id"
+  },
+  {
+   "label": "drb-id-rb",
+   "method": "drb-id-rb"
+  },
+  {
+   "label": "mmhm",
+   "method": "mmhm"
+  },
+  {
+   "label": "mmhm-norb",
+   "method": "mmhm-norb"
+  },
+  {
+   "label": "gudhi-oracle",
+   "method": "gudhi",
+   "timed": false
+  }
+ ]
+}

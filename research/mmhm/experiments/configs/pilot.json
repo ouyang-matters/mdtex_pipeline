@@ -1,0 +1,28 @@
+{
+  "exp": "pilot",
+  "question": "Sizing pilot: one mid size per workload, all methods, T = 200 (seed 0).",
+  "seeds": [0],
+  "T": 200,
+  "instances": [
+    {"workload": "w1_sphere_L5", "gen": ["w1", "--surface", "sphere", "--level", "5"], "stem": "w1_sphere_L5_k2_h3_T2000_seed{seed}"},
+    {"workload": "w1_torus_128", "gen": ["w1", "--surface", "torus", "--n", "128", "--m", "128"], "stem": "w1_torus_128x128_k2_h3_T2000_seed{seed}"},
+    {"workload": "w2_N15_s8", "gen": ["w2", "--N", "15", "--s", "8"], "stem": "w2_N15_s8_T2000_seed{seed}"},
+    {"workload": "w2_N22_s8", "gen": ["w2", "--N", "22", "--s", "8"], "stem": "w2_N22_s8_T2000_seed{seed}"},
+    {"workload": "w3_N14", "gen": ["w3", "--N", "14", "--k", "2"], "stem": "w3_N14_k2_c4_T2000_seed{seed}"},
+    {"workload": "w4_2d_n4000_D2", "gen": ["w4", "--n", "4000", "--ambient", "2", "--D", "2"], "stem": "w4_2d_n4000_deg10_D2_T2000_seed{seed}"},
+    {"workload": "w4_2d_n4000_D3", "gen": ["w4", "--n", "4000", "--ambient", "2", "--D", "3"], "stem": "w4_2d_n4000_deg10_D3_T2000_seed{seed}"},
+    {"workload": "w5a_L10000", "gen": ["w5a", "--L", "10000"], "stem": "w5a_cycle_L10000_T2000_seed{seed}"},
+    {"workload": "w5b_L5", "gen": ["w5b", "--level", "5"], "stem": "w5b_sphere_L5_T2000_seed{seed}"}
+  ],
+  "methods": [
+    {"label": "full-id", "method": "full-id"},
+    {"label": "full-morse", "method": "full-morse"},
+    {"label": "gudhi", "method": "gudhi", "T": 50},
+    {"label": "drb-id", "method": "drb-id"},
+    {"label": "drb-id-rb", "method": "drb-id-rb"},
+    {"label": "mmhm", "method": "mmhm"},
+    {"label": "mmhm-norb", "method": "mmhm-norb"},
+    {"label": "euler", "method": "euler", "only": ["w1", "w5b"]},
+    {"label": "lcr", "method": "lcr", "verify_every": 1, "timed": false}
+  ]
+}

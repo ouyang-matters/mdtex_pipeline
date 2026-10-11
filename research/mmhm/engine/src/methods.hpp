@@ -22,8 +22,8 @@ struct PreconditionError : std::runtime_error {
 };
 
 struct MethodOptions {
-  uint64_t period = 0;  // rebuild period m (mmhm only); 0 = off (m = infinity)
-  double alpha = 1.0;   // growth trigger (mmhm only); negative = off (alpha = infinity)
+  uint64_t period = 0;  // rebuild period m (mmhm, drb-id-rb); 0 = off (m = infinity)
+  double alpha = 1.0;   // growth trigger (mmhm, drb-id-rb); negative = off (alpha = infinity)
 };
 
 class Method {
@@ -99,11 +99,15 @@ class FullMethod : public Method {
   uint64_t adds_ = 0;
 };
 
-// drb-id / mmhm / mmhm-norb.
+// drb-id / drb-id-rb / mmhm / mmhm-norb. A rebuild recomputes the keys in
+// the method's order (Morse: fresh collapse; insertion: the insertion counter,
+// which orders the cells exactly as the keys in use do) and rebuilds the DRB
+// by the static reduction with clearing (SPEC 4).
 class DrbMethod : public Method {
  public:
   DrbMethod(int maxdim, Order o, bool rebuild, const MethodOptions& opt);
   const char* name() const override;
+  bool needs_insertion_index() const override { return order_ == Order::Insertion && rebuild_; }
   bool needs_tuple_index() const override { return order_ == Order::Morse && rebuild_; }
   void end_update(uint64_t t) override;
   void betti(int64_t b[4]) override;

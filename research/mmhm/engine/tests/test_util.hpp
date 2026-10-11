@@ -163,6 +163,7 @@ inline std::vector<Config> exact_configs(bool with_rebuild_variants = true) {
   c.push_back({"full-id", "full-id", def});
   c.push_back({"full-morse", "full-morse", def});
   c.push_back({"drb-id", "drb-id", def});
+  c.push_back({"drb-id-rb", "drb-id-rb", def});
   c.push_back({"mmhm", "mmhm", def});
   c.push_back({"mmhm-norb", "mmhm-norb", def});
   if (with_rebuild_variants) {
@@ -177,6 +178,9 @@ inline std::vector<Config> exact_configs(bool with_rebuild_variants = true) {
     p1.alpha = -1;
     p1.period = 1;
     c.push_back({"mmhm(period=1)", "mmhm", p1});
+    c.push_back({"drb-id-rb(alpha=0)", "drb-id-rb", a0});
+    c.push_back({"drb-id-rb(alpha=0.1,period=3)", "drb-id-rb", a1});
+    c.push_back({"drb-id-rb(period=1)", "drb-id-rb", p1});
   }
   return c;
 }

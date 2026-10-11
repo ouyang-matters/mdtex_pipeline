@@ -1,0 +1,160 @@
+{
+ "exp": "E5",
+ "question": "Surfaces: algebra vs combinatorial invariants (W1)",
+ "T": 2000,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "verify_every": 50,
+ "instances": [
+  {
+   "workload": "w1_sphere_L4",
+   "gen": [
+    "w1",
+    "--surface",
+    "sphere",
+    "--level",
+    "4"
+   ],
+   "stem": "w1_sphere_L4_k2_h3_T2000_seed{seed}",
+   "K0_approx": 15362
+  },
+  {
+   "workload": "w1_sphere_L5",
+   "gen": [
+    "w1",
+    "--surface",
+    "sphere",
+    "--level",
+    "5"
+   ],
+   "stem": "w1_sphere_L5_k2_h3_T2000_seed{seed}",
+   "K0_approx": 61442
+  },
+  {
+   "workload": "w1_sphere_L6",
+   "gen": [
+    "w1",
+    "--surface",
+    "sphere",
+    "--level",
+    "6"
+   ],
+   "stem": "w1_sphere_L6_k2_h3_T2000_seed{seed}",
+   "K0_approx": 245762
+  },
+  {
+   "workload": "w1_sphere_L7",
+   "gen": [
+    "w1",
+    "--surface",
+    "sphere",
+    "--level",
+    "7"
+   ],
+   "stem": "w1_sphere_L7_k2_h3_T2000_seed{seed}",
+   "K0_approx": 983042,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  },
+  {
+   "workload": "w1_torus_64",
+   "gen": [
+    "w1",
+    "--surface",
+    "torus",
+    "--n",
+    "64",
+    "--m",
+    "64"
+   ],
+   "stem": "w1_torus_64x64_k2_h3_T2000_seed{seed}",
+   "K0_approx": 24576
+  },
+  {
+   "workload": "w1_torus_128",
+   "gen": [
+    "w1",
+    "--surface",
+    "torus",
+    "--n",
+    "128",
+    "--m",
+    "128"
+   ],
+   "stem": "w1_torus_128x128_k2_h3_T2000_seed{seed}",
+   "K0_approx": 98304
+  },
+  {
+   "workload": "w1_torus_256",
+   "gen": [
+    "w1",
+    "--surface",
+    "torus",
+    "--n",
+    "256",
+    "--m",
+    "256"
+   ],
+   "stem": "w1_torus_256x256_k2_h3_T2000_seed{seed}",
+   "K0_approx": 393216,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  },
+  {
+   "workload": "w1_torus_500",
+   "gen": [
+    "w1",
+    "--surface",
+    "torus",
+    "--n",
+    "500",
+    "--m",
+    "500"
+   ],
+   "stem": "w1_torus_500x500_k2_h3_T2000_seed{seed}",
+   "K0_approx": 1500000,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  }
+ ],
+ "methods": [
+  {
+   "label": "full-id",
+   "method": "full-id"
+  },
+  {
+   "label": "full-morse",
+   "method": "full-morse"
+  },
+  {
+   "label": "gudhi",
+   "method": "gudhi"
+  },
+  {
+   "label": "drb-id",
+   "method": "drb-id"
+  },
+  {
+   "label": "drb-id-rb",
+   "method": "drb-id-rb"
+  },
+  {
+   "label": "mmhm",
+   "method": "mmhm"
+  },
+  {
+   "label": "mmhm-norb",
+   "method": "mmhm-norb"
+  },
+  {
+   "label": "euler",
+   "method": "euler"
+  }
+ ]
+}

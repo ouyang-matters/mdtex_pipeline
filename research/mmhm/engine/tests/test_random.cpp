@@ -62,7 +62,7 @@ TEST_CASE(random_cases) {
   t::RandomSpec sp;
   sp.nv = 7;
   sp.updates = 60;
-  for (const char* m : {"drb-id", "mmhm", "mmhm-norb"}) {
+  for (const char* m : {"drb-id", "drb-id-rb", "mmhm", "mmhm-norb"}) {
     t::Config c{m, m, MethodOptions()};
     Totals T = run_family(sp, 77, 40, {c});
     CHECK_MSG(T.case_a > 0 && T.case_b > 0, m << ": case A " << T.case_a << ", case B " << T.case_b);
@@ -81,21 +81,30 @@ TEST_CASE(random_rebuild) {
   sp.updates = 50;
   sp.max_batch = 8;
   std::vector<t::Config> cfgs;
-  for (double a : {0.0, 0.05, 0.25, 1.0}) {
-    for (uint64_t p : {0, 1, 2, 5}) {
-      MethodOptions o;
-      o.alpha = a;
-      o.period = p;
-      cfgs.push_back({"mmhm(alpha=" + std::to_string(a) + ",period=" + std::to_string(p) + ")",
-                      "mmhm", o});
+  for (const char* m : {"mmhm", "drb-id-rb"}) {
+    for (double a : {0.0, 0.05, 0.25, 1.0}) {
+      for (uint64_t p : {0, 1, 2, 5}) {
+        MethodOptions o;
+        o.alpha = a;
+        o.period = p;
+        cfgs.push_back({std::string(m) + "(alpha=" + std::to_string(a) + ",period=" +
+                            std::to_string(p) + ")",
+                        m, o});
+      }
     }
+    MethodOptions off;
+    off.alpha = -1;
+    off.period = 3;
+    cfgs.push_back({std::string(m) + "(alpha=off,period=3)", m, off});
   }
-  MethodOptions off;
-  off.alpha = -1;
-  off.period = 3;
-  cfgs.push_back({"mmhm(alpha=off,period=3)", "mmhm", off});
   Totals T = run_family(sp, 9000, 25, cfgs);
   CHECK(T.rebuilds > 0);
+  // drb-id-rb on its own must rebuild too (the totals above mix both methods).
+  std::vector<t::Config> rb;
+  for (const t::Config& c : cfgs)
+    if (c.method == "drb-id-rb") rb.push_back(c);
+  Totals R = run_family(sp, 9100, 10, rb);
+  CHECK(R.rebuilds > 0);
 }
 
 TEST_CASE(random_wide) {

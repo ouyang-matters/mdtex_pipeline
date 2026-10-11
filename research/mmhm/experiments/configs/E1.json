@@ -1,0 +1,106 @@
+{
+ "exp": "E1",
+ "question": "Does per-update cost depend on global size at fixed edit size? (W2, s = 8)",
+ "T": 2000,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "verify_every": 50,
+ "instances": [
+  {
+   "workload": "w2_N7_s8",
+   "gen": [
+    "w2",
+    "--N",
+    "7",
+    "--s",
+    "8"
+   ],
+   "stem": "w2_N7_s8_T2000_seed{seed}",
+   "K0_approx": 10739
+  },
+  {
+   "workload": "w2_N10_s8",
+   "gen": [
+    "w2",
+    "--N",
+    "10",
+    "--s",
+    "8"
+   ],
+   "stem": "w2_N10_s8_T2000_seed{seed}",
+   "K0_approx": 28757
+  },
+  {
+   "workload": "w2_N15_s8",
+   "gen": [
+    "w2",
+    "--N",
+    "15",
+    "--s",
+    "8"
+   ],
+   "stem": "w2_N15_s8_T2000_seed{seed}",
+   "K0_approx": 92787
+  },
+  {
+   "workload": "w2_N22_s8",
+   "gen": [
+    "w2",
+    "--N",
+    "22",
+    "--s",
+    "8"
+   ],
+   "stem": "w2_N22_s8_T2000_seed{seed}",
+   "K0_approx": 286589
+  },
+  {
+   "workload": "w2_N33_s8",
+   "gen": [
+    "w2",
+    "--N",
+    "33",
+    "--s",
+    "8"
+   ],
+   "stem": "w2_N33_s8_T2000_seed{seed}",
+   "K0_approx": 955059,
+   "T_by_method": {
+    "gudhi": 200
+   }
+  }
+ ],
+ "methods": [
+  {
+   "label": "full-id",
+   "method": "full-id"
+  },
+  {
+   "label": "full-morse",
+   "method": "full-morse"
+  },
+  {
+   "label": "gudhi",
+   "method": "gudhi"
+  },
+  {
+   "label": "drb-id",
+   "method": "drb-id"
+  },
+  {
+   "label": "drb-id-rb",
+   "method": "drb-id-rb"
+  },
+  {
+   "label": "mmhm",
+   "method": "mmhm"
+  },
+  {
+   "label": "mmhm-norb",
+   "method": "mmhm-norb"
+  }
+ ]
+}
