@@ -1,0 +1,57 @@
+% macros.tex -- shared notation and theorem environments for the MMHM v2 paper.
+% \input this file in the preamble of main.tex (after \documentclass).
+% Requires amsmath, amssymb, amsthm (loaded here; loading them again is harmless).
+\usepackage{amsmath,amssymb,amsthm}
+
+% ---------------------------------------------------------------------------
+% Theorem-like environments.
+% Theorem, lemma and proposition share one counter so that the main results are
+% Theorem 1, Lemma 2, Proposition 3, Proposition 4 (as cited in SPEC.md);
+% corollaries are numbered after their parent result (Corollary 2.1, 2.2).
+% Definitions, examples and remarks share a second counter.
+% ---------------------------------------------------------------------------
+\makeatletter
+\theoremstyle{plain}
+\@ifundefined{theorem}{\newtheorem{theorem}{Theorem}}{}
+\@ifundefined{lemma}{\newtheorem{lemma}[theorem]{Lemma}}{}
+\@ifundefined{proposition}{\newtheorem{proposition}[theorem]{Proposition}}{}
+\@ifundefined{conjecture}{\newtheorem{conjecture}[theorem]{Conjecture}}{}
+\@ifundefined{corollary}{\newtheorem{corollary}{Corollary}[theorem]}{}
+\@ifundefined{claim}{\newtheorem*{claim}{Claim}}{}
+\theoremstyle{definition}
+\@ifundefined{definition}{\newtheorem{definition}{Definition}}{}
+\@ifundefined{example}{\newtheorem{example}[definition]{Example}}{}
+\theoremstyle{remark}
+\@ifundefined{remark}{\newtheorem{remark}[definition]{Remark}}{}
+\makeatother
+
+% ---------------------------------------------------------------------------
+% Notation (SPEC.md sections 1--4)
+% ---------------------------------------------------------------------------
+\providecommand{\Z}{\mathbb{Z}_2}                 % the coefficient field
+\providecommand{\N}{\mathbb{N}}
+\providecommand{\Kc}[1]{K_{#1}}                   % k-simplices of K
+\providecommand{\Cc}[1]{C_{#1}}                   % chain group C_k(K; Z2)
+\providecommand{\Bm}[1]{B_{#1}}                   % boundary matrix of d_k
+\providecommand{\Zc}[1]{Z_{#1}}                   % cycle space ker d_k
+\providecommand{\bd}{\partial}
+\providecommand{\dM}{\partial^{M}}                % Morse boundary
+\providecommand{\ord}{\operatorname{ord}}
+\providecommand{\low}{\operatorname{low}}
+\providecommand{\occ}{\operatorname{occ}}
+\providecommand{\pivot}{\operatorname{pivot}}
+\providecommand{\rank}{\operatorname{rank}}
+\providecommand{\nnz}{\operatorname{nnz}}
+\providecommand{\supp}{\operatorname{supp}}
+\providecommand{\rmt}{\operatorname{rm}}           % removal time in the collapse
+\providecommand{\Crit}{\mathrm{Crit}}             % critical cells
+\providecommand{\Lo}{\mathrm{Low}}                % lower cells (matched with a coface)
+\providecommand{\Up}{\mathrm{Up}}                 % upper cells (matched with a facet)
+\providecommand{\flow}{\Pi}                       % gradient-flow projection
+\providecommand{\symdiff}{\mathbin{\triangle}}     % symmetric difference = Z2 sum
+\providecommand{\facets}{\operatorname{fac}}
+\providecommand{\method}[1]{\textsf{#1}}          % method names: \method{mmhm}
+\providecommand{\Ins}{\textsc{Insert}}
+\providecommand{\Del}{\textsc{Delete}}
+\providecommand{\Collapse}{\textsc{Collapse}}
+\providecommand{\Ot}{\widetilde{O}}

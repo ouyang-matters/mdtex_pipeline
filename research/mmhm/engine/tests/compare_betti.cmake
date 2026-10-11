@@ -1,0 +1,12 @@
+# Fails unless every exact method wrote the same Betti file for ball.seq.
+file(READ ${DIR}/ball_full-id.betti ref)
+string(LENGTH "${ref}" len)
+if(len EQUAL 0)
+  message(FATAL_ERROR "empty reference betti file")
+endif()
+foreach(m full-morse drb-id mmhm mmhm-norb)
+  file(READ ${DIR}/ball_${m}.betti got)
+  if(NOT got STREQUAL ref)
+    message(FATAL_ERROR "betti file of ${m} differs from full-id")
+  endif()
+endforeach()
