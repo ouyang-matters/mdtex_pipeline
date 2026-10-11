@@ -1,0 +1,13 @@
+engine/build*/
+workloads/data/
+experiments/scratch/
+__pycache__/
+*.pyc
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.out
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
