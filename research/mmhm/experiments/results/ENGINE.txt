@@ -1,0 +1,7 @@
+Engine used for every run in results/E0..E7, noise/ and rerun/
+commit containing the sources: a584eec (a584eecb966d4918925a3be8c5427c9cb4a5f851 2026-10-11T04:20:05+00:00 Checkpoint the experiment harness and first results in progress)
+engine/ git tree at that commit: 27c02a60bd4a33af86f234c46c6c941705720eb8
+engine/ git tree at HEAD now:    27c02a60bd4a33af86f234c46c6c941705720eb8 (identical)
+working-tree changes under engine/ now: none
+binary build-release/mmhm sha256: 5a5ae01d5bfd705682d0bebd8654433b870ef310cc012ec7c4a56a88d21d11a4
+build: cmake -S engine -B engine/build-release -DCMAKE_BUILD_TYPE=Release (-O2 -DNDEBUG, g++ 13.3.0); built 2026-10-11 03:54:47 UTC, before the sweep started (04:04 UTC); sources unchanged since.

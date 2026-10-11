@@ -7,9 +7,10 @@
 % Theorem-like environments.
 % Theorem, lemma and proposition share one counter so that the main results are
 % Theorem 1, Lemma 2, Proposition 3, Proposition 4 (as cited in SPEC.md);
-% corollaries are numbered after their parent result (Corollary 2.1, 2.2).
-% Observations have their own counter; definitions, examples and remarks share
-% a further counter.
+% corollaries and sub-propositions are numbered after their parent result
+% (Proposition 1.1, Corollary 2.1, 2.2). Observations, definitions, examples
+% and remarks share a third counter, numbered within the section (Remark 3.5),
+% so that they never carry the same number as a main result.
 % ---------------------------------------------------------------------------
 \makeatletter
 \theoremstyle{plain}
@@ -18,13 +19,17 @@
 \@ifundefined{proposition}{\newtheorem{proposition}[theorem]{Proposition}}{}
 \@ifundefined{conjecture}{\newtheorem{conjecture}[theorem]{Conjecture}}{}
 \@ifundefined{corollary}{\newtheorem{corollary}{Corollary}[theorem]}{}
+\@ifundefined{subproposition}{\newtheorem{subproposition}[corollary]{Proposition}}{}
 \@ifundefined{claim}{\newtheorem*{claim}{Claim}}{}
-\@ifundefined{observation}{\newtheorem{observation}{Observation}}{}
+\@ifundefined{observation}{\newtheorem{observation}{Observation}[section]}{}
 \theoremstyle{definition}
-\@ifundefined{definition}{\newtheorem{definition}{Definition}}{}
-\@ifundefined{example}{\newtheorem{example}[definition]{Example}}{}
+\@ifundefined{definition}{\newtheorem{definition}[observation]{Definition}}{}
+\@ifundefined{example}{\newtheorem{example}[observation]{Example}}{}
 \theoremstyle{remark}
-\@ifundefined{remark}{\newtheorem{remark}[definition]{Remark}}{}
+\@ifundefined{remark}{\newtheorem{remark}[observation]{Remark}}{}
+\@ifpackageloaded{cleveref}{%
+  \crefname{subproposition}{Proposition}{Propositions}%
+  \Crefname{subproposition}{Proposition}{Propositions}}{}
 \makeatother
 
 % ---------------------------------------------------------------------------

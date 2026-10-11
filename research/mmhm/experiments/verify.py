@@ -18,10 +18,14 @@ drb-id-rb, mmhm, mmhm-norb, euler) it checks, state by state:
 For `lcr` (v1's rule, run with --verify-every 1) it reports the fraction of
 wrong states and the first wrong update.
 
-Outputs results/E0_correctness.csv (one row per exact run) and
-results/E0_lcr.csv (one row per lcr run). Exits 3 if any exact method
-disagrees with anything or the GUDHI coverage requirement is not met — that
-is a STOP condition, not something to aggregate away.
+Outputs results/E0_correctness.csv (one row per exact run, including how
+many of its Betti vectors were checked against >= 1, >= 2 and all three
+references) and results/E0_lcr.csv (one row per lcr run). Exits 3 if any
+exact method disagrees with anything or the GUDHI coverage requirement is not
+met — that is a STOP condition, not something to aggregate away. Exits 4 if
+the workload data (workloads/data/, git-ignored) or a closed-form
+.expected.betti file of a W1/W2/W3/W5 instance is missing, instead of
+silently checking fewer states.
 
   python3 verify.py
 """
@@ -44,6 +48,7 @@ RES = os.path.join(HERE, "results")
 EXACT = {"full-id", "full-morse", "gudhi", "drb-id", "drb-id-rb", "mmhm", "mmhm-norb", "euler"}
 GUDHI_FULL_LIMIT = 3e5
 GUDHI_PREFIX = 200
+CLOSED_FORM = {"w1", "w2", "w3", "w5a", "w5b"}  # workloads with analytic Betti numbers
 
 
 def read_betti(path):
@@ -86,6 +91,12 @@ def main():
         by_inst.setdefault(r.instance, []).append(r)
 
     rows, lcr_rows, problems = [], [], []
+    missing_expected = set()
+    if not os.path.isdir(DATA) or not any(f.endswith(".seq") for f in os.listdir(DATA)):
+        print(f"ERROR: workload data missing: {DATA} has no .seq files. Regenerate them "
+              f"first (experiments/README.md: python3 run.py configs/E*.json --only-gen); "
+              f"without them the closed-form checks cannot run.", file=sys.stderr)
+        sys.exit(4)
     for r in runs:
         rows_csv = read_csv(r.csv)
         b = betti(r)
@@ -125,8 +136,12 @@ def main():
                        fullid_ref=fid[0].key)
         else:
             row.update(fullid_states=0, fullid_mismatch=0, fullid_first_bad="", fullid_ref="")
-        # (b) analytic expectation
+        # (b) analytic expectation (closed form). W1, W2, W3, W5 always have one:
+        # a missing file means the workload data are absent, which must not
+        # silently drop checks (review M14).
         exp_path = os.path.join(DATA, r.instance + ".expected.betti")
+        if r.workload.split("_")[0] in CLOSED_FORM and not os.path.exists(exp_path):
+            missing_expected.add(exp_path)
         if os.path.exists(exp_path):
             if exp_path not in betti_cache:
                 betti_cache[exp_path] = read_betti(exp_path)
@@ -150,6 +165,16 @@ def main():
             need = 0  # the oracle itself; checked against full-id and expected instead
         row["gudhi_required"] = need
         row["gudhi_coverage_ok"] = int(n >= need)
+        # Coverage per reported vector (review B2). Every comparison is a prefix
+        # starting at state 0, so with prefix lengths l1 >= l2 >= l3 (capped at
+        # the run's states), l1 vectors were checked against >= 1 reference, l2
+        # against >= 2, l3 against all three (full-id file, closed form, GUDHI).
+        # A run is never its own reference (full-id / gudhi runs have <= 2).
+        ns = len(b)
+        ls = sorted([min(row["fullid_states"], ns), min(row["expected_states"], ns),
+                     min(row["gudhi_states"], ns)], reverse=True)
+        row["cov_ge1"], row["cov_ge2"], row["cov_all3"] = ls
+        row["cov_external"] = max(min(row["expected_states"], ns), min(row["gudhi_states"], ns))
         ok = (internal_mis == 0 and row["fullid_mismatch"] == 0 and
               row["expected_mismatch"] == 0 and row["gudhi_mismatch"] == 0 and
               row["gudhi_coverage_ok"] == 1 and len(b) == T_done + 1 and
@@ -170,7 +195,8 @@ def main():
               "fullid_states", "fullid_mismatch", "fullid_first_bad", "fullid_ref",
               "expected_states", "expected_mismatch", "expected_first_bad",
               "gudhi_states", "gudhi_mismatch", "gudhi_first_bad", "gudhi_ref",
-              "gudhi_required", "gudhi_coverage_ok", "status"]
+              "gudhi_required", "gudhi_coverage_ok", "cov_ge1", "cov_ge2", "cov_all3",
+              "cov_external", "status"]
     with open(out, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
@@ -193,6 +219,17 @@ def main():
         tot_v = sum(r["verified_updates"] for r in lcr_rows)
         print(f"lcr: {len(lcr_rows)} runs, {tot_w}/{tot_v} wrong updates")
     print(f"wrote {out}" + (f" and {out2}" if lcr_rows else ""))
+    n_all = sum(r["betti_states"] for r in rows)
+    print(f"coverage: >=1 reference {sum(r['cov_ge1'] for r in rows)}, >=2 "
+          f"{sum(r['cov_ge2'] for r in rows)}, all three {sum(r['cov_all3'] for r in rows)}, "
+          f">=1 external (closed form or GUDHI) {sum(r['cov_external'] for r in rows)} "
+          f"of {n_all}")
+    if missing_expected:
+        print(f"ERROR: {len(missing_expected)} closed-form Betti files (.expected.betti) are "
+              f"missing for W1/W2/W3/W5 instances, e.g. {sorted(missing_expected)[0]}. "
+              f"Regenerate the workloads (experiments/README.md); refusing to report fewer "
+              f"closed-form checks silently.", file=sys.stderr)
+        sys.exit(4)
     if problems:
         for p in problems[:20]:
             print("PROBLEM:", {k: p[k] for k in ("exp", "workload", "label", "seed", "instance",

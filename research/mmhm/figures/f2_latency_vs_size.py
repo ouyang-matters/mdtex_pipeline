@@ -37,7 +37,9 @@ def main():
                 continue
             used.add(m)
             x = g.K0.to_numpy()
-            S.band(ax, x, g.lat_q1_us, g.lat_q3_us, m)
+            if exp != "E5" or m not in ("mmhm", "mmhm-norb", "drb-id", "drb-id-rb"):
+                # on W1 the four DRB bands overlap into one unreadable band: omitted
+                S.band(ax, x, g.lat_q1_us, g.lat_q3_us, m)
             S.method_line(ax, x, g.lat_med_us, m)
             # hollow marker where the baseline ran a prefix T' < T
             pre = g[g["T"] < 2000]
@@ -49,6 +51,10 @@ def main():
         S.log_axis(ax, "x")
         S.log_axis(ax, "y")
         ax.set_title(title, loc="left")
+        if exp == "E5":
+            ax.text(0.98, 0.03, "IQR bands of the DRB methods omitted\n(they overlap; see "
+                    "Table of p95/p99)", transform=ax.transAxes, ha="right", va="bottom",
+                    fontsize=6.2, color=S.INK2)
         ax.set_xlabel(r"complex size $|K_0|$ (simplices)")
         ax.set_ylabel(r"per-update latency ($\mu$s)")
         ax.grid(True, which="major")

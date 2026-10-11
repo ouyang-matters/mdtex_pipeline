@@ -18,6 +18,7 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 T = 2000
 T_PREFIX = 200
+GUDHI_FULL_LIMIT = 300_000  # gudhi runs all T updates iff |K_0| <= this
 SEEDS = [0, 1, 2]
 
 DYN = ["drb-id", "drb-id-rb", "mmhm", "mmhm-norb"]
@@ -32,7 +33,7 @@ def m(label, method=None, **kw):
 
 def inst(workload, gen, stem, K0, **kw):
     d = {"workload": workload, "gen": gen, "stem": stem + "_T2000_seed{seed}", "K0_approx": K0}
-    if K0 > 3e5:
+    if K0 > GUDHI_FULL_LIMIT:
         d["T_by_method"] = {"gudhi": T_PREFIX}
     d.update(kw)
     return d

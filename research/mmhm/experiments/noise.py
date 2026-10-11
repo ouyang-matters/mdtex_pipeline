@@ -15,6 +15,8 @@ CSVs. aggregate.py turns it into the noise numbers of the paper. Targets:
 updates, memory streaming).
 
   python3 noise.py [--reps 5] [--loaded-reps 3]
+  python3 noise.py --extra     # review round: 3 more instances x {mmhm, drb-id,
+                               # full-id}, 5 runs alone; alone vs loaded4 at ~1e6
 """
 
 from __future__ import annotations
@@ -80,11 +82,71 @@ def stop_background(procs):
         p.wait()
 
 
+EXTRA = [  # (instance, methods): run-to-run noise beyond W2 N = 22 (review M8)
+    ("w5a_cycle_L100000_T2000_seed0", ["mmhm", "drb-id", "full-id"]),
+    ("w3_N20_k2_c4_T2000_seed0", ["mmhm", "drb-id", "full-id"]),
+    ("w1_torus_256x256_k2_h3_T2000_seed0", ["mmhm", "drb-id", "full-id"]),
+]
+LARGE = "w2_N33_s8_T2000_seed0"        # interference at ~1e6 simplices (review minor 17)
+LARGE_LOAD = "w2_N33_s8_T2000_seed1"
+
+
+def extra(reps, loaded_reps):
+    """results/noise/noise_extra.csv: 5 identical runs alone per (instance,
+    method) of EXTRA, and alone vs loaded4 on the ~1e6-simplex W2 instance."""
+    global LOAD_INSTANCE
+    rows = []
+
+    def one(cond, inst, method, rep, bg):
+        tmp = os.path.join(OUT, f".tmp_{method}.csv")
+        t0 = time.time()
+        subprocess.run(engine_cmd(method, inst, tmp), check=True, capture_output=True)
+        wall = time.time() - t0
+        st = stats(tmp)
+        dst = os.path.join(OUT, f"{inst}__{method}__{cond}__rep{rep}.csv.gz")
+        with open(tmp, "rb") as fi, gzip.open(dst, "wb", 9) as fo:
+            shutil.copyfileobj(fi, fo)
+        os.remove(tmp)
+        row = {"condition": cond, "method": method, "rep": rep, "instance": inst,
+               "background": bg, "wall_s": round(wall, 2)}
+        row.update({k: (round(v, 3) if isinstance(v, float) else v) for k, v in st.items()})
+        rows.append(row)
+        print(row, flush=True)
+
+    for inst, methods in EXTRA:
+        for method in methods:
+            for rep in range(1, reps + 1):
+                one("alone", inst, method, rep, "none")
+    for method in ("mmhm", "full-id"):
+        for rep in range(1, loaded_reps + 1):
+            one("alone", LARGE, method, rep, "none")
+    LOAD_INSTANCE = LARGE_LOAD
+    procs = [start_background(k) for k in ("engine", "gudhi", "gudhi")]
+    time.sleep(8)
+    try:
+        for method in ("mmhm", "full-id"):
+            for rep in range(1, loaded_reps + 1):
+                one("loaded4", LARGE, method, rep, "engine+gudhi+gudhi")
+    finally:
+        stop_background(procs)
+    path = os.path.join(OUT, "noise_extra.csv")
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    print(f"wrote {path}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--loaded-reps", type=int, default=3)
+    ap.add_argument("--extra", action="store_true",
+                    help="the additional instances of EXTRA and the ~1e6 interference check")
     a = ap.parse_args(argv)
+    if a.extra:
+        os.makedirs(OUT, exist_ok=True)
+        return extra(a.reps, a.loaded_reps)
     os.makedirs(OUT, exist_ok=True)
     rows = []
     plan = [("alone", [], a.reps), ("timed2", ["engine"], a.loaded_reps),

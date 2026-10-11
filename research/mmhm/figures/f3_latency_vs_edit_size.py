@@ -32,6 +32,33 @@ def main():
         S.band(a1, g.s, g.lat_q1_us, g.lat_q3_us, m)
         S.method_line(a1, g.s, g.lat_med_us, m)
         S.method_line(a2, g.s, g.amort_us / g.ops_mean, m)
+        if m == "mmhm-norb":
+            # E1's N = 22 seed-1 run of mmhm-norb is a timing outlier (slow first 400
+            # updates, identical algebra): mark the point it inflates, do not drop it.
+            o = g[g.s == 8]
+            a2.plot(o.s, o.amort_us / o.ops_mean, ls="none", marker=S.MARKER[m], ms=7.5,
+                    mfc="white", mec=S.COLOR[m], mew=1.2, zorder=6)
+            rr = os.path.join(S.RES, "rerun", "w2_N22_s8__mmhm-norb__seed1.csv.gz")
+            txt = "hollow: includes the seed-1\ntiming outlier (see text)"
+            if os.path.exists(rr):
+                import gzip
+                import numpy as np
+                with gzip.open(rr, "rt") as fh:
+                    d = pd.read_csv(fh)
+                sib = []
+                for k in (0, 2):
+                    with gzip.open(os.path.join(S.RES, "E1", f"w2_N22_s8__mmhm-norb__seed{k}"
+                                                f".csv.gz"), "rt") as fh:
+                        x = pd.read_csv(fh)
+                    sib.append(x[x.t > 0].time_ns.to_numpy(float))
+                pool = np.concatenate(sib + [d[d.t > 0].time_ns.to_numpy(float)]) / 1e3
+                v = pool.mean() / float(o.ops_mean.iloc[0])
+                a2.plot([8], [v], ls="none", marker="x", ms=5, color=S.COLOR[m], mew=1.0,
+                        zorder=7)
+                txt += "\n\u00d7: seed 1 replaced by its rerun"
+            a2.annotate(txt, xy=(8, float((o.amort_us / o.ops_mean).iloc[0])),
+                        xytext=(1.05, 4.0), fontsize=6.2, color=S.INK2,
+                        arrowprops=dict(arrowstyle="-", color=S.MUTED, lw=0.6))
     for ax in (a1, a2):
         ax.set_xscale("log", base=2)
         ax.set_yscale("log")

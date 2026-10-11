@@ -12,15 +12,25 @@ Writes
   results/summary_slopes.csv   log-log least-squares slopes (E1-E6)
   results/summary_e8.csv       E8 distributions (Morse vs insertion order)
   results/summary_w4_betti.csv W4 Betti ranges
+  results/summary_drift.csv    per-block (200 updates) medians/means, speedups
+  results/summary_build.csv    INIT build: nnz(R)+nnz(V) and additions per order
+  results/summary_noise.csv    run-to-run noise (results/noise/*), W5a repetitions
+  results/summary_coverage.csv E0 coverage by number of references
   ../paper/generated/numbers.tex and tab_*.tex (booktabs tabulars)
 
 Statistics: latency is the engine's per-update `time_ns` (t >= 1; rebuilds
 included in the update that triggers them). Per (exp, workload, method) the
 updates of all seeds are pooled: median, quartiles, p95, p99 of the pooled
 per-update latencies; amortized = total time / number of updates (incl.
-rebuilds). Speedups are ratios of amortized latencies; static baselines that
-ran a prefix T' (gudhi above 3e5 simplices) are compared on their own prefix
-(their per-update cost does not drift: see summary_runs.csv).
+rebuilds). Speedups are ratios of amortized latencies over the SAME updates:
+vs full-id both cover all T updates; vs gudhi, which ran only the prefix
+T' = 200 above 3e5 simplices, the other method's amortized latency is taken
+over the same first T' updates (`speedup_gudhi`; the earlier, unmatched ratio
+"gudhi prefix mean / full-run mean" is kept as `speedup_gudhi_unmatched`).
+Per-update cost does drift during a run for some methods (e.g. full-id on W3,
+whose insertion order degrades as refilled cells get late keys; the DRB
+methods warm up during their first updates): results/summary_drift.csv gives
+medians and means per block of 200 updates.
 
   python3 aggregate.py
 """
@@ -256,7 +266,16 @@ def pooled(rows, lats):
          "amort_us": allv.mean(), "amort_seed_min_us": min(am), "amort_seed_max_us": max(am),
          "med_seed_min_us": min(x["lat_med_us"] for x in rows),
          "med_seed_max_us": max(x["lat_med_us"] for x in rows),
-         "init_ms": float(np.median([x["init_ms"] for x in rows]))}
+         "init_ms": float(np.median([x["init_ms"] for x in rows])),
+         "p99_seed_min_us": min(x["lat_p99_us"] for x in rows),
+         "p99_seed_max_us": max(x["lat_p99_us"] for x in rows),
+         "amort_first200_us": float(np.concatenate([l[:200] for l in lats]).mean())}
+    # blocks of 200 updates (drift): pooled median and mean per block
+    nb = min(len(l) for l in lats) // 200
+    for b in range(nb):
+        blk = np.concatenate([l[200 * b:200 * (b + 1)] for l in lats])
+        p[f"blk{b + 1}_med_us"] = float(np.median(blk))
+        p[f"blk{b + 1}_mean_us"] = float(blk.mean())
     for k in ("K0", "K_mean", "ops_mean", "rebuilds", "rebuild_ms_total", "rebuild_ms_med",
               "adds_mean", "adds_med", "adds_p95", "fp_mean", "fp_med", "fp_p95", "fp_max",
               "nnz0", "nnz_end", "nnz_max", "lat_dyn_med_us"):
@@ -316,13 +335,33 @@ def main():
                  args=rows[0]["args"], instance_stem=rows[0]["instance"].rsplit("_seed", 1)[0])
         summ.append(p)
     S = pd.DataFrame(summ)
-    # speedups vs full-id and gudhi of the same (exp, workload)
-    for col, ref in (("speedup_fullid", "full-id"), ("speedup_gudhi", "gudhi")):
+    # speedups vs full-id and gudhi of the same (exp, workload); the gudhi
+    # ratio here is the unmatched one (gudhi prefix mean / full-run mean)
+    for col, ref in (("speedup_fullid", "full-id"), ("speedup_gudhi_unmatched", "gudhi")):
         refs = S[S.label == ref].set_index(["exp", "workload"]).amort_us
         S[col] = [refs.get((e, w), np.nan) / a for e, w, a in zip(S.exp, S.workload, S.amort_us)]
         refm = S[S.label == ref].set_index(["exp", "workload"]).lat_med_us
         S[col + "_med"] = [refm.get((e, w), np.nan) / a
                            for e, w, a in zip(S.exp, S.workload, S.lat_med_us)]
+    # matched-prefix gudhi speedup: both methods over the same first T_gudhi updates
+    gT = S[S.label == "gudhi"].set_index(["exp", "workload"])
+    sg = []
+    for e, w, a, a200 in zip(S.exp, S.workload, S.amort_us, S.amort_first200_us):
+        if (e, w) not in gT.index:
+            sg.append(np.nan)
+            continue
+        g = gT.loc[(e, w)]
+        sg.append(g.amort_us / (a if int(g["T"]) >= 2000 else a200))
+    S["speedup_gudhi"] = sg
+    # speedups vs full-id on matched windows: first and last block of 200 updates
+    for b, name in ((1, "first"), (10, "last")):
+        col = f"blk{b}_mean_us"
+        if col in S:
+            ref = S[S.label == "full-id"].set_index(["exp", "workload"])[col]
+            S[f"speedup_fullid_{name}200"] = [ref.get((e, w), np.nan) / v
+                                             for e, w, v in zip(S.exp, S.workload, S[col])]
+    S["drift_med"] = S.get("blk10_med_us", np.nan) / S["blk1_med_us"]
+    S["drift_mean"] = S.get("blk10_mean_us", np.nan) / S["blk1_mean_us"]
     first = ["exp", "workload", "label", "method", "args", "seeds", "T", "T_max", "K0"]
     S = S[first + [c for c in S.columns if c not in first]]
     S = S.sort_values(["exp", "K0", "workload", "label"])
@@ -362,7 +401,11 @@ def main():
                   f"{what}: median latency of full-id / this method", src)
         if row.method != "gudhi" and not math.isnan(row.speedup_gudhi):
             M.add(pre + "SpeedupGudhi", sig(row.speedup_gudhi),
-                  f"{what}: amortized latency of gudhi (on its T or T' prefix) / this method", src)
+                  f"{what}: amortized latency of gudhi / this method, both over the same "
+                  f"updates (the first {intc(min(row['T'], 2000))} or gudhi's prefix T')", src)
+            M.add(pre + "SpeedupGudhiUnmatched", sig(row.speedup_gudhi_unmatched),
+                  f"{what}: OLD definition, gudhi amortized on its prefix / this method over "
+                  f"all T updates (biased where T' < T; do not use for claims)", src)
         if row.method in DYN:
             M.add(pre + "Adds", sig(row.adds_mean), f"{what}: mean column additions per update "
                   f"(non-rebuild updates)", src)
@@ -523,36 +566,53 @@ def main():
         if not len(ts):
             continue
         win_a = win_b = 0
+        tw_a = tw_b = 0
         nwin = 0
+        bt = b.time_ns.to_numpy()
         for t0 in ts:
             m = ((a.t > t0) & (a.t <= t0 + 100) & (a.rebuild == 0)).to_numpy()
             win_a += int(a.chain_adds[m].sum())
             win_b += int(b.chain_adds.to_numpy()[m].sum())
+            tw_a += int(a.time_ns[m].sum())
+            tw_b += int(bt[m].sum())
             nwin += int(m.sum())
         m = ((a.t > ts[0]) & (a.rebuild == 0)).to_numpy()
+        m_all = (a.t > ts[0]).to_numpy()  # incl. the rebuild updates themselves
         eff.append({"exp": r.exp, "workload": r.workload, "method": r.label, "twin": twin,
                     "seed": r.seed, "rebuilds": len(ts), "window_updates": nwin,
                     "adds_window": win_a, "adds_window_twin": win_b,
+                    "time_window_ns": tw_a, "time_window_twin_ns": tw_b,
                     "adds_after_first": int(a.chain_adds[m].sum()),
-                    "adds_after_first_twin": int(b.chain_adds.to_numpy()[m].sum())})
+                    "adds_after_first_twin": int(b.chain_adds.to_numpy()[m].sum()),
+                    "time_after_first_ns": int(a.time_ns[m].sum()),
+                    "time_after_first_twin_ns": int(bt[m].sum()),
+                    "time_after_first_incl_rebuilds_ns": int(a.time_ns[m_all].sum()),
+                    "time_after_first_incl_twin_ns": int(bt[m_all].sum())})
     EF = pd.DataFrame(eff)
     if len(EF):
         EG = EF.groupby(["exp", "workload", "method", "twin"]).sum(numeric_only=True).reset_index()
         EG["ratio_window"] = EG.adds_window / EG.adds_window_twin
         EG["ratio_after_first"] = EG.adds_after_first / EG.adds_after_first_twin
+        EG["time_ratio_window"] = EG.time_window_ns / EG.time_window_twin_ns
+        EG["time_ratio_after_first"] = EG.time_after_first_ns / EG.time_after_first_twin_ns
+        EG["time_ratio_after_first_incl_rebuilds"] = (EG.time_after_first_incl_rebuilds_ns /
+                                                      EG.time_after_first_incl_twin_ns)
         EG = EG.drop(columns=["seed"])
         EG.to_csv(os.path.join(RES, "summary_rebuild_effect.csv"), index=False,
                   float_format="%.6g")
         # table: amortized latency of the four DRB methods, rebuilds, and the effect ratio
-        lines = [r"\begin{tabular}{@{}lrrrrrrrr@{}}", r"\toprule",
+        lines = [r"\begin{tabular}{@{}lrrrrrrrrrrrr@{}}", r"\toprule",
                  r" & \multicolumn{4}{c}{amortized latency (\textmu s)} & "
-                 r"\multicolumn{2}{c}{rebuilds / run} & \multicolumn{2}{c}{additions after a "
-                 r"rebuild} \\",
-                 r"\cmidrule(lr){2-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}",
+                 r"\multicolumn{2}{c}{rebuilds / run} & "
+                 r"\multicolumn{2}{c}{100 updates after each} & "
+                 r"\multicolumn{4}{c}{all updates after the first rebuild} \\",
+                 r"\cmidrule(lr){2-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}\cmidrule(lr){10-13}",
+                 r" & & & & & & & adds & adds & adds & time & adds & time \\",
                  r"instance & \method{drb-id} & \method{drb-id-rb} & \method{mmhm-norb} & "
                  r"\method{mmhm} & \method{drb-id-rb} & \method{mmhm} & "
-                 r"$\frac{\text{\method{drb-id-rb}}}{\text{\method{drb-id}}}$ & "
-                 r"$\frac{\text{\method{mmhm}}}{\text{\method{mmhm-norb}}}$ \\", r"\midrule"]
+                 r"\multicolumn{1}{c}{rb/id} & \multicolumn{1}{c}{m/norb} & "
+                 r"\multicolumn{2}{c}{\method{drb-id-rb}/\method{drb-id}} & "
+                 r"\multicolumn{2}{c}{\method{mmhm}/\method{mmhm-norb}} \\", r"\midrule"]
         kk = {w: S[S.workload == w].K0.dropna().mean() for w in EG.workload.unique()}
         order = sorted(EG.groupby(["exp", "workload"]).groups,
                        key=lambda ew: (ew[0], ew[1].split("_")[1], kk[ew[1]]))
@@ -567,6 +627,9 @@ def main():
                                         for m in ("drb-id", "drb-id-rb", "mmhm-norb", "mmhm")]
             cells += [sig(amo.rebuilds.get(m, float("nan")), 2) for m in ("drb-id-rb", "mmhm")]
             cells += [f"{gv(m, 'ratio_window'):.2f}" for m in ("drb-id-rb", "mmhm")]
+            for m in ("drb-id-rb", "mmhm"):
+                cells += [f"{gv(m, 'ratio_after_first'):.2f}",
+                          f"{gv(m, 'time_ratio_after_first'):.2f}"]
             lines.append(" & ".join(cells) + r" \\")
         lines += [r"\bottomrule", r"\end{tabular}"]
         _write("tab_rebuild_effect.tex", lines)
@@ -576,6 +639,15 @@ def main():
                   f"{x.workload}: additions of {x.method} in the 100 non-rebuild updates after "
                   f"each of its rebuilds / additions of {x.twin} on the same updates (3 seeds "
                   f"pooled; >1 = the rebuild made later updates costlier)", "aggregate.py")
+            M.add(pre + "WindowTime", f"{x.time_ratio_window:.2f}",
+                  f"{x.workload}: time of {x.method} in the 100 non-rebuild updates after each "
+                  f"of its rebuilds / time of {x.twin} on the same updates", "aggregate.py")
+            M.add(pre + "AfterFirstTime", f"{x.time_ratio_after_first:.2f}",
+                  f"{x.workload}: time of {x.method} in all non-rebuild updates after its first "
+                  f"rebuild / {x.twin} on the same updates", "aggregate.py")
+            M.add(pre + "AfterFirstTimeInclRebuilds", f"{x.time_ratio_after_first_incl_rebuilds:.2f}",
+                  f"{x.workload}: time of {x.method} in all updates after its first rebuild, "
+                  f"rebuild updates included / {x.twin} on the same updates", "aggregate.py")
             M.add(pre + "AfterFirst", f"{x.ratio_after_first:.2f}",
                   f"{x.workload}: additions of {x.method} in all non-rebuild updates after its "
                   f"first rebuild / {x.twin} on the same updates", "aggregate.py")
@@ -602,8 +674,9 @@ def main():
             row[f"b{k}_max"] = int(allb[:, k].max())
             row[f"b{k}_init_mean"] = float(init[:, k].mean())
         row["bD_over_n_init"] = float(init[:, D].mean() / n)
-        row["K0"] = K_by_instance.get(bs and [r for r in runs if r.workload == w][0].instance,
-                                      (np.nan,))[0]
+        row["K0"] = float(np.mean([K_by_instance[r.instance][0] for r in runs
+                                   if r.workload == w and r.label == "full-id"
+                                   and r.instance in K_by_instance]))  # mean of seeds
         w4rows.append(row)
         tag = inst_tag(w)
         for k in range(4):
@@ -720,11 +793,12 @@ def main():
 
     # ------------------------------------------------------------ protocol --
     timed = runs_df[runs_df.timed == 1]
-    M.add("NumUpdates", "2{,}000", "T: updates per timed run", "configs/make_configs.py")
-    M.add("NumPrefix", "200", "T': prefix of the gudhi baseline above 3e5 simplices",
-          "configs/make_configs.py")
-    M.add("NumSeeds", "3", "seeds per configuration", "configs/make_configs.py")
-    M.add("NumGudhiFullLimit", "300{,}000", "gudhi runs all T updates iff |K_0| <= this",
+    T_, nseeds, Tp, glim = protocol_from_configs()
+    M.add("NumUpdates", intc(T_), "T: updates per timed run", "configs/E*.json")
+    M.add("NumPrefix", intc(Tp), "T': prefix of the gudhi baseline above the limit below",
+          "configs/E*.json")
+    M.add("NumSeeds", intc(nseeds), "seeds per configuration", "configs/E*.json")
+    M.add("NumGudhiFullLimit", intc(glim), "gudhi runs all T updates iff |K_0| <= this",
           "configs/make_configs.py")
     g = timed[timed.method == "gudhi"]
     M.add("NumGudhiSizeMax", intc(g.K0.max()), "largest |K_0| at which gudhi is timed "
@@ -748,6 +822,7 @@ def main():
           "aggregate.py")
     M.add("NumConfiguredRuns", intc(len(configured_runs())), "configured runs (configs/E*.json)",
           "aggregate.py")
+    review_extras(M, runs, S, runs_df, C, L, e7)
     M.write(os.path.join(GEN, "numbers.tex"))
     write_tables(S, C, L, E8, W4, e7, runs_df, NR)
     print(f"{len(runs)} runs, {len(S)} pooled rows, {len(M.items)} macros -> {GEN}")
@@ -953,6 +1028,466 @@ def _write(name, lines):
         fh.write("% Generated by experiments/aggregate.py -- do not edit.\n")
         fh.write("\n".join(lines) + "\n")
 
+
+
+
+# ------------------------------------------------------- review round ----
+FAMILY = {"w1": "WOne", "w2": "WTwo", "w3": "WThree", "w4": "WFour", "w5a": "WFive",
+          "w5b": "WFive"}
+FAMILY_NAME = {"WOne": "W1 surfaces", "WTwo": "W2 refine/coarsen", "WThree": "W3 cavities",
+               "WFour": "W4 flag complexes", "WFive": "W5 witnesses"}
+
+
+def _rate(a, b):
+    return float(a) / float(b) if b else float("nan")
+
+
+def raw_csv(path):
+    with gzip.open(path, "rt", encoding="utf-8") as fh:
+        return pd.read_csv(fh)
+
+
+def review_extras(M, runs, S, runs_df, C, L, e7):
+    """Numbers requested by the referee report (paper/REVIEW.md); see
+    paper/response/data.md for the mapping item -> macro/table."""
+    base = S[S.exp.isin(["E1", "E2", "E3", "E4", "E5", "E6"])]
+    # E2 reuses E1's N = 22, s = 8 rows: keep one row per (instance, method)
+    base = base.drop_duplicates(["workload", "label"], keep="first")
+    # ---- per (instance, method): seed ranges, drift, p99 ratio, memory proxy
+    seen = set()
+    for _, row in base.iterrows():
+        key = (row.workload, row.label)
+        if key in seen:
+            continue
+        seen.add(key)
+        tag, mt = inst_tag(row.workload), METHOD_TAG[row.method]
+        pre, what, src = f"Num{tag}{mt}", f"{row.workload} / {row.label}", "aggregate.py"
+        M.add(pre + "AmortSeedMin", sig(row.amort_seed_min_us), f"{what}: smallest per-seed "
+              f"amortized latency (us)", src)
+        M.add(pre + "AmortSeedMax", sig(row.amort_seed_max_us), f"{what}: largest per-seed "
+              f"amortized latency (us)", src)
+        M.add(pre + "MedSeedMin", sig(row.med_seed_min_us), f"{what}: smallest per-seed median "
+              f"latency (us)", src)
+        M.add(pre + "MedSeedMax", sig(row.med_seed_max_us), f"{what}: largest per-seed median "
+              f"latency (us)", src)
+        M.add(pre + "PNinetyNineSeedMin", sig(row.p99_seed_min_us), f"{what}: smallest per-seed "
+              f"p99 latency (us)", src)
+        M.add(pre + "PNinetyNineSeedMax", sig(row.p99_seed_max_us), f"{what}: largest per-seed "
+              f"p99 latency (us)", src)
+        fid = base[(base.workload == row.workload) & (base.label == "full-id")]
+        if row.label != "full-id" and len(fid):
+            f = fid.iloc[0]
+            M.add(pre + "PNinetyNineOverFullId", sig(row.lat_p99_us / f.lat_p99_us),
+                  f"{what}: pooled p99 latency / pooled p99 of full-id (>1: worse tail)", src)
+        if "blk1_med_us" in row and not math.isnan(row.blk1_med_us):
+            M.add(pre + "FirstBlockMed", sig(row.blk1_med_us), f"{what}: median latency over "
+                  f"updates 1-200 (3 seeds pooled, us)", src)
+            if not math.isnan(row.get("blk10_med_us", float("nan"))):
+                M.add(pre + "LastBlockMed", sig(row.blk10_med_us), f"{what}: median latency "
+                      f"over updates 1801-2000 (us)", src)
+                M.add(pre + "DriftMed", f"{row.drift_med:.2f}", f"{what}: median of the last "
+                      f"200 updates / median of the first 200 (drift; 1 = none)", src)
+                M.add(pre + "DriftMean", f"{row.drift_mean:.2f}", f"{what}: mean of the last "
+                      f"200 updates / mean of the first 200", src)
+            if row.label != "full-id" and not math.isnan(row.get("speedup_fullid_first200",
+                                                                 float("nan"))):
+                M.add(pre + "SpeedupFullIdFirstBlock", sig(row.speedup_fullid_first200),
+                      f"{what}: full-id / this method, amortized over updates 1-200 only", src)
+                if not math.isnan(row.get("speedup_fullid_last200", float("nan"))):
+                    M.add(pre + "SpeedupFullIdLastBlock", sig(row.speedup_fullid_last200),
+                          f"{what}: full-id / this method, amortized over updates 1801-2000", src)
+        if row.method in ("full-id", "full-morse"):
+            M.add(pre + "Adds", sig(row.adds_mean), f"{what}: mean column additions per "
+                  f"recomputation (per update)", src)
+        if row.method in DYN and row.K0:
+            M.add(pre + "NnzPerSimplex", f"{row.nnz_max / row.K0:.2f}", f"{what}: max "
+                  f"nnz(R)+nnz(V) over the run / |K_0| (memory proxy, entries per simplex)", src)
+    # ---- DRB variants side by side (review M2) and pairwise noise overlap (M8)
+    pairs = []
+    done_w = set()
+    for (e, w), g in base.groupby(["exp", "workload"], sort=False):
+        if w in done_w:
+            continue
+        done_w.add(w)
+        tag = inst_tag(w)
+        d = g[g.label.isin(DYN)].set_index("label")
+        if len(d) == 4:
+            M.add(f"Num{tag}DrbSpeedupFullIdMin", sig(d.speedup_fullid.min()),
+                  f"{w}: smallest amortized speedup over full-id among the 4 DRB variants",
+                  "aggregate.py")
+            M.add(f"Num{tag}DrbSpeedupFullIdMax", sig(d.speedup_fullid.max()),
+                  f"{w}: largest amortized speedup over full-id among the 4 DRB variants",
+                  "aggregate.py")
+            best = d.amort_us.idxmin()
+            M.add(f"Num{tag}BestDrb", f"\\method{{{best}}}", f"{w}: DRB variant with the "
+                  f"lowest pooled amortized latency", "aggregate.py")
+            o = d.drop(index=best)
+            second = o.amort_us.idxmin()
+            within = d.loc[best, "amort_seed_max_us"] >= d.loc[second, "amort_seed_min_us"]
+            M.add(f"Num{tag}BestDrbWithinNoise", "yes" if within else "no",
+                  f"{w}: do the per-seed amortized ranges of the best and second-best DRB "
+                  f"variants overlap? (yes = ordering within seed noise)", "aggregate.py")
+        gi = g.set_index("label")
+        labs = [m for m in METHOD_ORDER if m in gi.index]
+        for i, a in enumerate(labs):
+            for b in labs[i + 1:]:
+                A, B = gi.loc[a], gi.loc[b]
+                pairs.append({
+                    "exp": e, "workload": w, "a": a, "b": b,
+                    "amort_ratio_a_over_b": A.amort_us / B.amort_us,
+                    "amort_a_seed_min": A.amort_seed_min_us, "amort_a_seed_max": A.amort_seed_max_us,
+                    "amort_b_seed_min": B.amort_seed_min_us, "amort_b_seed_max": B.amort_seed_max_us,
+                    "amort_overlap": bool(max(A.amort_seed_min_us, B.amort_seed_min_us) <=
+                                          min(A.amort_seed_max_us, B.amort_seed_max_us)),
+                    "p99_ratio_a_over_b": A.lat_p99_us / B.lat_p99_us,
+                    "p99_a_seed_min": A.p99_seed_min_us, "p99_a_seed_max": A.p99_seed_max_us,
+                    "p99_b_seed_min": B.p99_seed_min_us, "p99_b_seed_max": B.p99_seed_max_us,
+                    "p99_overlap": bool(max(A.p99_seed_min_us, B.p99_seed_min_us) <=
+                                        min(A.p99_seed_max_us, B.p99_seed_max_us)),
+                    "med_ratio_a_over_b": A.lat_med_us / B.lat_med_us,
+                    "med_overlap": bool(max(A.med_seed_min_us, B.med_seed_min_us) <=
+                                        min(A.med_seed_max_us, B.med_seed_max_us))})
+    P = pd.DataFrame(pairs)
+    P.to_csv(os.path.join(RES, "summary_pairs.csv"), index=False, float_format="%.6g")
+    order_w = []
+    for e in ["E1", "E2", "E3", "E4", "E5", "E6"]:
+        for w in base[base.exp == e].sort_values("K0").workload.unique():
+            if w not in [x[1] for x in order_w]:
+                order_w.append((e, w))
+    for col, name, unit in (("amort", "tab_seed_ranges.tex", "amortized"),
+                            ("p99", "tab_seed_ranges_p99.tex", "p99")):
+        meths = ["full-id", "drb-id", "drb-id-rb", "mmhm-norb", "mmhm"]
+        lines = [r"\begin{tabular}{@{}llrrrrr@{}}", r"\toprule",
+                 f"exp. & instance & " + " & ".join(mname(m) for m in meths) + r" \\",
+                 r"\midrule"]
+        last_e = None
+        for e, w in order_w:
+            g = base[base.workload == w].set_index("label")
+            if last_e is not None and e != last_e:
+                lines.append(r"\midrule")
+            last_e = e
+            cells = [e, pretty_inst(w)]
+            for m in meths:
+                if m in g.index:
+                    lo = g.loc[m, "amort_seed_min_us" if col == "amort" else "p99_seed_min_us"]
+                    hi = g.loc[m, "amort_seed_max_us" if col == "amort" else "p99_seed_max_us"]
+                    cells.append(f"{sig(lo)}--{sig(hi)}")
+                else:
+                    cells.append("")
+            lines.append(" & ".join(cells) + r" \\")
+        lines += [r"\bottomrule", r"\end{tabular}"]
+        _write(name, lines)
+    # ---- drift table (review M4)
+    lines = [r"\begin{tabular}{@{}llrrrrrrrr@{}}", r"\toprule",
+             r" & & \multicolumn{3}{c}{\method{full-id} median (\textmu s)} & "
+             r"\multicolumn{3}{c}{last/first block median} & "
+             r"\multicolumn{2}{c}{\method{mmhm} $\times$ \method{full-id}} \\",
+             r"\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-10}",
+             r"exp. & instance & first 200 & last 200 & ratio & \method{full-morse} & "
+             r"\method{drb-id} & \method{mmhm} & first 200 & last 200 \\", r"\midrule"]
+    last_e = None
+    for e, w in order_w:
+        g = base[base.workload == w].set_index("label")
+        if "full-id" not in g.index or "blk10_med_us" not in g.columns:
+            continue
+        if last_e is not None and e != last_e:
+            lines.append(r"\midrule")
+        last_e = e
+        f = g.loc["full-id"]
+
+        def dr(m):
+            return f"{g.loc[m, 'drift_med']:.2f}" if m in g.index else ""
+
+        def sp(m, k):
+            return sig(g.loc[m, f"speedup_fullid_{k}200"]) if m in g.index else ""
+        lines.append(f"{e} & {pretty_inst(w)} & {sig(f.blk1_med_us)} & {sig(f.blk10_med_us)} & "
+                     f"{f.drift_med:.2f} & {dr('full-morse')} & {dr('drb-id')} & {dr('mmhm')} & "
+                     f"{sp('mmhm', 'first')} & {sp('mmhm', 'last')} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    _write("tab_drift.tex", lines)
+    dcols = ["exp", "workload", "label", "seeds"] + [c for c in base.columns if
+                                                     c.startswith("blk") or c.startswith("drift")
+                                                     or c.startswith("speedup_fullid_")]
+    base[dcols].to_csv(os.path.join(RES, "summary_drift.csv"), index=False, float_format="%.6g")
+    big = base[(base.label == "full-id") & (base.drift_med > 1.25)]
+    M.add("NumDriftFullIdInstances", intc(len(big)), "instances (E1-E6) on which the full-id "
+          "median of the last 200 updates exceeds that of the first 200 by > 25%", "aggregate.py")
+    M.add("NumDriftFullIdList", ", ".join(pretty_inst(w) for w in big.workload) or "none",
+          "those instances", "aggregate.py")
+    # ---- INIT build: Morse vs insertion order (review M3)
+    rb = runs_df[runs_df.exp.isin(["E1", "E2", "E3", "E4", "E5", "E6"]) &
+                 runs_df.label.isin(["drb-id", "mmhm-norb", "full-id", "full-morse"])]
+    rb = rb.drop_duplicates(["workload", "label", "seed"])
+    B = rb.groupby(["workload", "label"]).agg(nnz0=("nnz0", "mean"),
+                                              build_adds=("build_adds", "mean"),
+                                              K0=("K0", "mean")).reset_index()
+    B.to_csv(os.path.join(RES, "summary_build.csv"), index=False, float_format="%.6g")
+    lines = [r"\begin{tabular}{@{}llrrrrrrr@{}}", r"\toprule",
+             r" & & & \multicolumn{3}{c}{$\nnz(R)+\nnz(V)$ after INIT} & "
+             r"\multicolumn{3}{c}{additions of the INIT build} \\",
+             r"\cmidrule(lr){4-6}\cmidrule(lr){7-9}",
+             r"exp. & instance & $|K_0|$ & insertion & Morse & ratio & insertion & Morse & "
+             r"ratio \\", r"\midrule"]
+    last_e = None
+    for e, w in order_w:
+        g = B[B.workload == w].set_index("label")
+        if "drb-id" not in g.index or "mmhm-norb" not in g.index:
+            continue
+        if last_e is not None and e != last_e:
+            lines.append(r"\midrule")
+        last_e = e
+        a, m = g.loc["drb-id"], g.loc["mmhm-norb"]
+        tag = inst_tag(w)
+        ra = _rate(m.build_adds, a.build_adds)
+        M.add(f"Num{tag}DrbIdBuildAdds", intc(a.build_adds), f"{w}: additions of the INIT build "
+              f"in insertion order (drb-id, mean of seeds)", "aggregate.py")
+        M.add(f"Num{tag}MmhmNorbBuildAdds", intc(m.build_adds), f"{w}: additions of the INIT "
+              f"build in Morse order (mmhm-norb, mean of seeds)", "aggregate.py")
+        M.add(f"Num{tag}BuildAddsMorseOverId", "--" if math.isnan(ra) else f"{ra:.2f}",
+              f"{w}: INIT build additions Morse / insertion order", "aggregate.py")
+        M.add(f"Num{tag}NnzInitMorseOverId", f"{m.nnz0 / a.nnz0:.3f}",
+              f"{w}: nnz(R)+nnz(V) after INIT, Morse / insertion order", "aggregate.py")
+        lines.append(f"{e} & {pretty_inst(w)} & {intc(a.K0)} & {intc(a.nnz0)} & {intc(m.nnz0)} & "
+                     f"{m.nnz0 / a.nnz0:.3f} & {intc(a.build_adds)} & {intc(m.build_adds)} & "
+                     f"{'--' if math.isnan(ra) else f'{ra:.2f}'} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    _write("tab_build.tex", lines)
+    # ---- verification coverage (review B2)
+    C = C.copy()
+    C["family"] = [FAMILY[w.split("_")[0]] for w in C.workload]
+    cov_rows = []
+    for fam, g in list(C.groupby("family")) + [("all", C)]:
+        n = g.betti_states.sum()
+        r = {"family": fam, "runs": len(g), "vectors": int(n), "ge1": int(g.cov_ge1.sum()),
+             "ge2": int(g.cov_ge2.sum()), "all3": int(g.cov_all3.sum()),
+             "external": int(g.cov_external.sum()),
+             "engine_only": int((g.cov_ge1 - g.cov_external).sum())}
+        cov_rows.append(r)
+        p = "NumCoverage" + ("" if fam == "all" else fam)
+        what = "all exact runs" if fam == "all" else FAMILY_NAME[fam]
+        for k, lab in (("ge1", "GeOne"), ("ge2", "GeTwo"), ("all3", "AllThree"),
+                       ("external", "External"), ("engine_only", "EngineOnly")):
+            M.add(p + lab, intc(r[k]), f"{what}: reported Betti vectors checked against "
+                  f"{ {'ge1': '>= 1 reference', 'ge2': '>= 2 references', 'all3': 'all three references (engine full-id file, closed form, GUDHI)', 'external': '>= 1 external reference (closed form or GUDHI)', 'engine_only': 'only the engine-internal full-id file'}[k] }",
+                  "verify.py, aggregate.py")
+            M.add(p + lab + "Pct", f"{100 * r[k] / n:.1f}", f"{what}: same, % of the reported "
+                  f"vectors", "verify.py, aggregate.py")
+        M.add(p + "Vectors", intc(n), f"{what}: reported Betti vectors", "verify.py")
+    CV = pd.DataFrame(cov_rows)
+    CV.to_csv(os.path.join(RES, "summary_coverage.csv"), index=False)
+    lines = [r"\begin{tabular}{@{}lrrrrrr@{}}", r"\toprule",
+             r"workloads & runs & vectors & $\geq1$ ref. & $\geq2$ ref. & all 3 & "
+             r"$\geq1$ external \\", r"\midrule"]
+    for _, r in CV.iterrows():
+        if r.family == "all":
+            lines.append(r"\midrule")
+        name = "all exact runs" if r.family == "all" else FAMILY_NAME[r.family]
+        lines.append(f"{name} & {intc(r.runs)} & {intc(r.vectors)} & "
+                     + " & ".join(f"{intc(r[k])} ({100 * r[k] / r.vectors:.1f}\\%)"
+                                  for k in ("ge1", "ge2", "all3", "external")) + r" \\")
+    smp = os.path.join(RES, "E0", "samples_crosscheck.csv")
+    if os.path.exists(smp):
+        X = pd.read_csv(smp)
+        ref = X[X.method.str.startswith("ref:")]
+        lines.append(r"\midrule")
+        lines.append(f"\\multicolumn{{7}}{{@{{}}l}}{{Python reference (\\texttt{{reference/}}): "
+                     f"{len(ref["sample"].unique())} committed samples only, "
+                     f"{len(ref.method.unique())} methods, {intc(ref.states.sum())} vectors, "
+                     f"{int(ref.mismatch_vs_gudhi.sum() + ref.mismatch_vs_expected.sum())} "
+                     f"mismatches}} \\\\")
+        M.add("NumReferenceChecks", intc(ref.states.sum()), "Python reference: Betti vectors "
+              "compared with GUDHI (and closed form) on the committed samples (its only runs)",
+              "crosscheck_samples.py")
+        M.add("NumReferenceSamples", intc(len(ref["sample"].unique())), "Python reference: samples "
+              "it ran on", "crosscheck_samples.py")
+        M.add("NumReferenceMethods", intc(len(ref.method.unique())), "Python reference: methods "
+              "run (drb-id, mmhm-norb, mmhm)", "crosscheck_samples.py")
+        M.add("NumReferenceMismatches", intc(ref.mismatch_vs_gudhi.sum() +
+                                             ref.mismatch_vs_expected.sum()),
+              "Python reference: mismatching states", "crosscheck_samples.py")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    _write("tab_coverage.tex", lines)
+    # ---- lcr: time to first error (review M1, minor 12)
+    for w, g in L.groupby("workload"):
+        tag = inst_tag(w)
+        fw = g.first_wrong_t.dropna()
+        M.add(f"NumLcr{tag}Wrong", intc(g.wrong_updates.sum()), f"lcr on {w}: wrong updates "
+              f"(3 seeds)", "verify.py")
+        M.add(f"NumLcr{tag}Updates", intc(g.verified_updates.sum()), f"lcr on {w}: verified "
+              f"updates (3 seeds)", "verify.py")
+        if len(fw):
+            M.add(f"NumLcr{tag}FirstWrongMax", intc(fw.max()), f"lcr on {w}: first wrong update, "
+                  f"max over seeds", "verify.py")
+            M.add(f"NumLcr{tag}FirstWrongList", ", ".join(str(int(x)) for x in
+                                                          g.sort_values("seed").first_wrong_t),
+                  f"lcr on {w}: first wrong update of seeds 0, 1, 2", "verify.py")
+    fw = L.first_wrong_t.dropna()
+    M.add("NumLcrFirstWrongMaxAll", intc(fw.max()), "lcr: latest first wrong update over all "
+          "E0 runs that go wrong", "verify.py")
+    M.add("NumLcrRunsWrong", intc(len(fw)), "lcr: E0 runs that are ever wrong", "verify.py")
+    M.add("NumLcrRuns", intc(len(L)), "lcr: E0 runs", "verify.py")
+    # ---- E7: where mmhm beats drb-id-rb (review minor 11)
+    for w, g in e7.groupby("workload"):
+        pv = g.pivot_table(index=["alpha", "period"], columns="method", values="amort_us")
+        n = int((pv["mmhm"] < pv["drb-id-rb"]).sum())
+        M.add(f"NumESeven{inst_tag(w)}MmhmBelowDrbIdRb", intc(n), f"E7 {w}: (alpha, period) "
+              f"settings (of {len(pv)}) at which mmhm has lower amortized latency than "
+              f"drb-id-rb", "aggregate.py")
+        M.add(f"NumESeven{inst_tag(w)}Settings", intc(len(pv)), f"E7 {w}: grid settings",
+              "aggregate.py")
+    # ---- noise beyond W2 N = 22 (review M8, minor 17)
+    noise_rows = []
+    for f in sorted(glob.glob(os.path.join(RES, "noise", "*__rep*.csv.gz"))):
+        inst, meth, cond, rep = os.path.basename(f)[:-7].split("__")
+        d = raw_csv(f)
+        t = d[d.t > 0].time_ns.to_numpy(dtype=float) / 1e3
+        noise_rows.append({"instance": inst, "method": meth, "condition": cond,
+                           "rep": int(rep[3:]), "median_us": np.median(t),
+                           "p99_us": np.percentile(t, 99), "mean_us": t.mean()})
+    NZ = pd.DataFrame(noise_rows)
+    nsum = []
+    for (inst, meth, cond), g in NZ.groupby(["instance", "method", "condition"]):
+        r = {"instance": inst, "method": meth, "condition": cond, "reps": len(g)}
+        for c in ("median_us", "p99_us", "mean_us"):
+            r[c] = g[c].median()
+            r["cv_" + c] = g[c].std(ddof=1) / g[c].mean() if len(g) > 1 else np.nan
+        nsum.append(r)
+    # W5a: the 3 seeds are identical instances, i.e. repetitions
+    w5a = runs_df[(runs_df.exp == "E6") & runs_df.workload.str.startswith("w5a")]
+    for (w, lab), g in w5a.groupby(["workload", "label"]):
+        r = {"instance": w + " (3 seeds = repetitions)", "method": lab, "condition": "sweep",
+             "reps": len(g)}
+        for c, src_c in (("median_us", "lat_med_us"), ("p99_us", "lat_p99_us"),
+                         ("mean_us", "amort_us")):
+            r[c] = g[src_c].median()
+            r["cv_" + c] = g[src_c].std(ddof=1) / g[src_c].mean()
+        nsum.append(r)
+        tag = inst_tag(w)
+        M.add(f"NumNoiseCVSeeds{tag}{METHOD_TAG[lab]}Amort", pct(r["cv_mean_us"]),
+              f"noise: CV (%) of the amortized latency over the 3 identical W5a runs ({w}, {lab})",
+              "aggregate.py")
+        M.add(f"NumNoiseCVSeeds{tag}{METHOD_TAG[lab]}PNinetyNine", pct(r["cv_p99_us"]),
+              f"noise: CV (%) of p99 over the 3 identical W5a runs ({w}, {lab})", "aggregate.py")
+    NS = pd.DataFrame(nsum)
+    NS.to_csv(os.path.join(RES, "summary_noise.csv"), index=False, float_format="%.6g")
+    short = {"w2_N22_s8_T2000_seed0": "WTwoNTwentyTwoSEight",
+             "w2_N33_s8_T2000_seed0": "WTwoNThirtyThreeSEight",
+             "w5a_cycle_L100000_T2000_seed0": "WFiveCycleLOneHundredThousand",
+             "w3_N20_k2_c4_T2000_seed0": "WThreeNTwenty",
+             "w1_torus_256x256_k2_h3_T2000_seed0": "WOneTorusTwoHundredFiftySix"}
+    for _, r in NS[NS.condition == "alone"].iterrows():
+        if r.instance not in short:
+            continue
+        p = f"NumNoiseCV{short[r.instance]}{METHOD_TAG[r.method]}"
+        for c, lab in (("median_us", "Med"), ("mean_us", "Amort"), ("p99_us", "PNinetyNine")):
+            M.add(p + lab, pct(r["cv_" + c]), f"noise: CV (%) of the {lab} latency over "
+                  f"{r.reps} identical runs alone of {r.method} on {r.instance}", "noise.py")
+    big = NS[NS.instance == "w2_N33_s8_T2000_seed0"]
+    for meth in big.method.unique():
+        a = big[(big.method == meth) & (big.condition == "alone")]
+        b = big[(big.method == meth) & (big.condition == "loaded4")]
+        if len(a) and len(b):
+            M.add(f"NumNoise{METHOD_TAG[meth]}LargeFourBusyPct",
+                  f"{100 * (b.median_us.iloc[0] / a.median_us.iloc[0] - 1):+.1f}",
+                  f"noise: change (%) of the median latency of {meth} on W2 N=33 (955k "
+                  f"simplices) with one timed + two GUDHI runs concurrently, vs alone "
+                  f"({int(a.reps.iloc[0])} + {int(b.reps.iloc[0])} runs)", "noise.py")
+    cv = NS[(NS.condition.isin(["alone", "sweep"]))]
+    M.add("NumNoiseCVAmortMax", pct(cv.cv_mean_us.max()), "noise: largest CV (%) of the "
+          "amortized latency over all repetition sets (noise.py sets and W5a)", "aggregate.py")
+    M.add("NumNoiseCVPNinetyNineMax", pct(cv.cv_p99_us.max()), "noise: largest CV (%) of p99 "
+          "over all repetition sets", "aggregate.py")
+    lines = [r"\begin{tabular}{@{}llrrrr@{}}", r"\toprule",
+             r"instance & method & runs & CV median & CV amortized & CV p99 \\", r"\midrule"]
+    for _, r in NS[NS.condition.isin(["alone", "sweep"])].iterrows():
+        nm = r.instance.replace("_T2000_seed0", "").replace("_", r"\_")
+        lines.append(f"\\texttt{{{nm}}} & {mname(r.method)} & {int(r.reps)} & "
+                     f"{pct(r.cv_median_us)}\\% & {pct(r.cv_mean_us)}\\% & {pct(r.cv_p99_us)}\\% \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    _write("tab_noise.tex", lines)
+    # ---- which timed runs shared the machine with untimed jobs (review minor 17)
+    man = pd.concat([pd.read_csv(p) for p in glob.glob(os.path.join(RES, "E*", "manifest.csv"))])
+    man = man[man.exit.astype(str) == "0"].copy()
+    man["t0"] = pd.to_datetime(man.started)
+    man["t1"] = man.t0 + pd.to_timedelta(man.wall_s.astype(float), unit="s")
+    unt = man[man.timed == 0]
+    tim = man[man.timed == 1].drop_duplicates(["exp", "workload", "label", "seed"], keep="last")
+    ov = []
+    for _, r in tim.iterrows():
+        o = unt[(unt.t0 < r.t1) & (unt.t1 > r.t0)]
+        ov.append(len(o) > 0)
+    tim = tim.assign(overlaps_untimed=ov)
+    tim[["exp", "workload", "label", "seed", "started", "wall_s", "overlaps_untimed"]].to_csv(
+        os.path.join(RES, "summary_overlap.csv"), index=False)
+    tov = tim[tim.overlaps_untimed]
+    M.add("NumTimedRunsWithUntimed", intc(len(tov)), "timed runs that overlapped in time with "
+          "an untimed job (lcr error-rate runs, E2 GUDHI oracle) during the sweep "
+          "(results/summary_overlap.csv)", "run.py manifests")
+    M.add("NumTimedRunsWithUntimedEngine", intc(int((tov.label != "gudhi").sum())),
+          "of those, engine runs (the rest are timed gudhi runs)", "run.py manifests")
+    M.add("NumUntimedEnd", str(unt.t1.max().strftime("%H:%M")), "time (UTC) at which the last "
+          "untimed job of the sweep ended", "run.py manifests")
+
+    # ---- the E1 outlier run and its single rerun (review M11)
+    for seed in (0, 1, 2):
+        p = os.path.join(RES, "E1", f"w2_N22_s8__mmhm-norb__seed{seed}.csv.gz")
+        d = raw_csv(p)
+        t = d[d.t > 0].time_ns.to_numpy(dtype=float) / 1e3
+        for b in range(5):
+            M.add(f"NumOutlierSeed{words(seed)}Block{words(b + 1)}Med",
+                  sig(np.median(t[400 * b:400 * (b + 1)])),
+                  f"E1 w2_N22_s8 mmhm-norb seed {seed}: median latency of updates "
+                  f"{400 * b + 1}-{400 * (b + 1)} (us)", "aggregate.py")
+    rr = os.path.join(RES, "rerun", "w2_N22_s8__mmhm-norb__seed1.csv.gz")
+    if os.path.exists(rr):
+        d = raw_csv(rr)
+        o = raw_csv(os.path.join(RES, "E1", "w2_N22_s8__mmhm-norb__seed1.csv.gz"))
+        t = d[d.t > 0].time_ns.to_numpy(dtype=float) / 1e3
+        M.add("NumOutlierRerunAmort", sig(t.mean()), "rerun of E1 w2_N22_s8 mmhm-norb seed 1: "
+              "amortized latency (us)", "results/rerun/")
+        M.add("NumOutlierRerunMed", sig(np.median(t)), "rerun: median latency (us)",
+              "results/rerun/")
+        M.add("NumOutlierRerunPNinetyNine", sig(np.percentile(t, 99)), "rerun: p99 (us)",
+              "results/rerun/")
+        to = o[o.t > 0].time_ns.to_numpy(dtype=float) / 1e3
+        M.add("NumOutlierOrigAmort", sig(to.mean()), "original E1 w2_N22_s8 mmhm-norb seed 1: "
+              "amortized latency (us)", "results/E1/")
+        M.add("NumOutlierOrigPNinetyNine", sig(np.percentile(to, 99)), "original: p99 (us)",
+              "results/E1/")
+        for b in range(5):
+            M.add(f"NumOutlierRerunBlock{words(b + 1)}Med",
+                  sig(np.median(t[400 * b:400 * (b + 1)])),
+                  f"rerun: median latency of updates {400 * b + 1}-{400 * (b + 1)} (us)",
+                  "results/rerun/")
+        same = all((d[c].to_numpy() == o[c].to_numpy()).all()
+                   for c in ("b0", "b1", "b2", "b3", "chain_adds", "nnz_R", "nnz_V",
+                             "footprint_sum"))
+        M.add("NumOutlierRerunIdentical", "yes" if same else "no", "rerun: Betti numbers, "
+              "additions, nnz and footprints identical to the original run row by row",
+              "results/rerun/")
+        sib = [raw_csv(os.path.join(RES, "E1", f"w2_N22_s8__mmhm-norb__seed{k}.csv.gz"))
+               for k in (0, 2)]
+        pool = np.concatenate([x[x.t > 0].time_ns.to_numpy(dtype=float) / 1e3 for x in sib] + [t])
+        M.add("NumWTwoNTwentyTwoSEightMmhmNorbAmortWithRerun", sig(pool.mean()),
+              "w2_N22_s8 mmhm-norb amortized latency (us) with seed 1 replaced by its rerun",
+              "aggregate.py")
+        M.add("NumWTwoNTwentyTwoSEightMmhmNorbPNinetyNineWithRerun",
+              sig(np.percentile(pool, 99)), "same, p99 (us)", "aggregate.py")
+
+
+def protocol_from_configs():
+    """T, seeds and the gudhi prefix rule, read from the configs (review minor 23)."""
+    sys.path.insert(0, os.path.join(HERE, "configs"))
+    import make_configs as mc  # noqa: E402
+    with open(os.path.join(HERE, "configs", "E1.json"), encoding="utf-8") as fh:
+        cfg = json.load(fh)
+    prefixes = set()
+    for p in glob.glob(os.path.join(HERE, "configs", "E*.json")):
+        with open(p, encoding="utf-8") as fh:
+            for inst in json.load(fh)["instances"]:
+                if "gudhi" in inst.get("T_by_method", {}):
+                    prefixes.add(inst["T_by_method"]["gudhi"])
+    return int(cfg["T"]), len(cfg["seeds"]), min(prefixes), int(mc.GUDHI_FULL_LIMIT)
 
 if __name__ == "__main__":
     main()
