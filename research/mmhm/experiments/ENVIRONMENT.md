@@ -41,3 +41,14 @@ Seeds and repetition counts are recorded per configuration in `experiments/confi
   either limit: the sweep (1,236 runs) ran 04:04–06:37 UTC, and
   `results/NOT_RUN.csv` is empty. The longest single run took 6.6 min
   (`full-id` on W5b level 8).
+* Review round (`noise.py --extra`): run-to-run noise on three more instances
+  (W5a L=1e5, W3 N=20, W1 torus 256², 5 identical runs alone each for `mmhm`,
+  `drb-id`, `full-id`) and interference at 955k simplices (W2 N=33, 3 runs
+  alone vs 3 with one timed engine run + two GUDHI replays). At that size
+  `full-id`'s median rose by 14% under the 4-process load (`mmhm` +2.5%), so
+  the small interference measured at 286k simplices does not carry over to
+  memory-bound runs at ~1e6. During the sweep only the first 32 minutes had
+  untimed jobs running (until 04:36 UTC); the 22 timed runs that overlapped them
+  (19 `gudhi`, 3 `full-morse` on E2 s=64) are listed in
+  `results/summary_overlap.csv`. Every other timed run shared the machine with
+  at most one other timed run.

@@ -601,31 +601,33 @@ def main():
         EG.to_csv(os.path.join(RES, "summary_rebuild_effect.csv"), index=False,
                   float_format="%.6g")
         # table: amortized latency of the four DRB methods, rebuilds, and the effect ratio
-        lines = [r"\begin{tabular}{@{}lrrrrrrrrrrrr@{}}", r"\toprule",
-                 r" & \multicolumn{4}{c}{amortized latency (\textmu s)} & "
-                 r"\multicolumn{2}{c}{rebuilds / run} & "
-                 r"\multicolumn{2}{c}{100 updates after each} & "
+        lines = [r"\begin{tabular}{@{}lrrrrrrrrrr@{}}", r"\toprule",
+                 r" & \multicolumn{2}{c}{rebuilds / run} & "
+                 r"\multicolumn{2}{c}{amortized latency} & "
+                 r"\multicolumn{2}{c}{adds, 100 upd.\ after} & "
                  r"\multicolumn{4}{c}{all updates after the first rebuild} \\",
-                 r"\cmidrule(lr){2-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}\cmidrule(lr){10-13}",
-                 r" & & & & & & & adds & adds & adds & time & adds & time \\",
-                 r"instance & \method{drb-id} & \method{drb-id-rb} & \method{mmhm-norb} & "
-                 r"\method{mmhm} & \method{drb-id-rb} & \method{mmhm} & "
-                 r"\multicolumn{1}{c}{rb/id} & \multicolumn{1}{c}{m/norb} & "
-                 r"\multicolumn{2}{c}{\method{drb-id-rb}/\method{drb-id}} & "
-                 r"\multicolumn{2}{c}{\method{mmhm}/\method{mmhm-norb}} \\", r"\midrule"]
+                 r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-11}",
+                 r" & & & & & & & \multicolumn{2}{c}{rb/id} & \multicolumn{2}{c}{m/norb} \\",
+                 r"\cmidrule(lr){8-9}\cmidrule(lr){10-11}",
+                 r"instance & rb & m & rb/id & m/norb & rb/id & m/norb & adds & time & adds & "
+                 r"time \\", r"\midrule"]
         kk = {w: S[S.workload == w].K0.dropna().mean() for w in EG.workload.unique()}
         order = sorted(EG.groupby(["exp", "workload"]).groups,
                        key=lambda ew: (ew[0], ew[1].split("_")[1], kk[ew[1]]))
         for (e, w) in order:
             g = EG[(EG.exp == e) & (EG.workload == w)]
             amo = S[(S.exp == e) & (S.workload == w)].set_index("label")
-            K0 = amo.K0.dropna().mean()
+
             def gv(m, col):
                 x = g[g.method == m]
                 return x[col].iloc[0] if len(x) else float("nan")
-            cells = [pretty_inst(w)] + [sig(amo.amort_us.get(m, float("nan")))
-                                        for m in ("drb-id", "drb-id-rb", "mmhm-norb", "mmhm")]
+
+            def ar(a, b):
+                return (f"{amo.amort_us[a] / amo.amort_us[b]:.2f}"
+                        if a in amo.index and b in amo.index else "--")
+            cells = [pretty_inst(w)]
             cells += [sig(amo.rebuilds.get(m, float("nan")), 2) for m in ("drb-id-rb", "mmhm")]
+            cells += [ar("drb-id-rb", "drb-id"), ar("mmhm", "mmhm-norb")]
             cells += [f"{gv(m, 'ratio_window'):.2f}" for m in ("drb-id-rb", "mmhm")]
             for m in ("drb-id-rb", "mmhm"):
                 cells += [f"{gv(m, 'ratio_after_first'):.2f}",
@@ -1275,14 +1277,14 @@ def review_extras(M, runs, S, runs_df, C, L, e7):
         M.add(p + "Vectors", intc(n), f"{what}: reported Betti vectors", "verify.py")
     CV = pd.DataFrame(cov_rows)
     CV.to_csv(os.path.join(RES, "summary_coverage.csv"), index=False)
-    lines = [r"\begin{tabular}{@{}lrrrrrr@{}}", r"\toprule",
-             r"workloads & runs & vectors & $\geq1$ ref. & $\geq2$ ref. & all 3 & "
+    lines = [r"\begin{tabular}{@{}lrrrrr@{}}", r"\toprule",
+             r"workloads & vectors & $\geq1$ ref. & $\geq2$ ref. & all 3 & "
              r"$\geq1$ external \\", r"\midrule"]
     for _, r in CV.iterrows():
         if r.family == "all":
             lines.append(r"\midrule")
         name = "all exact runs" if r.family == "all" else FAMILY_NAME[r.family]
-        lines.append(f"{name} & {intc(r.runs)} & {intc(r.vectors)} & "
+        lines.append(f"{name} & {intc(r.vectors)} & "
                      + " & ".join(f"{intc(r[k])} ({100 * r[k] / r.vectors:.1f}\\%)"
                                   for k in ("ge1", "ge2", "all3", "external")) + r" \\")
     smp = os.path.join(RES, "E0", "samples_crosscheck.csv")
@@ -1290,7 +1292,7 @@ def review_extras(M, runs, S, runs_df, C, L, e7):
         X = pd.read_csv(smp)
         ref = X[X.method.str.startswith("ref:")]
         lines.append(r"\midrule")
-        lines.append(f"\\multicolumn{{7}}{{@{{}}l}}{{Python reference (\\texttt{{reference/}}): "
+        lines.append(f"\\multicolumn{{6}}{{@{{}}l}}{{Python reference (\\texttt{{reference/}}): "
                      f"{len(ref["sample"].unique())} committed samples only, "
                      f"{len(ref.method.unique())} methods, {intc(ref.states.sum())} vectors, "
                      f"{int(ref.mismatch_vs_gudhi.sum() + ref.mismatch_vs_expected.sum())} "

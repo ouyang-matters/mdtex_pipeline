@@ -17,8 +17,13 @@ python3 verify.py && python3 aggregate.py
 | `tab_summary.tex` | T2 (fits one page at `\small`): per workload × method at the largest size of each family of E1, E3, E4, E5 (W5 is in F6 and the full tables): \|K₀\|, T (2,000 or the prefix T′ = 200), median, p95 and amortized per-update latency (µs), amortized speedup vs `full-id` |
 | `tab_summary_full.tex`, `tab_summary_full_med.tex`, `tab_summary_full_p99.tex` | every instance of E1–E6 (rows) × method (columns): amortized / median / p99 per-update latency (µs). `′` marks the prefix T′ = 200; an empty cell means the method is not part of that experiment, `n/r` a configured run without results. Use `\footnotesize` and `\setlength{\tabcolsep}{3pt}` to fit 6.5 in |
 | `tab_e7.tex` | E7: rebuilds per run, amortized and p99 latency (µs) for `mmhm` and `drb-id-rb` over α × period |
-| `tab_rebuild_effect.tex` | does a rebuild help? Per instance where rebuilds fired (default policy α = 1, period off): amortized latency of `drb-id`, `drb-id-rb`, `mmhm-norb`, `mmhm`; rebuilds per run; and the additions of the rebuilding method in the 100 updates after each of its rebuilds divided by those of its never-rebuilding twin on the same updates (> 1: the rebuild made the following updates costlier) |
+| `tab_rebuild_effect.tex` | does a rebuild help? Per instance where rebuilds fired (default policy α = 1, period off): rebuilds per run (rb = `drb-id-rb`, m = `mmhm`); amortized latency ratios rb/`drb-id` and m/`mmhm-norb`; additions of the rebuilding method in the 100 updates after each of its rebuilds / its never-rebuilding twin on the same updates; and over all non-rebuild updates after the first rebuild, the ratios of additions and of time (> 1: costlier than never rebuilding). W1 rows are here; E7 (F7, `tab_e7`) has no W1 instance |
 | `tab_e8.tex` | E8: median and p99 of per-update column additions and footprints, nnz(R)+nnz(V) after INIT and at the end, for the four DRB methods |
+| `tab_coverage.tex` | review B2: Betti vectors of exact runs checked against ≥ 1, ≥ 2 and all 3 references (engine `full-id` file, closed form, GUDHI) and against ≥ 1 external one (closed form or GUDHI), per workload family; last line: what the Python reference covered (samples only) |
+| `tab_build.tex` | review M3: nnz(R)+nnz(V) after INIT and additions of the INIT build, insertion order (`drb-id`) vs Morse order (`mmhm-norb`), every instance |
+| `tab_drift.tex` | review M4: `full-id` median over updates 1–200 vs 1801–2000, last/first ratio for `full-id`, `full-morse`, `drb-id`, `mmhm`, and `mmhm`'s speedup over `full-id` on those two windows |
+| `tab_seed_ranges.tex`, `tab_seed_ranges_p99.tex` | review M8: per-seed min–max of amortized latency / p99 for `full-id` and the 4 DRB variants, every instance (pairwise overlaps for all methods: `experiments/results/summary_pairs.csv`) |
+| `tab_noise.tex` | review M8: CV of median, amortized and p99 latency over identical runs (noise.py: W2 N=22, W5a L=1e5, W3 N=20, W1 torus 256², W2 N=33; plus the 3 identical-instance seeds of every W5a size) |
 | `tab_w4_betti.tex` | W4: ranges of β₀..β₃ over all states of the 3 seeds, and β_D / n at INIT |
 
 Each `tab_*.tex` is a complete `tabular` (booktabs rules, no float, no
@@ -36,10 +41,13 @@ Latencies in tables are in µs.
   percentiles of the pooled per-update latencies; `Amort` = total update time
   (including rebuilds, which are charged to the update that triggers them) /
   number of updates.
-* **Speedups** are ratios of amortized latencies (`SpeedupFullId` =
-  amortized of `full-id` / amortized of the method; `…Med` variants use
-  medians). For `gudhi` above 3e5 simplices the reference is its own prefix
-  T′ = 200 (`\Num<inst>GudhiT`).
+* **Speedups** are ratios of amortized latencies over the same updates
+  (`SpeedupFullId` = amortized of `full-id` / amortized of the method, both
+  over all T updates; `…Med` variants use medians). `SpeedupGudhi` compares
+  both methods over the same first updates: all T when gudhi ran all T,
+  otherwise gudhi's prefix T′ = 200 (`\Num<inst>GudhiT`).
+  `SpeedupGudhiUnmatched` is the earlier prefix-vs-full-run ratio, kept only for
+  traceability.
 * Percentages are plain numbers without `\%`.
 
 ## Macro names
@@ -103,6 +111,40 @@ Fits on 3 points (E3, E4) are indicative only.
 `AFour`, `AOff`}, `<period>` ∈ {`POff`, `PSixtyFour`, `PTwoHundredFiftySix`},
 `<stat>` ∈ {`Amort`, `Med`, `PNinetyNine`, `Rebuilds`, `Adds`}.
 `AOff POff` never rebuilds (= `mmhm-norb` resp. `drb-id` behaviour).
+
+**Review round (paper/response/data.md maps each referee item to macros).**
+Per instance and method (E1–E6), in addition to the stats above:
+`AmortSeedMin/Max`, `MedSeedMin/Max`, `PNinetyNineSeedMin/Max` (per-seed
+ranges, µs), `PNinetyNineOverFullId` (pooled p99 / `full-id` p99),
+`FirstBlockMed`, `LastBlockMed` (median over updates 1–200 / 1801–2000),
+`DriftMed`, `DriftMean` (last/first block), `SpeedupFullIdFirstBlock`,
+`SpeedupFullIdLastBlock` (amortized speedup over `full-id` on those windows),
+`SpeedupGudhi` (now matched: both methods over the same first T′ updates) and
+`SpeedupGudhiUnmatched` (the old definition; do not use for claims),
+`NnzPerSimplex` (DRB: max nnz / |K₀|, memory proxy), `Adds` also for
+`full-id`/`full-morse` (additions per recomputation). Per instance:
+`\Num<inst>DrbSpeedupFullIdMin/Max` (range over the 4 DRB variants),
+`\Num<inst>BestDrb` (typeset method name), `\Num<inst>BestDrbWithinNoise`
+(yes/no: seed ranges of best and second-best DRB overlap),
+`\Num<inst>DrbIdBuildAdds`, `\Num<inst>MmhmNorbBuildAdds`,
+`\Num<inst>BuildAddsMorseOverId`, `\Num<inst>NnzInitMorseOverId`.
+Coverage: `\NumCoverage[<fam>]{GeOne,GeTwo,AllThree,External,EngineOnly}[Pct]`
+and `\NumCoverage[<fam>]Vectors`, `<fam>` ∈ {`WOne`…`WFive`} or empty for all;
+`\NumReferenceChecks`, `\NumReferenceSamples`, `\NumReferenceMethods`,
+`\NumReferenceMismatches`. Drift: `\NumDriftFullIdInstances`,
+`\NumDriftFullIdList`. lcr: `\NumLcr<inst>{Wrong,Updates,FirstWrongMax,FirstWrongList}`,
+`\NumLcrFirstWrongMaxAll`, `\NumLcrRunsWrong`, `\NumLcrRuns`. E7:
+`\NumESeven<inst>MmhmBelowDrbIdRb` (of `\NumESeven<inst>Settings`). Noise:
+`\NumNoiseCV<inst><m>{Med,Amort,PNinetyNine}` for the noise.py instances,
+`\NumNoiseCVSeeds<inst><m>{Amort,PNinetyNine}` for W5a (seeds = repetitions),
+`\NumNoiseCVAmortMax`, `\NumNoiseCVPNinetyNineMax`,
+`\NumNoise<m>LargeFourBusyPct` (interference at 955k simplices),
+`\NumTimedRunsWithUntimed`, `\NumTimedRunsWithUntimedEngine`,
+`\NumUntimedEnd`. Outlier: `\NumOutlierSeed<k>Block<j>Med` (k = Zero..Two,
+j = One..Five, blocks of 400 updates), `\NumOutlierOrig{Amort,PNinetyNine}`,
+`\NumOutlierRerun{Amort,Med,PNinetyNine,Block<j>Med,Identical}`,
+`\NumWTwoNTwentyTwoSEightMmhmNorb{Amort,PNinetyNine}WithRerun`. Rebuild
+effect: also `…WindowTime`, `…AfterFirstTime`, `…AfterFirstTimeInclRebuilds`.
 
 **Rebuild effect** (aggregate.py, `results/summary_rebuild_effect.csv`):
 `\NumRebuildEffect<inst><m>Window` (`<m>` ∈ {`Mmhm`, `DrbIdRb`}) = additions
