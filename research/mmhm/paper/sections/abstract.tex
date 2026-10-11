@@ -24,15 +24,16 @@ complexes, the latency of the dynamic reduced basis depends little on the size o
 the complex: at \NumWTwoNThirtyThreeSEightSize{} simplices all its variants are
 \NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
 times faster than static recomputation, with or without the Morse order. The
-Morse order saves nothing at build time on our workloads and helps between
-rebuilds only on some of them. On punctured surfaces the method is at most
+Morse order saves nothing at build time against the insertion orders of our
+generators, although any structured order gives a much sparser basis than a
+random one, and helps between rebuilds only on some workloads. On punctured surfaces the method is at most
 \NumWOneSphereLFiveMmhmSpeedupFullId{} times faster on average and has the worse
 tail latency, and combinatorial counters are far cheaper; on non-locality
 witnesses its cost grows linearly with the complex, as the theory predicts. An
 ablation that applies version~1's re-reduction rule without basis tracking (and
 without its recompression and gates) errs within the first
 \NumLcrFirstWrongMaxAll{} updates of every run on surfaces, 3-balls and flag
-complexes, and almost always afterwards.
-% PENDING-ABLATION: lcr-rc -- if its error rate is informative, replace the last
-% sentence's scope with the result for lcr with recompression (m = 32).
+complexes; with version~1's periodic recompression it is still wrong after
+\NumLcrRcWFourPlaneNFourThousandDTwoErrPct--\NumLcrRcErrMax\,\% of the updates
+on surfaces, cavities and flag complexes.
 \end{abstract}

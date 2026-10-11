@@ -46,17 +46,23 @@ corollaries locate the work of a build in the critical columns; they do not make
 it smaller than in a good insertion order, and on our workloads it was not
 (E8). Between rebuilds the Morse order is a heuristic whose effect ranges from
 clearly positive (large surfaces, W3, larger W4) to negative (W5); for one-shot
-static recomputation the collapse never paid for itself (E1).
-% PENDING-ABLATION: drb-rand -- say here whether a random build order costs
-% more than the insertion and Morse orders (tab_rand); do not invent numbers.
+static recomputation the collapse never paid for itself (E1). A structured order
+matters more than which one: in a random order the basis had
+\NumWFourPlaneNFourThousandDTwoNnzInitRandOverId--\NumWThreeNFourteenNnzInitRandOverId{}
+times as many entries after the build, and updates on W1--W3 were
+\NumWThreeNFourteenDrbRandOverDrbIdAmort--\NumWTwoNFifteenSEightDrbRandOverDrbIdAmort{}
+times slower (E8).
 
 \paragraph{Baselines.}
 The insertion order of \method{full-id} depends on the history of edits, and its
-cost drifts upward during the W3 and the smaller W4 runs; we report matched
-windows where this matters (E3, E4).
-% PENDING-ABLATION: full-sorted -- state here how the canonical-order static
-% baseline compares on the matched windows; do not invent numbers.
-\method{gudhi} runs through its Python interface
+cost drifts upward during the W3 and the smaller W4 runs. The canonical order of
+\method{full-sorted} removes this dependence and most of the drift on W4, but not
+on W3, where the later complexes cost more to reduce in any order. Against it
+the gains of the DRB on W3 are smaller (\method{mmhm} at $N=27$:
+\NumWThreeNTwentySevenMmhmSpeedupFullSorted{} instead of
+\NumWThreeNTwentySevenMmhmSpeedupFullId) and the methods without rebuilds lose
+on the smallest instance; on W2 and W4 the conclusions do not change (E1, E3,
+E4). \method{gudhi} runs through its Python interface
 and computes persistence pairs; its times are a reference point for a widely used
 library, not the best possible static recomputation.
 
@@ -98,10 +104,11 @@ built by insertions only, the algorithm of Delfinado and
 Edelsbrunner~\cite{delfinado1995incremental} needs near-linear total time.
 
 \paragraph{Small complexes, or tail latency under global cycles:} static
-recomputation with clearing (\method{full-id}), not in the Morse order. It stores
-no basis, it was faster on average than \method{drb-id} on the smallest W3
-instance, and it had the lower p99 on every W1 instance and, beyond noise in all
-but one case, on every W5a instance. Within the
+recomputation with clearing, not in the Morse order. It stores no basis. In the
+canonical order (\method{full-sorted}) it was faster on average than the DRB
+methods without rebuilds on the smallest W3 instance and than \method{drb-id} on
+almost every W1 instance; \method{full-id} had the lower p99 on every W1
+instance and, beyond noise in all but one case, on every W5a instance. Within the
 edit sizes we measured ($s\le64$ on W2) it did not overtake the DRB methods on
 average; we did not test larger batches.
 

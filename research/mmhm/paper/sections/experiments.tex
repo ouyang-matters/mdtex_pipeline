@@ -58,7 +58,8 @@ raw data and the figures.
 
 \begin{table}[t]
   \centering
-  \caption{Methods. \emph{Order}: the key order of the cells. \emph{$V$,
+  \caption{Methods. \emph{Order}: the key order of the cells; \emph{canonical}:
+    by dimension, then lexicographically by vertex tuple. \emph{$V$,
     $\occ$}: whether the change of basis and the footprint index are stored.
     \emph{Rebuilds}: when the structure is recomputed; ``policy'' is the rebuild
     policy of \cref{sec:drb}. \emph{Exact}: whether the reported Betti numbers
@@ -71,24 +72,28 @@ raw data and the figures.
     Method & Order & $V$, $\occ$ & Rebuilds & Exact & Role \\
     \midrule
     \method{full-id}    & insertion         & no       & every update & yes & static recomputation with clearing, ranks only \\
+    \method{full-sorted} & canonical        & no       & every update & yes & static recomputation in an order that does not depend on the history \\
     \method{full-morse} & Morse, recomputed & no       & every update & yes & static recomputation in the Morse order of a new collapse matching \\
     \method{gudhi}      & GUDHI's own       & ---      & every update & yes & external static baseline: GUDHI simplex tree, persistence over $\Z$ \\
     \method{drb-id}     & insertion         & yes      & never        & yes & ablation: neither Morse order nor rebuilds \\
     \method{drb-id-rb}  & insertion         & yes      & policy       & yes & ablation: rebuilds without the Morse order \\
     \method{mmhm}       & Morse             & yes      & policy       & yes & the method of \cref{sec:theory} \\
     \method{mmhm-norb}  & Morse of $K_0$    & yes      & never        & yes & ablation: no rebuilds \\
+    \method{drb-rand}   & random            & yes      & never        & yes & ablation: an unstructured order \\
     \midrule
     \method{lcr}        & Morse of $K_0$    & $R$ only & never        & no  & ablation: version~1's re-reduction without basis tracking (isolates E1) \\
+    \method{lcr-rc}     & Morse of $K_0$    & $R$ only & every \NumLcrRcPeriod{} & no & \method{lcr} with version~1's periodic recompression \\
     \method{euler}      & ---               & ---      & ---          & on surfaces & counters of \cref{rem:surfaces}; surfaces only \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
 \paragraph{Static baselines.}
-\method{full-id} and \method{full-morse} recompute all ranks after every update
-by the static reduction with clearing (\cref{sec:drb}), without storing~$V$:
-\method{full-id} in insertion order, \method{full-morse} in the Morse order of a
-collapse matching computed anew after every update. By
+\method{full-id}, \method{full-sorted} and \method{full-morse} recompute all
+ranks after every update by the static reduction with clearing
+(\cref{sec:drb}), without storing~$V$: \method{full-id} in insertion order,
+\method{full-sorted} in the canonical order, \method{full-morse} in the Morse
+order of a collapse matching computed anew after every update. By
 \cref{cor:critical-work,cor:morse-reduction} the column additions of
 \method{full-morse} all occur in critical columns and, after the gradient-flow
 steps, are those of the reduction of the Morse complex, but it pays for a
@@ -96,13 +101,13 @@ collapse after every update; it plays the role of version~1's
 ``coreduction-only'' baseline without reimplementing it. The insertion order of
 \method{full-id} is the order in which the cells now present were inserted, so
 it depends on the history of edits: refilled cells receive late keys
-(\cref{sec:exp-timing} reports the consequence). Both share the store and the
-reduction code with the dynamic methods, so differences reflect mostly the
-algorithms; the remaining implementation differences are this history
-dependence and the index that \method{mmhm} maintains (E4).
-% PENDING-ABLATION: full-sorted (static recomputation with clearing in a
-% canonical order: dimension, then vertex tuple) -- add to the methods table and
-% describe here once the data agent's runs are in; do not invent its numbers.
+(\cref{sec:exp-timing} reports the consequence). The canonical order of
+\method{full-sorted} depends only on the current complex, so it cannot drift
+with the history; it is our history-independent reference. All three share the
+store and the reduction code with the dynamic methods, so differences reflect
+mostly the algorithms; the remaining implementation differences are this
+history dependence and the index of cells by vertex tuple that
+\method{full-sorted} and \method{mmhm} maintain (E4).
 \method{gudhi} replays the same edits on a GUDHI simplex
 tree~\cite{maria2014gudhi} through its Python interface and, after every update,
 calls \texttt{compute\_persistence} with the arguments
@@ -123,20 +128,24 @@ parameters as \method{mmhm}, but its rebuild reruns the static reduction with
 clearing in the current insertion order (the keys in use, renumbered) instead
 of computing a new matching. So \method{mmhm} against \method{drb-id-rb}
 isolates the order used at a rebuild, and \method{mmhm} against
-\method{mmhm-norb} isolates rebuilding.
+\method{mmhm-norb} isolates rebuilding. \method{drb-rand} builds the DRB in a
+uniformly random order of the cells of each dimension, drawn from the seed, and
+never rebuilds; against \method{drb-id} and \method{mmhm-norb} it tests whether
+a structured order matters at all (E8).
 
-\paragraph{The ablation of version 1's rule and the surface counters.}
+\paragraph{The ablations of version 1's rule and the surface counters.}
 \method{lcr} applies version~1's re-reduction rule to the full boundary matrices
 without basis tracking: an inserted column is reduced against the existing
 pivots, and a deleted column releases its pivot and is dropped. It uses exactly
 the order of \method{mmhm-norb} and differs from it only in not storing $V$ and
 $\occ$, so its errors are caused by defect~E1 alone. It is not a
 reimplementation of version~1: it forms no Morse complex (so E2 cannot occur),
-never recompresses and has no gates (\cref{sec:erratum}). It is run only to
-measure how often it is wrong.
-% PENDING-ABLATION: lcr-rc (lcr with version 1's periodic recompression, m = 32)
-% -- describe here and report its error rate in E0 once the data agent's runs
-% are in; do not invent its numbers.
+never recompresses and has no gates (\cref{sec:erratum}). \method{lcr-rc} adds
+version~1's periodic recompression: every $m={}$\NumLcrRcPeriod{} updates,
+version~1's default, it recomputes all reduced columns from scratch in the
+current key order by the static reduction with clearing. It models only this
+trigger, without a Morse complex, the $\rho$ trigger or gates. Both are run only
+to measure how often they are wrong.
 \method{euler} maintains $\chi$ and the numbers of edges with one, two or
 more cofaces in $O(1)$ per atomic edit and returns the Betti numbers of
 \cref{rem:surfaces}. At the end of every update it checks that the complex has a
@@ -250,7 +259,7 @@ experiment. Every timed configuration ran with \NumSeeds{} seeds.
 \begin{table}[t]
   \centering
   \caption{Experiments. Parameters not listed are the generator defaults of
-    \cref{sec:exp-workloads}. ``as E1'': \method{full-id}, \method{full-morse},
+    \cref{sec:exp-workloads}. ``as E1'': \method{full-id}, \method{full-sorted}, \method{full-morse},
     \method{gudhi}, \method{drb-id}, \method{drb-id-rb}, \method{mmhm},
     \method{mmhm-norb}; ``DRB methods'': the last four. \method{gudhi} processes
     all updates on instances with at most \NumGudhiFullLimit{} simplices and the
@@ -261,7 +270,7 @@ experiment. Every timed configuration ran with \NumSeeds{} seeds.
     \toprule
     & Workload & Sweep & Methods \\
     \midrule
-    E0 & samples; all runs of E1--E7; one instance per variant for \method{lcr} & --- & all exact methods; \method{lcr} untimed \\
+    E0 & samples; all runs of E1--E7; one instance per variant for \method{lcr}, \method{lcr-rc} & --- & all exact methods; \method{lcr}, \method{lcr-rc} untimed \\
     E1 & W2, $s=8$ & $N\in\{7,10,15,22,33\}$ & as E1 \\
     E2 & W2, $N=22$ & $s\in\{1,2,4,8,16,32,64\}$ & DRB methods, \method{full-id}, \method{full-morse} \\
     E3 & W3, $k=2$ & $N\in\{14,20,27\}$ & as E1 \\
@@ -269,7 +278,7 @@ experiment. Every timed configuration ran with \NumSeeds{} seeds.
     E5 & W1 & sphere $L\in\{4,5,6,7\}$; torus $n=m\in\{64,128,256,500\}$ & as E1, and \method{euler} \\
     E6 & W5a, W5b & (a) $L=10^3,3\cdot10^3,10^4,\dots,10^6$; (b) levels $L=3,\dots,8$ & DRB methods, \method{full-id}, \method{gudhi}; \method{euler} on (b) \\
     E7 & W2 $N=22$, W3 $N=20$, W4 square $n=16000$, $D=2$ & $\alpha\in\{0.25,0.5,1,2,4,\infty\}$ \mbox{$\times$} $m\in\{\infty,256,64\}$ & \method{mmhm}, \method{drb-id-rb} \\
-    E8 & W2 $N=22$, W3 $N=20$, W4 as in E7, W1 torus $256\times256$ & runs of E1, E3, E4, E5 & DRB methods \\
+    E8 & W2 $N=22$, W3 $N=20$, W4 as in E7, W1 torus $256\times256$; for \method{drb-rand} one size per family (\cref{tab:rand}) & runs of E1, E3, E4, E5 & DRB methods; \method{drb-rand} \\
     \bottomrule
   \end{tabularx}
 \end{table}
@@ -308,10 +317,19 @@ Because the insertion order of \method{full-id} depends on the history, its cost
 is not stationary. Its median latency over the last 200 updates exceeds that
 over the first 200 by more than 25\,\% on \NumDriftFullIdInstances{} instances:
 every W3 instance (up to a factor \NumWThreeNTwentySevenFullIdDriftMed), every
-W4 instance with $n<16000$, and the $64\times64$ torus (\cref{tab:drift}). The
-DRB methods drift as well; on W3 \method{mmhm} drifts less than
-\method{full-id}. Where the drift matters we also
-give speedups over matched windows of the first and the last 200 updates.
+W4 instance with $n<16000$, and the $64\times64$ torus (\cref{tab:drift}).
+\method{full-sorted}, whose order cannot drift, drifts by at most
+\NumWOneSphereLFourFullSortedDriftMed{} on W1 and W2, by
+\NumWFourSpaceNOneThousandDThreeFullSortedDriftMed{} to
+\NumWFourPlaneNFourThousandDThreeFullSortedDriftMed{} on W4 (\method{full-id}:
+\NumWFourPlaneNSixteenThousandDTwoFullIdDriftMed{} to
+\NumWFourPlaneNOneThousandDTwoFullIdDriftMed), and by
+\NumWThreeNFourteenFullSortedDriftMed{} to
+\NumWThreeNTwentyFullSortedDriftMed{} on W3, where part of the drift therefore
+comes from the changing complex rather than from the order. The DRB methods drift
+as well; on W3 \method{mmhm} drifts less than \method{full-id}. Where the drift
+matters we give speedups over matched windows of the first and the last 200
+updates and against \method{full-sorted}.
 
 \paragraph{Noise.}
 Five identical runs of \method{mmhm} and \method{full-id} on W2 with $N=22$ gave
@@ -399,7 +417,8 @@ counterexamples of \cref{sec:erratum}.
 Every exact method reported correct Betti numbers in every state that was
 checked, and every state was checked against at least one reference. The
 ablation \method{lcr} is wrong from the first few updates on, on every instance
-of W1--W4.
+of W1--W4; with version~1's periodic recompression added (\method{lcr-rc}), it
+is still wrong after most updates on W1, W3 and W4.
 
 The \NumExactRuns{} runs of exact methods reported \NumCoverageVectors{} Betti
 vectors (\cref{tab:correctness}). Every one was compared with at least one
@@ -439,20 +458,31 @@ dropping it leaves a correct reduction. Pooled over the E0 instances,
 \method{lcr} is wrong after \NumLcrErrAll\,\% of the updates; this number depends
 on the mix of instances and is not an error rate of version~1
 (\cref{sec:erratum}).
-% PENDING-ABLATION: lcr-rc (lcr with version 1's periodic recompression m = 32):
-% add one or two sentences here with its error rate and first-error statistics
-% from the data agent's macros; do not invent the numbers.
+
+\method{lcr-rc} coincides with \method{lcr} until its first recompression, and
+its first errors come at the same updates (\cref{tab:correctness}). A
+recompression is a static reduction, so it makes the Betti numbers correct
+again. Pooled over the E0 instances, \method{lcr-rc} is wrong after
+\NumLcrRcErrAll\,\% of the updates (\method{lcr}: \NumLcrErrAll\,\%): after
+\NumLcrRcWTwoNFifteenSEightErrPct\,\% on W2
+(\NumLcrRcWTwoNFifteenSEightWrong{} of \NumLcrRcWTwoNFifteenSEightUpdates),
+\NumLcrRcWFiveSphereLFiveErrPct\,\% on W5b and
+\NumLcrRcWFiveCycleLTenThousandErrPct\,\% on W5a, but after
+\NumLcrRcWFourPlaneNFourThousandDTwoErrPct\,\% to \NumLcrRcErrMax\,\% on W1, W3
+and W4, where the errors return soon after each recompression. On W2, the
+analogue of version~1's P2, recompression thus hides most errors, but a
+comparison with the known Betti numbers still finds them from the first updates
+on.
 
 \begin{table}[t]
   \centering
   \caption{Correctness (E0). Upper part: per exact method, the runs, the Betti
     vectors they reported, the states compared with the \method{full-id} output
     of the same instance, with the closed-form values and with GUDHI, and the
-    mismatches. Lower part: the ablation \method{lcr} on one instance of each
-    workload variant, three runs each: updates, updates after which it was
-    wrong, and the first wrong update (minimum over the runs).}
-  % PENDING-ABLATION: lcr-rc, full-sorted, drb-rand -- the generated table already
-  % has an lcr-rc column and full-sorted/drb-rand rows; describe them here.
+    mismatches (\method{drb-rand} ran on four instances only). Lower part: the
+    ablations \method{lcr} and \method{lcr-rc} on one instance of each workload
+    variant, three runs each: updates, the percentage of updates after which
+    each was wrong, and the first wrong update (minimum over the runs).}
   \label{tab:correctness}
   \small
   \generatedtable{tab_correctness}
@@ -499,7 +529,12 @@ times faster than \method{full-id}, over the last 200
 \NumWTwoNThirtyThreeSEightMmhmSpeedupFullIdLastBlock{} times, although its median
 hardly changes (\NumWTwoNThirtyThreeSEightMmhmFirstBlockMed{} and
 \NumWTwoNThirtyThreeSEightMmhmLastBlockMed\,\textmu s); a few early updates are
-expensive. Building the structure for $K_0$, including the insertion into the
+expensive. \method{full-sorted}, which does not drift on W2 and is within noise
+of \method{full-id} at this size, gives the same picture: \method{mmhm} is
+\NumWTwoNThirtyThreeSEightMmhmSpeedupFullSorted{} times faster over the whole
+run, \NumWTwoNThirtyThreeSEightMmhmSpeedupFullSortedFirstBlock{} and
+\NumWTwoNThirtyThreeSEightMmhmSpeedupFullSortedLastBlock{} times over the two
+windows. Building the structure for $K_0$, including the insertion into the
 store, took \NumWTwoNThirtyThreeSEightMmhmInitMs\,ms for \method{mmhm} and
 \NumWTwoNThirtyThreeSEightFullIdInitMs\,ms for \method{full-id}, and
 $\nnz(R)+\nnz(V)$, a proxy for the memory of the DRB, reached at most
@@ -520,8 +555,8 @@ and \NumWTwoNTwentyTwoSEightMmhmNorbPNinetyNineWithRerun\,\textmu s instead of
 \NumWTwoNTwentyTwoSEightMmhmNorbPNinetyNine\,\textmu s.
 
 \paragraph{Static recomputation in the Morse order.}
-\method{full-morse} is slower than \method{full-id} on every instance on which
-both ran, by factors from \NumWOneSphereLFourFullMorseOverFullId{} (W1 sphere,
+\method{full-morse} is slower than \method{full-id} and \method{full-sorted} on
+every instance on which they ran, than \method{full-id} by factors from \NumWOneSphereLFourFullMorseOverFullId{} (W1 sphere,
 $L=4$) to \NumWTwoNThirtyThreeSEightFullMorseOverFullId{} (W2, $N=33$;
 \cref{tab:full-amort}). There is little for the collapse to save: on W2 the
 insertion order needs only \NumWTwoNThirtyThreeSEightFullIdAdds{} additions per
@@ -531,8 +566,6 @@ against \NumWFourPlaneNSixteenThousandDTwoFullIdAdds). For one-shot static
 recomputation the collapse does not pay for itself on our workloads; whether
 this carries over to version~1's coreduction-only baseline, a different
 implementation, we cannot say.
-% PENDING-ABLATION: full-sorted (canonical-order static baseline): add its
-% matched-window speedups here (E1) once the data agent's runs are in.
 
 \begin{figure}[t]
   \centering
@@ -555,8 +588,6 @@ implementation, we cannot say.
     first $T'$ updates, and on W3 \method{full-id} drifts (\cref{tab:drift}); the text gives
     matched comparisons. Every instance is listed in
     \cref{tab:full-amort,tab:full-p99}.}
-  % PENDING-ABLATION: full-sorted -- the generated table already has its rows;
-  % name it in this caption once the methods paragraph defines it.
   \label{tab:summary}
   \small
   \generatedtable{tab_summary}
@@ -593,35 +624,41 @@ to \NumWTwoNTwentyTwoSSixtyFourDrbIdRbSpeedupFullId{} times faster than
 \subsection{E3: What does an update cost when the three-dimensional topology changes?}\label{sec:e3}
 
 \method{mmhm} has the lowest amortised latency at every size of W3, beyond
-noise, but the DRB is not uniformly better than recomputation: on the smallest
-instance \method{drb-id} is slower than \method{full-id} on average, and every
-DRB method has a higher p99. Part of the advantage at the larger sizes comes from
-the drift of \method{full-id}.
+noise, but the DRB is not uniformly better than recomputation. We take
+\method{full-sorted} as the reference here: it is faster than \method{full-id}
+at every size and drifts less on the larger instances (\cref{sec:exp-timing}).
+Against it, the DRB methods without rebuilds are slower at $N=14$ and have a
+higher p99 at $N\le20$; the rebuilding ones are faster at every size.
 
 At $N=14$ ($|K_0|={}$\NumWThreeNFourteenSize), \method{mmhm} takes
-\NumWThreeNFourteenMmhmAmort\,\textmu s amortised and \method{full-id}
+\NumWThreeNFourteenMmhmAmort\,\textmu s amortised, \method{full-sorted}
+\NumWThreeNFourteenFullSortedAmort{} and \method{full-id}
 \NumWThreeNFourteenFullIdAmort\,\textmu s; \method{drb-id}
-(\NumWThreeNFourteenDrbIdAmort\,\textmu s) is slower than \method{full-id}, and
-\method{mmhm-norb} (\NumWThreeNFourteenMmhmNorbAmort\,\textmu s) is within noise
-of it. The p99 of \method{full-id}, \NumWThreeNFourteenFullIdPNinetyNine\,\textmu s,
-is below that of every DRB method (from \NumWThreeNFourteenMmhmPNinetyNine\,\textmu s
-for \method{mmhm} to \NumWThreeNFourteenDrbIdPNinetyNine\,\textmu s for
-\method{drb-id}). At $N=27$ ($|K_0|={}$\NumWThreeNTwentySevenSize) every DRB
-method is faster than \method{full-id} on average, \method{mmhm} by a factor
-\NumWThreeNTwentySevenMmhmSpeedupFullId{} over the whole run, but by
-\NumWThreeNTwentySevenMmhmSpeedupFullIdFirstBlock{} over the first 200 updates
-and \NumWThreeNTwentySevenMmhmSpeedupFullIdLastBlock{} over the last 200, because
-the median of \method{full-id} grows by a factor
-\NumWThreeNTwentySevenFullIdDriftMed{} during the run (\cref{tab:drift}). Over
-the same first $T'$ updates \method{mmhm} is \NumWThreeNTwentySevenMmhmSpeedupGudhi{}
-times faster than \method{gudhi}. At $N=27$ the p99 of every DRB method is below
-that of \method{full-id}, within noise for \method{drb-id}. At $N=20$ and $N=27$
-the amortised latencies are ordered \method{mmhm}, \method{drb-id-rb},
-\method{mmhm-norb}, \method{drb-id}, all beyond noise (at $N=14$ the last two are
-within noise): rebuilding matters more than the order, and the Morse order helps
-both with and without rebuilds.
-% PENDING-ABLATION: full-sorted -- add its matched-window speedups on W3 here;
-% they separate the DRB's gain from the drift of full-id's insertion order.
+(\NumWThreeNFourteenDrbIdAmort\,\textmu s) and \method{mmhm-norb}
+(\NumWThreeNFourteenMmhmNorbAmort\,\textmu s) are slower than
+\method{full-sorted}, and at $N=20$ \method{drb-id} still is (speedup
+\NumWThreeNTwentyDrbIdSpeedupFullSorted). The p99 of \method{full-sorted},
+\NumWThreeNFourteenFullSortedPNinetyNine\,\textmu s, is below that of every DRB
+method at $N=14$ except \method{mmhm} (\NumWThreeNFourteenMmhmPNinetyNine\,\textmu s,
+within noise). At $N=27$ ($|K_0|={}$\NumWThreeNTwentySevenSize) every DRB method
+is faster than both static baselines on average. \method{mmhm} is
+\NumWThreeNTwentySevenMmhmSpeedupFullSorted{} times faster than
+\method{full-sorted} over the whole run
+(\NumWThreeNTwentySevenMmhmSpeedupFullSortedFirstBlock{} and
+\NumWThreeNTwentySevenMmhmSpeedupFullSortedLastBlock{} over the first and the
+last 200 updates) and \NumWThreeNTwentySevenMmhmSpeedupFullId{} times faster
+than \method{full-id}: \method{full-id} is
+\NumWThreeNTwentySevenFullIdSpeedupFullSortedFirstBlock{} times as fast as
+\method{full-sorted} over the first 200 updates and
+\NumWThreeNTwentySevenFullIdSpeedupFullSortedLastBlock{} times as fast over the
+last 200, as its order drifts (\cref{tab:drift}). Over the same first $T'$ updates \method{mmhm} is
+\NumWThreeNTwentySevenMmhmSpeedupGudhi{} times faster than \method{gudhi}. At
+$N=27$ the p99 of \method{mmhm} and \method{drb-id-rb} is below that of
+\method{full-sorted}, that of \method{mmhm-norb} within noise of it, and that of
+\method{drb-id} above it. At $N=20$ and $N=27$ the amortised latencies are
+ordered \method{mmhm}, \method{drb-id-rb}, \method{mmhm-norb}, \method{drb-id},
+all beyond noise (at $N=14$ the last two are within noise): rebuilding matters
+more than the order, and the Morse order helps both with and without rebuilds.
 
 The basis grows over a W3 run (\cref{fig:timeseries}(b); it also grows on W1,
 E5). At $N=20$, without rebuilds, $\nnz(R)+\nnz(V)$ grows from
@@ -646,26 +683,38 @@ runs end at \NumWThreeNTwentyMmhmNnzEnd{} and \NumWThreeNTwentyDrbIdRbNnzEnd.
 
 \subsection{E4: How do the methods behave on non-manifold complexes in which every Betti number varies?}\label{sec:e4}
 
-The DRB methods are faster than \method{full-id} on every W4 instance, their
+The DRB methods are faster than both static baselines on every W4 instance, their
 latency hardly depends on $|K_0|$, and on the larger instances the Morse order
 helps. In the square with $D=2$ (\cref{fig:latency-size}(c)), their median
 latency grows with slope \NumSlopeEFourWFourPlaneDTwoMmhmNorbMed{} to
 \NumSlopeEFourWFourPlaneDTwoDrbIdRbMed, against
 \NumSlopeEFourWFourPlaneDTwoFullIdMed{} for \method{full-id} (three sizes, so the
-slopes are indicative only). Their speedup over \method{full-id} is
+slopes are indicative only). Against \method{full-sorted}, our reference here
+because it drifts less than \method{full-id} on every W4 instance
+(\cref{tab:drift}), their speedup is
+\NumWFourSpaceNOneThousandDThreeDrbIdRbSpeedupFullSorted{} to
+\NumWFourPlaneNOneThousandDTwoMmhmNorbSpeedupFullSorted{} at $n=1000$ and
+\NumWFourPlaneNFourThousandDThreeDrbIdSpeedupFullSorted{} to
+\NumWFourPlaneNSixteenThousandDTwoMmhmNorbSpeedupFullSorted{} at $n\ge4000$;
+against \method{full-id} it is
 \NumWFourSpaceNOneThousandDThreeDrbIdRbSpeedupFullId{} to
-\NumWFourPlaneNOneThousandDTwoMmhmNorbSpeedupFullId{} at $n=1000$ and
+\NumWFourPlaneNOneThousandDTwoMmhmNorbSpeedupFullId{} and
 \NumWFourPlaneNFourThousandDThreeDrbIdSpeedupFullId{} to
-\NumWFourPlaneNSixteenThousandDTwoMmhmNorbSpeedupFullId{} at $n\ge4000$.
-\method{full-id} drifts on W4, but so do the DRB methods, and matched windows give
-similar speedups: \method{mmhm} is
+\NumWFourPlaneNSixteenThousandDTwoMmhmNorbSpeedupFullId. At $n=16000$
+\method{full-sorted} is slower than \method{full-id}
+(\NumWFourPlaneNSixteenThousandDTwoFullSortedAmort{} against
+\NumWFourPlaneNSixteenThousandDTwoFullIdAmort\,\textmu s amortised), and
+\method{mmhm} is \NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullSorted{} times
+faster than it over the whole run and
+\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullSortedFirstBlock{} and
+\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullSortedLastBlock{} times over the
+first and the last 200 updates (against \method{full-id}:
+\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullId,
 \NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullIdFirstBlock{} and
-\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullIdLastBlock{} times faster over
-the first and the last 200 updates at $n=16000$, against
-\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullId{} over the whole run
-(\cref{tab:drift}). The p99 of the DRB methods is below that of \method{full-id}
-on every W4 instance except the two with $n=1000$ and $D=3$, where the
-difference is within noise (\cref{tab:full-p99}).
+\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullIdLastBlock). The p99 of the
+DRB methods is below that of both baselines on every W4 instance except the two
+with $n=1000$ and $D=3$, where the difference is within noise
+(\cref{tab:full-p99}).
 
 \method{mmhm-norb} is faster than \method{drb-id} beyond noise on the square
 instances with $n\ge4000$; on the others the difference is within noise. At
@@ -703,7 +752,11 @@ On average the DRB is at best about twice as fast as recomputation, sometimes
 slower, and it has the worse tail; the combinatorial counters are far cheaper
 than both. On no W1 instance is a DRB method more than
 \NumWOneSphereLFiveMmhmSpeedupFullId{} times faster than \method{full-id}, and on
-several smaller instances \method{mmhm-norb} is within noise of it. On the
+several smaller instances \method{mmhm-norb} is within noise of it. Against
+\method{full-sorted}, \method{drb-id} is slower on every W1 instance (within noise
+on the $256\times256$ torus), \method{mmhm-norb} is slower on the four smallest,
+and no DRB method is more than \NumWOneSphereLSevenMmhmNorbSpeedupFullSorted{}
+times faster. On the
 largest sphere and torus the insertion-order variants are slower than
 \method{full-id} and the Morse-ordered ones faster, all beyond noise. Every DRB
 variant has a higher p99 than \method{full-id} on every W1 instance.
@@ -880,7 +933,9 @@ additions and the time disagree here, as the counters are only proxies
 
 \subsection{E8: What does the Morse order buy?}\label{sec:e8}
 
-At build time nothing, on our workloads. Between rebuilds it depends on the
+At build time nothing against the insertion orders of our generators, although
+both structured orders are far better than a random one. Between rebuilds it
+depends on the
 workload: the Morse order makes the DRB faster on surfaces, on cavities and on
 the larger flag complexes, makes no difference on W2, and makes it slower on the
 non-locality witnesses.
@@ -902,9 +957,26 @@ smaller basis ($\nnz(R)+\nnz(V)$ ratio
 \NumWFourPlaneNOneThousandDTwoNnzInitMorseOverId). The lemma and its corollaries
 thus say where the work of a build is done, not that there is less of it than
 in a good insertion order.
-% PENDING-ABLATION: drb-rand (DRB built in a random order): report its build
-% additions, nnz after INIT and amortised latency here, to show what the Morse
-% order buys against an order that is not supplied by the generator.
+
+\paragraph{Against a random order.} The insertion orders of our generators are
+themselves structured. Built in a uniformly random order (\method{drb-rand}, one
+instance per family, \cref{tab:rand}), the basis has
+\NumWFourPlaneNFourThousandDTwoNnzInitRandOverId{} to
+\NumWThreeNFourteenNnzInitRandOverId{} times as many entries after INIT as in
+either structured order, and the build needs more additions on every instance
+(on W2 \NumWTwoNFifteenSEightDrbRandBuildAdds, against
+\NumWTwoNFifteenSEightDrbIdBuildAdds{} in insertion and
+\NumWTwoNFifteenSEightMmhmNorbBuildAdds{} in Morse order). On W1, W2 and W3 the
+updates are slower beyond noise, by factors
+\NumWThreeNFourteenDrbRandOverDrbIdAmort{} to
+\NumWTwoNFifteenSEightDrbRandOverDrbIdAmort{} against either structured order
+(on W2 \NumWTwoNFifteenSEightDrbRandAmort{} against
+\NumWTwoNFifteenSEightDrbIdAmort{} and
+\NumWTwoNFifteenSEightMmhmNorbAmort\,\textmu s); there the choice between the two
+structured orders matters less than using one. On W4 \method{drb-rand} is
+within noise of \method{drb-id} and
+\NumWFourPlaneNFourThousandDTwoDrbRandOverMmhmNorbAmort{} times slower than
+\method{mmhm-norb}.
 
 \paragraph{Between rebuilds.} Comparing the two methods that never rebuild,
 \method{mmhm-norb} against \method{drb-id}, the Morse order is faster beyond

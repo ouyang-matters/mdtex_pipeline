@@ -26,13 +26,12 @@ overlaps of seed ranges are in \path{experiments/results/} and
   and in the Morse order (\method{mmhm-norb}): $\nnz(R)+\nnz(V)$ after INIT and
   column additions of the build, with the ratios Morse/insertion (E8).}{tab_build}
 
-% PENDING-ABLATION: full-sorted -- tab_drift already has full-sorted's drift and
-% mmhm x full-sorted on both windows; extend this caption.
 \appendixtable{tab:drift}{Drift (\cref{sec:exp-timing}): median latency of
   \method{full-id} over the first and the last 200 updates and their ratio; the
-  same ratio for \method{full-morse}, \method{drb-id} and \method{mmhm}; and the
-  speedup of \method{mmhm} over \method{full-id} on each of the two windows
-  (ratio of their amortised latencies over the same updates).}{tab_drift}
+  same ratio for \method{full-sorted}, \method{full-morse}, \method{drb-id} and
+  \method{mmhm}; and the speedup of \method{mmhm} over \method{full-id} and over
+  \method{full-sorted} on each of the two windows (ratio of their amortised
+  latencies over the same updates).}{tab_drift}
 
 \appendixtable{tab:rebuild-effect}{Does a rebuild help? Instances on which the
   default policy ($\alpha=1$, no period) rebuilt: rebuilds per run (rb:
@@ -61,3 +60,8 @@ overlaps of seed ranges are in \path{experiments/results/} and
 \appendixtable{tab:w4-betti}{W4: ranges of the Betti numbers over all states of
   the three runs, and $\beta_D/n$ at INIT. $\beta_D$ is dominated by unfilled
   boundaries of $(D+2)$-cliques (\cref{sec:exp-workloads}).}{tab_w4_betti}
+
+\appendixtable{tab:rand}{Build order (E8): one instance per family built in
+  insertion order (\method{drb-id}), in the Morse order (\method{mmhm-norb}) and
+  in a random order (\method{drb-rand}): $\nnz(R)+\nnz(V)$ after INIT, column
+  additions of the build, and amortised latency (three runs pooled).}{tab_rand}

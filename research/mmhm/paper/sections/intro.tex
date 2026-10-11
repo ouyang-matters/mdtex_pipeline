@@ -47,7 +47,9 @@ whose Betti numbers are constant, version~1 reports no Betti numbers and compare
 its output with no independent computation. Such a comparison would have
 sufficed: on our analogue of that workload, an ablation that applies the rule
 without basis tracking is wrong after \NumLcrWTwoNFifteenSEightWrong{} of
-\NumLcrWTwoNFifteenSEightUpdates{} updates (\cref{sec:e0}). \Cref{sec:erratum}
+\NumLcrWTwoNFifteenSEightUpdates{} updates, and with version~1's periodic
+recompression still after \NumLcrRcWTwoNFifteenSEightWrong{} of them, from the
+first updates on (\cref{sec:e0}). \Cref{sec:erratum}
 states what version~1 specified and gives instances on which its rule fails
 although none of its safeguards applies. This version replaces the method, its
 analysis and its experiments. It keeps the title because discrete Morse theory
@@ -88,8 +90,10 @@ less than the theory might suggest.
   build or rebuild performs column additions only in critical columns
   (\cref{cor:critical-work}), where they coincide with the reduction of the Morse
   boundary matrices (\cref{cor:morse-reduction}). Measured at build time, this
-  saves nothing over the insertion orders written by our generators, and on the
-  flag complexes it costs more additions. Its measurable effect is between
+  saves nothing over the insertion orders written by our generators, which are
+  themselves structured (in a random order the basis has
+  \NumWFourPlaneNFourThousandDTwoNnzInitRandOverId--\NumWThreeNFourteenNnzInitRandOverId{}
+  times as many entries), and on the flag complexes it costs more additions. Its measurable effect is between
   rebuilds and depends on the workload: it makes the DRB faster on surfaces,
   cavities and the larger flag complexes, makes no difference on the refinement
   workload, and makes it slower on the non-locality witnesses (\cref{sec:e8}).
@@ -100,7 +104,8 @@ less than the theory might suggest.
   (\cref{prop:nonlocal}).
 \item An evaluation on five workload families (punctured surfaces; refinement,
   coarsening and cavities in a $3$-ball; flag complexes of moving points;
-  non-locality witnesses) against static recomputation, including
+  non-locality witnesses) against static recomputation in insertion order, in
+  a canonical order that cannot drift with the history, and in
   GUDHI~\cite{maria2014gudhi}, and against ablations of the order and of the
   rebuild policy (\cref{sec:experiments}). Every one of the
   \NumCoverageVectors{} Betti vectors reported by exact methods was compared with
