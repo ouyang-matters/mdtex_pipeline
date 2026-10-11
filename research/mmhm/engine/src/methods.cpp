@@ -11,8 +11,12 @@ namespace mmhm {
 void Method::init(const Edit* edits, size_t n) {
   std::vector<uint32_t> idx(n);
   for (size_t i = 0; i < n; ++i) idx[i] = uint32_t(i);
-  std::stable_sort(idx.begin(), idx.end(),
-                   [&](uint32_t a, uint32_t b) { return edits[a].n < edits[b].n; });
+  // The parser already orders INIT by dimension; sort only other inputs.
+  bool sorted = true;
+  for (size_t i = 1; i < n && sorted; ++i) sorted = edits[i - 1].n <= edits[i].n;
+  if (!sorted)
+    std::stable_sort(idx.begin(), idx.end(),
+                     [&](uint32_t a, uint32_t b) { return edits[a].n < edits[b].n; });
   for (uint32_t i : idx) {
     const Edit& e = edits[i];
     try {

@@ -17,7 +17,8 @@ struct Edit {
 struct Sequence {
   int dim = 0;
   std::vector<Edit> edits;
-  // block b occupies edits[block_begin[b] .. block_begin[b+1]); block 0 = INIT.
+  // block b occupies edits[block_begin[b] .. block_begin[b+1]); block 0 = INIT,
+  // which the parser stably sorts by dimension (file order within a dimension).
   std::vector<size_t> block_begin;
 
   size_t num_blocks() const { return block_begin.empty() ? 0 : block_begin.size() - 1; }

@@ -94,7 +94,10 @@ TEST_CASE(unit_parse_ok) {
   CHECK(s.dim == 2);
   CHECK(s.num_updates() == 2);
   CHECK(s.block_size(0) == 3 && s.block_size(1) == 2 && s.block_size(2) == 0);
-  CHECK(s.block(0)[0].n == 2 && s.block(0)[0].v[0] == 0 && s.block(0)[0].v[1] == 1);
+  // INIT is stably sorted by dimension; vertex lists are sorted.
+  CHECK(s.block(0)[0].n == 1 && s.block(0)[0].v[0] == 0 && s.block(0)[0].line == 6);
+  CHECK(s.block(0)[1].n == 1 && s.block(0)[1].v[0] == 1 && s.block(0)[1].line == 7);
+  CHECK(s.block(0)[2].n == 2 && s.block(0)[2].v[0] == 0 && s.block(0)[2].v[1] == 1);
   CHECK(s.block(1)[0].op == '-' && s.block(1)[0].line == 10);
 }
 

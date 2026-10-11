@@ -166,6 +166,15 @@ Consequences proved in the paper:
 > deletions make V non-triangular); there the Morse order is a sparsity
 > heuristic, evaluated empirically.
 
+> Spec note (engine): "deterministic" was not pinned down. The engine's queue
+> discipline, which makes the matching a function of `K` as a set (independent
+> of history, cell ids and INIT listing order): `Q` is FIFO; it starts with the
+> free faces in increasing (dimension, lexicographic vertex tuple) order; when
+> `y` then `x` (or a critical `c`) are removed, their facets are visited in the
+> order "omit vertex 0, 1, …" and each facet whose `cof` drops to 1 is appended.
+> Other implementations may use another discipline (Lemma 2 does not depend on
+> it) but then get a different matching.
+
 **Insertion order** (the ablation): `ord(x)` = insertion counter.
 
 ## 4. Static reduction with clearing (rebuild and FULL baseline)
@@ -193,12 +202,26 @@ FULL baselines skip `V` tracking (ranks only). DRB rebuilds keep `V` and build
 | `lcr` | v1 localized column re-reduction **without** basis tracking (E1); deletion = clear the column's pivot and drop it; insertion = reduce new column | **no** — used only to measure error rate |
 | `euler` | surfaces only: `β0 := 1` (asserted), `β2 := [#boundary edges = 0]` (manifold check), `β1 := β0 + β2 − χ` | only under its preconditions |
 
+> Spec note (engine): two choices the table left open. (1) **`lcr` order:**
+> `lcr` uses the Morse order computed once from `K_0` with new cells appended,
+> i.e. exactly the order of `mmhm-norb`; the two differ only in basis tracking
+> (`V`, `occ`), so `lcr`'s error rate isolates E1. (2) **`euler` preconditions**
+> are checked at the end of each update (not after each atomic edit: a W1
+> update passes through states with coface-less edges): at least one triangle,
+> no tetrahedron, every edge with 1 or 2 cofaces, else error with exit code 4.
+> `β0 = 1` and the absence of pinched vertices are not checkable in O(1); under
+> `--verify-every` a mismatch therefore aborts with exit code 3 as for the
+> exact methods (the workload, not `euler`, violated a precondition).
+
 ### 5.1 Rebuild policy (`mmhm`)
 Rebuild (fresh collapse matching, Morse order, static reduction with `V`) after
 update `t` if any holds: (a) `t − t_last ≥ m` (period, default `m = ∞` i.e.
 off), (b) `nnz(V) + nnz(R) > (1+α) · max(nnz_at_last_rebuild, n_cells)` (growth
 trigger, default `α = 1.0`). Rebuild time is charged to the update that
 triggers it. Report both per-update latency and amortized latency.
+Here `n_cells = n0 + n1 + n2 + n3` and `nnz_at_last_rebuild` is measured right
+after the last rebuild (the INIT build counts as the rebuild at `t = 0`). The
+engine accepts `--period off` / `--alpha off` to disable either trigger.
 
 ## 6. Workloads (`.seq` generators in `workloads/`)
 
@@ -264,6 +287,11 @@ is one update. Betti numbers are reported after INIT and after each UPDATE.
 ignored (so the `# ...` annotations above would also parse); generators emit
 only whole-line comments and write vertex lists sorted, but readers must not
 rely on the order.
+INIT is a *set*: it must be closed under faces but need not be listed
+faces-first (spec note: previously unstated). Readers insert it stably sorted by
+dimension. Order keys only ever compare cells of one dimension, so for a
+faces-first file this is identical to file order (the insertion order of `K_0`
+for `*-id` methods is the file order within each dimension).
 
 ### 6.2 Betti file
 One line per state (INIT, then each UPDATE): `b0 b1 b2 b3` (zeros above `D`).
@@ -329,6 +357,28 @@ mmhm check --seq <file>          # validate closure of every atomic edit
   footprint_sum,chain_adds,verified,mismatch`
   (`footprint_sum` = Σ |occ[σ]| over deletions in the update; `chain_adds` =
   number of column additions performed in the update.)
+
+> Spec note (engine), making the columns unambiguous:
+> * `time_ns` at `t = 0`: inserting INIT into the store plus the method's build.
+>   At `t ≥ 1`: all atomic edits (store and method) plus any per-update
+>   recomputation (`full-*`) or rebuild (`mmhm`); `rebuild_ns` is included in
+>   `time_ns`. Verification is never timed.
+> * `chain_adds` counts every column addition made while processing the row:
+>   one per reduction step of an insertion (`R ^= R_p; V ^= V_p` counts once),
+>   one per `j ∈ O∖{z}` / `O∖{p}` of a deletion, and all additions of the build
+>   (`t = 0`), of a rebuild (rows with `rebuild = 1`) or of the static
+>   recomputation (`full-*`). Dynamic chain lengths are the rows with
+>   `rebuild = 0`.
+> * `nnz_R`, `nnz_V`: totals after the row (after its rebuild, if any). For
+>   `full-*` `nnz_R` is the size of the non-zero reduced columns of the last
+>   recomputation; methods without `V` report `nnz_V = 0` and
+>   `footprint_sum = 0`; vertex deletions contribute 0 (no DRB for `k = 0`).
+> * `verified`, `mismatch` are per-row 0/1 flags. With `--verify-every N` the
+>   engine verifies `t = 0`, every `t ≡ 0 (mod N)`, and the last processed
+>   update.
+> * Exit codes: 0 ok, 1 usage, 2 invalid input (parse error or invalid atomic
+>   edit, with its line number), 3 verification mismatch of an exact method,
+>   4 method precondition violated (`euler`), 5 internal error.
 
 ## 8. Acceptance criteria
 

@@ -57,6 +57,37 @@ void check_apparent(Complex& cx, const char* what) {
     ++npairs;
   }
   CHECK(npairs == mo.num_pairs);
+
+  // Corollary 2.1: with clearing, every lower cell's column is cleared
+  // (R = 0, V = R of its partner) and all additions happen in critical columns.
+  std::vector<int> role(cx.capacity(), 0);  // 0 critical, 1 lower, 2 upper
+  for (auto& p : mo.pairs) {
+    role[p.first] = 1;
+    role[p.second] = 2;
+  }
+  for (int d = 0; d <= cx.maxdim(); ++d)
+    for (uint32_t c : cols[d]) {
+      if (role[c] != 0) CHECK_MSG(adds[c] == 0, what << ": non-critical column with additions");
+      if (role[c] == 1 && d >= 1) {
+        CHECK_MSG(drb.R(d, slot[c]).empty(), what << ": lower cell not cleared");
+        CHECK(drb.V(d, slot[c]).size() >= 1 && drb.V(d, slot[c]).back() == cell2key[c]);
+      }
+    }
+  // Corollary 2.2: in each dimension every critical cell precedes every lower cell.
+  for (int d = 0; d <= cx.maxdim(); ++d) {
+    uint32_t max_crit = 0, min_lower = NONE;
+    bool any_crit = false;
+    for (uint32_t c : cols[d]) {
+      if (role[c] == 0) {
+        any_crit = true;
+        max_crit = std::max(max_crit, cell2key[c]);
+      } else if (role[c] == 1) {
+        min_lower = std::min(min_lower, cell2key[c]);
+      }
+    }
+    if (any_crit && min_lower != NONE)
+      CHECK_MSG(max_crit < min_lower, what << ": a lower cell precedes a critical cell, dim " << d);
+  }
 }
 
 Complex from_tops(const std::vector<t::Simplex>& tops, int dim) {

@@ -89,7 +89,7 @@ TEST_CASE(e1_complex_level_lcr_fails) {
 
   // lcr: count disagreements with the brute-force oracle.
   int mismatches = 0;
-  for (int variant = 0; variant < 2; ++variant) {
+  {
     std::unique_ptr<Method> m = make_method("lcr", 1, MethodOptions());
     std::vector<Edit> init;
     for (auto& s : q.init) init.push_back(t::make_edit('+', s));

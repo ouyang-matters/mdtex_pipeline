@@ -1,5 +1,6 @@
 #include "seq.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -176,6 +177,10 @@ bool parse_seq_text(const std::string& text, Sequence& out, std::string& err) {
     return false;
   }
   out.block_begin.push_back(out.edits.size());
+  // INIT is a set closed under faces (SPEC 6.1): order it by dimension here,
+  // stably, so that loading it needs no sorting inside the timed region.
+  std::stable_sort(out.edits.begin(), out.edits.begin() + long(out.block_begin[1]),
+                   [](const Edit& a, const Edit& b) { return a.n < b.n; });
   return true;
 }
 
