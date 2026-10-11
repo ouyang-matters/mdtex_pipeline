@@ -1,0 +1,175 @@
+{
+ "workload": "W3",
+ "generator": "mmhm-workloads",
+ "generator_version": "1.0.0",
+ "format": "MMHMSEQ 1",
+ "dim": 3,
+ "params": {
+  "N": 7,
+  "k": 1,
+  "sep": 1,
+  "target_cavities": 3,
+  "updates": 60,
+  "seed": 9,
+  "max_attempts": 200
+ },
+ "files": {
+  "seq": "w3_N7_k1.seq",
+  "expected_betti": "w3_N7_k1.expected.betti"
+ },
+ "seq_sha256": "5eb15811bf4da04fa709ec4394d9b9382a095263d2ec1a7897dee67e6e5d8f4f",
+ "seq_bytes": 191276,
+ "seq_lines": 14673,
+ "n_updates": 60,
+ "ops": {
+  "init": 9843,
+  "updates_total": 4705,
+  "per_update_max": 82,
+  "per_update_min": 75,
+  "per_update_mean": 78.41666666666667
+ },
+ "sizes": {
+  "start": {
+   "n0": 512,
+   "n1": 2863,
+   "n2": 4410,
+   "n3": 2058,
+   "total": 9843
+  },
+  "end": {
+   "n0": 508,
+   "n1": 2806,
+   "n2": 4264,
+   "n3": 1962,
+   "total": 9540
+  },
+  "min": {
+   "n0": 507,
+   "n1": 2787,
+   "n2": 4220,
+   "n3": 1938,
+   "total": 9452
+  },
+  "max": {
+   "n0": 512,
+   "n1": 2863,
+   "n2": 4410,
+   "n3": 2058,
+   "total": 9843
+  },
+  "note": "min/max are taken over states (after INIT and after each UPDATE), per component",
+  "total_series_stride": 1,
+  "total_series": [
+   9843,
+   9768,
+   9690,
+   9615,
+   9537,
+   9615,
+   9690,
+   9765,
+   9683,
+   9605,
+   9683,
+   9605,
+   9683,
+   9601,
+   9679,
+   9761,
+   9686,
+   9768,
+   9686,
+   9608,
+   9533,
+   9615,
+   9537,
+   9612,
+   9530,
+   9608,
+   9530,
+   9452,
+   9530,
+   9605,
+   9523,
+   9605,
+   9687,
+   9609,
+   9531,
+   9609,
+   9687,
+   9609,
+   9687,
+   9605,
+   9687,
+   9609,
+   9687,
+   9765,
+   9687,
+   9765,
+   9683,
+   9605,
+   9683,
+   9601,
+   9679,
+   9604,
+   9679,
+   9601,
+   9683,
+   9608,
+   9690,
+   9768,
+   9693,
+   9618,
+   9540
+  ]
+ },
+ "expected_betti": {
+  "file": "w3_N7_k1.expected.betti",
+  "source": "analytic: (1,0,#cavities,0); dents (ball meeting the cube boundary in a disk) leave the homotopy type unchanged",
+  "distinct_values": [
+   [
+    1,
+    0,
+    0,
+    0
+   ],
+   [
+    1,
+    0,
+    1,
+    0
+   ],
+   [
+    1,
+    0,
+    2,
+    0
+   ],
+   [
+    1,
+    0,
+    3,
+    0
+   ]
+  ],
+  "initial": [
+   1,
+   0,
+   0,
+   0
+  ]
+ },
+ "stats": {
+  "carve_cavity": 8,
+  "carve_dent": 24,
+  "reject_blocked": 210,
+  "reject_bad_boundary_contact": 18,
+  "refill_dent": 23,
+  "refill_cavity": 5,
+  "carved_min": 1,
+  "carved_max": 5,
+  "cavities_min": 0,
+  "cavities_max": 3,
+  "cavities_mean": 0.6166666666666667
+ }
+}

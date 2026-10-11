@@ -134,11 +134,37 @@ loop:
 ```
 **Morse order:** `ord(x) := −rm(x)` (later removal ⇒ smaller key), mapped to
 increasing integers. With this order, for every gradient pair `(τ, σ)`:
-`τ = low(∂σ)` and the column σ is the first column (in increasing `ord`) with
-that low, so σ is an **apparent pair** — it takes its pivot with zero additions
-(Lemma 2 in the paper; the proof uses only that every facet of σ other than τ is
-removed after σ). Reduction work therefore concentrates on critical cells, and
-the reduced column of a critical cell traces its gradient flow.
+`τ = low(∂σ)` and σ is the first column (in increasing `ord`) whose boundary
+contains τ at all, so σ is an **apparent pair** — it takes its pivot with zero
+additions and is never cleared (Lemma 2 in the paper). The proof uses two facts
+of the collapse: every facet of σ other than τ is removed after τ (so τ is the
+youngest facet of σ), and every coface of τ other than σ was removed before σ
+(τ was free when the pair was formed, so σ is the oldest coface of τ). It holds
+for every queue discipline; only the matching depends on the discipline.
+Consequences proved in the paper:
+* (Corollary 2.1) With clearing, the column of every lower cell is cleared and
+  the column of every upper cell is apparent, so **all column additions of the
+  static reduction happen in columns of critical cells**.
+* (Corollary 2.2) Because a critical cell is chosen only when it has the
+  highest dimension in `P`, in each dimension every critical cell precedes every
+  lower cell in `ord`. Hence the reduction of a critical column `c` first adds
+  apparent columns `∂y` (each one step of the discrete gradient flow) until the
+  column contains no lower cell and its restriction to critical cells equals the
+  Morse boundary `∂^M c`; afterwards it performs exactly the additions of the
+  standard reduction (with clearing) of the Morse boundary matrices, critical
+  cells ordered by `ord`. The reduced column may still contain upper cells.
+  This makes precise the informal statement "the reduced column of a critical
+  cell traces its gradient flow"; it needs the highest-dimension rule for
+  critical cells, Lemma 2 does not.
+
+> Spec note (theory pass): the previous wording said the Lemma 2 proof "uses
+> only that every facet of σ other than τ is removed after σ"; that fact gives
+> `τ = low(∂σ)` but not apparentness, which also needs the free-face condition
+> (no other coface of τ precedes σ). The informal "traces its gradient flow"
+> claim was replaced by the precise Corollary 2.2. None of these results are
+> claimed for the state between rebuilds (inserted cells get larger keys and
+> deletions make V non-triangular); there the Morse order is a sparsity
+> heuristic, evaluated empirically.
 
 **Insertion order** (the ablation): `ord(x)` = insertion counter.
 
@@ -160,7 +186,7 @@ FULL baselines skip `V` tracking (ranks only). DRB rebuilds keep `V` and build
 |---|---|---|
 | `full-id` | per update: static reduction with clearing, insertion order, ranks only | yes |
 | `full-morse` | per update: collapse matching + Morse order + clearing (v1's "coreduction-only", done properly) | yes |
-| `gudhi` | per update: GUDHI SimplexTree `compute_persistence` (external static baseline, Python) | yes |
+| `gudhi` | per update: GUDHI SimplexTree `compute_persistence(homology_coeff_field=2, persistence_dim_max=True)` (external static baseline, Python). The flag is required: without it GUDHI silently omits the top dimension (hollow tetrahedron → `[1, 0]`) | yes |
 | `drb-id` | DRB, insertion order, never rebuilt | yes |
 | `mmhm` | DRB + Morse order + rebuild policy (§5.1) — **the method** | yes |
 | `mmhm-norb` | DRB + Morse order at build only, never rebuilt (ablation) | yes |
@@ -178,7 +204,10 @@ triggers it. Report both per-update latency and amortized latency.
 
 All generators are deterministic given `--seed`, emit only valid atomic edits,
 and write a sidecar `.meta.json` (parameters, counts, expected Betti numbers
-when analytically known).
+when analytically known). When the Betti numbers are analytic for every state
+(W1, W2, W3, W5) they are also written to `<stem>.expected.betti` in the §6.2
+format, so any method's Betti file can be compared with `cmp`. Exact generator
+rules are in §6.3.
 
 * **W1 punctured surfaces.** Closed triangulated sphere (subdivided
   icosahedron) or torus (grid). Update = open a disk patch (k-ring umbrella of
@@ -203,7 +232,14 @@ when analytically known).
 * **W5 non-locality witnesses.** (a) Cycle graph of length `L`, toggling one
   edge (β1 toggles; the cycle representative has `L` edges). (b) Sphere with a
   single toggled puncture (the fundamental 2-cycle has all `n_2` triangles).
-  Expected: `drb-*`/`mmhm` cost Θ(L) / Θ(n_2) per toggle, `euler` O(1).
+  Expected: `drb-*`/`mmhm` cost Ω(L) / Ω(n_2) per toggle in **every** DRB state
+  (Proposition 4: deletion is Case A with `|V_z| = L` resp. `n_2`; insertion
+  must build that cycle), and after the first deletion the toggles alternate
+  between two fixed states, each toggle costing at most `L + nnz(V)+nnz(R) +
+  O(1)` (resp. `n_2 + …`), i.e. Θ(L) / Θ(n_2) whenever `nnz = O(n)` — measured,
+  not assumed. `euler` is O(1) on (b) only: (a) is a graph, not a surface, so
+  `euler`'s preconditions fail there (its `β2 := [#boundary edges = 0]` rule
+  would wrongly give 1).
 
 ### 6.1 `.seq` format (text, UTF-8)
 ```
@@ -224,9 +260,57 @@ UPDATE
 ```
 The INIT block builds `K_0` (timed separately as build time). Each UPDATE block
 is one update. Betti numbers are reported after INIT and after each UPDATE.
+`#` starts a comment that runs to the end of the line, and blank lines are
+ignored (so the `# ...` annotations above would also parse); generators emit
+only whole-line comments and write vertex lists sorted, but readers must not
+rely on the order.
 
 ### 6.2 Betti file
 One line per state (INIT, then each UPDATE): `b0 b1 b2 b3` (zeros above `D`).
+
+### 6.3 Generator details (`workloads/`, generator version 1.0.0)
+Common: deletions are top-down and insertions bottom-up, each dimension in
+sorted order; sizes, edits per update and per-state `n_k` ranges are recorded
+in `.meta.json`. "Distance" is graph distance in the base mesh.
+
+* **W1.** Sphere = geodesic icosphere of frequency `f` (`--level L` means
+  `f = 2^L`: `10f²+2` vertices, `20f²` triangles); torus = `n×m` periodic grid
+  split along one diagonal (`n, m ≥ 3`). Patch `P(v,k)` = triangles incident to
+  a vertex at distance `≤ k−1` from `v` (default `k = 2`: 24 triangles, ~61
+  edits). A patch is used only if its closure is a disk and its vertex set is
+  at distance `> sep` (default 1) from every existing hole's vertex set. Open =
+  delete `P`'s triangles, then the edges, then the vertices left without
+  cofaces; close = exact reverse of that hole's opening. With `h` holes: open
+  if `h = 0`, else with probability 0.75 / 0.5 / 0.25 for `h <`, `=`, `>`
+  target (close if no valid patch is found). Expected: sphere
+  `(1, max(h−1,0), [h=0], 0)`, torus `(1, 2+max(h−1,0), [h=0], 0)`.
+* **W2.** Refine cluster = `s` tets collected breadth-first over face
+  adjacency from a uniformly random tet (children may be refined again).
+  Coarsen cluster = a uniformly random leaf subdivision and its `s−1` nearest
+  leaves (distance between inserted vertices). Note: coarsening can only undo
+  subdivisions, so a walk *around* the initial size needs live subdivisions in
+  `K_0`; the generator applies `warmup` (default `8s`) subdivisions before
+  writing INIT, then refines with probability
+  `clamp(0.5 − 0.5(x − warmup)/spread, 0.05, 0.95)`, `x` = live subdivisions
+  (`spread` defaults to `warmup`; forced refine when fewer than `s` leaves).
+  `|K| = |K_base| + 14x`.
+* **W3.** Centres uniform over non-boundary vertices; ball `B(v,k)` = tets
+  incident to a vertex at distance `≤ k−1` from `v` (default `k = 2`, ~600–700
+  edits; `k = 1`, ~76). Accepted only if separated (`> sep` rings) from every
+  carved ball, `∂B` is a 2-sphere, and `B` meets the cube boundary in no
+  triangle (cavity, `β2 += 1`) or in one disk (dent, no change). Other contacts
+  (e.g. two disks near a cube edge, which would bore a tunnel) are rejected.
+  Count walk as in W1. Expected `(1, 0, #cavities, 0)`.
+* **W4.** `ε` is calibrated on the initial points so that the graph has exactly
+  `round(deg·n/2)` edges (default `deg = 10`); a move adds an independent
+  uniform `±step·ε` to each coordinate (default `step = 0.25`), reflected at
+  the border, and keeps the vertex id. Caution: in a flag complex truncated at
+  dimension `D`, the boundary of every `(D+2)`-clique is a `D`-cycle that is
+  never filled, so `β_D` is large (measured at `deg = 10`: `β2 ≈ 6n` in 2D with
+  `D = 2`; `β3 ≈ 6n` in 2D and `≈ 3n` in 3D with `D = 3`). That is genuine
+  linear algebra, not topology of the point cloud; describe it as such.
+* **W5.** (a) toggles edge `{e, e+1 mod L}` (default `e = 0`); (b) toggles a
+  seed-chosen triangle of the icosphere. Odd-numbered updates delete.
 
 ## 7. Engine CLI (`engine/`, C++17, CMake, binary `mmhm`)
 
