@@ -1,5 +1,5 @@
-% sections/conclusion.tex -- conclusion (draft; quantitative claims only via
-% \Num macros or \pending placeholders).
+% sections/conclusion.tex -- conclusion. Every number is a \Num macro
+% (generated/numbers.tex).
 \section{Conclusion}\label{sec:conclusion}
 
 We have replaced the localised update of version~1, which is not exact, by a
@@ -9,23 +9,35 @@ standard reduction step; deletion corrects every basis chain that contains the
 deleted simplex, which is the rank-only form of known zigzag and warm-start
 updates. Exactness holds for every order of the cells. Discrete Morse theory
 enters through the order chosen at a rebuild: ordering cells by reverse removal
-time in a collapse makes every gradient pair an apparent pair, confines the
-column additions of the rebuild to critical columns, and makes the reduction of
-those columns coincide with the reduction of the Morse complex. The cost of an
-update is bounded by footprints and reduction chains; it cannot be bounded by the
-size of the update, and we exhibit families on which it is linear in the size of
-the complex. The erratum gives concrete counterexamples to the rule of
-version~1, and every exact method in our experiments was checked against three
-independent oracles. \pending{two sentences with the main measured results of
-E1--E8, stated with \textbackslash Num macros, including the cases in which the
-method does not help}
+time in a collapse makes every gradient pair an apparent pair and confines the
+column additions of the rebuild to critical columns. The cost of an update is
+bounded by footprints and reduction chains, and it cannot be bounded by the size
+of the update.
 
-Several questions remain open: maintaining the matching between rebuilds, so
-that the guarantees of \cref{lem:apparent} hold at all times; rebuild policies
-with provable guarantees; bounds on footprints and reduction chains for
-structured families of complexes and edits; coefficients other than $\Z$; and a
-comparison with implementations of zigzag persistence.
+The experiments agree with this picture. None of the \NumReportedStates{} Betti
+vectors reported by exact methods was wrong, while
+a reimplementation of the rule of version~1 was wrong after \NumLcrErrAll\,\% of
+the updates. Where the edits touch only small cycles, the method's latency
+hardly depends on the size of the complex, and on the largest W2 instance it is
+\NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{} times below that of static
+recomputation. Where the edits create or destroy cycles that span the complex,
+on surfaces and on the non-locality witnesses, the cost grows with those cycles,
+the average gain over recomputation is at most a constant factor or negative,
+and on the surfaces and the cycle graph the tail latency is worse; on surfaces
+with known connectivity,
+combinatorial counters are the better tool. Rebuilding in the Morse order pays
+off when the basis grows and costs time when it does not, and the Morse order
+itself gives a modest, workload-dependent reduction of the reduction work
+between rebuilds.
 
-\paragraph{Code and data.} \pending{repository or archive with the engine,
-generators, oracles, raw per-update records and the scripts that produce every
-number, table and figure}
+The results are limited to $\Z$ coefficients, to complexes of dimension at most
+three, to one machine and to single-threaded runs; no locality bound holds, and
+the rebuild policy is a heuristic. Open questions are maintaining the matching
+between rebuilds, so that the guarantees of \cref{lem:apparent} hold at all
+times; rebuild policies with provable guarantees; bounds on footprints and
+reduction chains for structured families of complexes and edits; other
+coefficients; and a comparison with implementations of zigzag persistence.
+
+\paragraph{Code and data.} Code, workloads, raw results and the scripts that
+regenerate every number and figure are available from the author.
+% TODO(author): replace with repository URL

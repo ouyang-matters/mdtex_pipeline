@@ -1,5 +1,5 @@
-% sections/abstract.tex -- abstract (draft; quantitative claims only via \Num
-% macros or \pending placeholders).
+% sections/abstract.tex -- abstract. Every number is a \Num macro
+% (generated/numbers.tex).
 \begin{abstract}
 We maintain the Betti numbers over $\Z$ of a simplicial complex of dimension at
 most three under insertions and deletions of simplices. Version~1 of this paper
@@ -8,24 +8,26 @@ theory; that update is not exact, and this version replaces it. For each
 dimension we maintain a reduced matrix $R=BV$ together with the change of
 basis~$V$. An inserted simplex is reduced against the existing pivots; a
 deleted simplex is removed from every basis chain that contains it, by adding
-either a cycle or the column with the smallest pivot. This deletion step is the
-rank-only specialisation of known updates for zigzag persistence and
-warm-started reductions. We prove that the Betti numbers are exact after every
-edit, for every order of the cells. Discrete Morse theory enters only through
-that order: if cells are ordered by reverse removal time in a collapse, every
-gradient pair is an apparent pair, so the reduction performed at a rebuild makes
-column additions only in the columns of critical cells, where, after following
-the gradient flow, it performs exactly the additions of the reduction of the
-Morse complex. The cost of an edit is output-sensitive; we
-prove that it admits no bound in terms of the size of the edit, and we report
-footprints and reduction-chain lengths as measurements. We evaluate the method
-on five workload families, with complexes of up to \NumSizeMax{} simplices,
-against static recomputation, including GUDHI, and
-against ablations of the order and of the rebuild policy, and we check every
-exact method against three independent oracles.
-\pending{one or two sentences with the headline results of E1--E5, stated with
-\textbackslash Num macros}
-We also give counterexamples to the update rule of version~1; a
-reimplementation of that rule reports wrong Betti numbers after up to
-\NumLcrErrMax\,\% of the updates of a workload.
+either a cycle or the column with the smallest pivot, which is the rank-only
+form of known updates for zigzag persistence and warm-started reductions. We
+prove that the Betti numbers are exact after every edit, for every order of the
+cells. Discrete Morse theory enters only through that order: if cells are
+ordered by reverse removal time in a collapse, every gradient pair is an
+apparent pair, so a rebuild makes column additions only in the columns of
+critical cells, where, after following the gradient flow, it performs the
+reduction of the Morse complex. The cost of
+an edit is output-sensitive, and we prove that it admits no bound in terms of
+the size of the edit. On five workload families with up to \NumSizeMax{}
+simplices, all \NumReportedStates{} Betti vectors reported by exact methods
+agreed with independent oracles. Where edits create and destroy only small
+cycles, in refined and carved 3-balls and in flag complexes, the update latency
+depends little on the size of the complex; at \NumWTwoNThirtyThreeSEightSize{}
+simplices it is \NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{} times lower than
+that of static recomputation. Where edits create or destroy cycles that span the
+complex, the cost follows those cycles: on punctured surfaces the method is at
+most \NumWOneSphereLFiveMmhmSpeedupFullId{} times faster on average, its tail
+latency is worse than recomputation's, and combinatorial counters are far
+cheaper; on non-locality witnesses its cost grows linearly with the complex, as
+the theory predicts. A reimplementation of the rule of version~1 reports wrong Betti numbers
+after \NumLcrErrAll\,\% of the updates.
 \end{abstract}

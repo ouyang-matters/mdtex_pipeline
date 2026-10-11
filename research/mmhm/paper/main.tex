@@ -3,11 +3,10 @@
 %
 % Inputs written by other parts of the project (never edit them by hand):
 %   generated/numbers.tex          \Num... macros (experiments/aggregate.py)
-%   generated/tab_correctness.tex  body of the correctness table (a tabular)
-%   generated/tab_summary.tex      body of the summary table (a tabular)
+%   generated/tab_*.tex            table bodies (complete tabulars, no float)
 %   ../figures/F*.pdf              result figures (figures/*.py)
-% Every one of them is optional: a missing file renders as a visible
-% placeholder, so the document always compiles.
+% A missing figure or table renders as a visible box. The fallbacks below
+% cover only the \Num macros used in the setup, so the text needs numbers.tex.
 \documentclass[10pt]{article}
 
 % ---------------------------------------------------------------------------
@@ -65,6 +64,7 @@
 \renewcommand{\floatpagefraction}{0.7}
 \setlength{\textfloatsep}{12\p@ \@plus 2\p@ \@minus 2\p@}
 \setlength{\floatsep}{12\p@ \@plus 2\p@ \@minus 2\p@}
+\setlength{\@fptop}{\z@}            % float-only pages start at the top
 \renewcommand{\footnoterule}{\kern-3\p@ \hrule width 12pc \kern 2.6\p@}
 
 % Title block: rules above and below a small-caps title, "A Preprint" under it,
@@ -162,39 +162,28 @@
 \crefname{corollary}{Corollary}{Corollaries}
 
 % ---------------------------------------------------------------------------
-% Placeholders for results that are not in yet. Each use is visible in the
-% PDF and leaves a "Package mmhm Warning" in the log, so a final build can be
-% checked for leftovers with:  grep 'Package mmhm Warning' main.log
+% Generated inputs. A missing file renders as a visible box and leaves a
+% "Package mmhm Warning" in the log (grep 'Package mmhm Warning' main.log).
 % ---------------------------------------------------------------------------
 \makeatletter
-% inline: [pending: ...]
-\DeclareRobustCommand{\pending}[1]{%
-  \PackageWarning{mmhm}{Placeholder (pending result)}%
-  {\sffamily\bfseries[pending:}\,{\itshape #1}{\sffamily\bfseries]}}
-% block: a framed paragraph
-\newcommand{\pendingblock}[2]{% #1 tag, #2 text
-  \PackageWarning{mmhm}{Placeholder block #1}%
-  \par\noindent
-  \fcolorbox{black!55}{black!5}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
-    \small\sffamily\textbf{Results pending (#1).}\ \rmfamily #2}}\par}
 % a missing figure file
 \newcommand{\figpending}[2]{% #1 file stem, #2 height
   \PackageWarning{mmhm}{Figure file ../figures/#1.pdf not found}%
   \fcolorbox{black!55}{black!5}{\parbox[c][#2][c]{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
-    \centering\small\sffamily Figure pending:
+    \centering\small\sffamily Figure missing:
     \texttt{figures/\detokenize{#1}.pdf}}}}
 % include a result figure if it exists
-\newcommand{\resultfigure}[3][\linewidth]{% [width] {file stem} {placeholder height}
+\newcommand{\resultfigure}[3][width=\linewidth]{% [graphicx options] {file stem} {placeholder height}
   \IfFileExists{../figures/#2.pdf}%
-    {\includegraphics[width=#1]{#2.pdf}}%
+    {\includegraphics[#1]{#2.pdf}}%
     {\figpending{#2}{#3}}}
-% include a generated table body if it exists
+% include a generated table body (a complete tabular) if it exists
 \newcommand{\generatedtable}[1]{% #1 file stem in generated/
   \IfFileExists{generated/#1.tex}%
     {\input{generated/#1}}%
     {\PackageWarning{mmhm}{Generated table generated/#1.tex not found}%
      \fcolorbox{black!55}{black!5}{\parbox{0.8\linewidth}{\centering\small\sffamily
-       Table pending: \texttt{generated/\detokenize{#1}.tex}}}}}
+       Table missing: \texttt{generated/\detokenize{#1}.tex}}}}}
 
 % Measured numbers: generated/numbers.tex defines \Num... macros. Every macro
 % used in the text gets a fallback that prints a bold "??" and warns.
@@ -250,5 +239,8 @@
 
 \bibliographystyle{plainnat}
 \bibliography{refs}
+
+\appendix
+\input{sections/appendix}
 
 \end{document}

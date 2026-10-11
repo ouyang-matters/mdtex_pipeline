@@ -94,8 +94,17 @@ can change far away from the edit.
   coarsening and cavities in a $3$-ball; flag complexes of moving points;
   non-locality witnesses) against static recomputation, including
   GUDHI~\cite{maria2014gudhi}, and against ablations of the order and of the
-  rebuild policy. Every exact method is checked against three independent
-  oracles (\cref{sec:experiments}).
+  rebuild policy (\cref{sec:experiments}). All \NumReportedStates{} Betti
+  vectors reported by exact methods agree with three independent oracles. On
+  workloads whose edits touch only small cycles the update latency hardly
+  depends on the size of the complex; on the largest W2 instance
+  (\NumWTwoNThirtyThreeSEightSize{} simplices) \method{mmhm} is
+  \NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{} times faster than static
+  recomputation. On punctured surfaces it is at most
+  \NumWOneSphereLFiveMmhmSpeedupFullId{} times faster on average, some variants
+  are slower, and every variant has a worse tail latency; on the non-locality
+  witnesses its cost grows linearly with the complex. We report these cases with
+  the same prominence.
 \item An erratum to version~1 with concrete counterexamples to its update rule
   for each of its two defects, and a reimplementation of the rule whose error
   rate we measure (\cref{sec:erratum,sec:e0}).
@@ -103,6 +112,8 @@ can change far away from the edit.
 
 \paragraph{What we do not claim.}
 All statements are over $\Z$; we say nothing about integer homology or torsion.
+We do not claim that the method is faster than recomputation in general: the
+experiments show where it is and where it is not.
 We prove no bound on the cost of an update in terms of its size, and
 \cref{prop:nonlocal} shows that none holds for this data structure. The
 maintained basis yields ranks and a basis of each cycle space, but no
