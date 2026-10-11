@@ -39,22 +39,24 @@ median number of column additions per update was at most
 other workloads.
 
 \paragraph{Rebuild policy and the Morse order.}
-The growth threshold $\alpha$ and the period $m$ are heuristics, and their effect
-depends on the workload (E7): rebuilding pays off on W3, hardly ever triggers on
-W2 and W4, and on W1, where the basis also grows, helps the smaller instances but
-not the largest. A method that may rebuild in the Morse order also pays, we
+The growth threshold $\alpha$ and the period $m$ are heuristics whose effect
+depends on the workload (E7). A method that may rebuild in the Morse order also pays, we
 believe, for the index such a rebuild needs (E4). \Cref{lem:apparent} and its
 corollaries locate the work of a build in the critical columns; they do not make
 it smaller than in a good insertion order, and on our workloads it was not
 (E8). Between rebuilds the Morse order is a heuristic whose effect ranges from
-clearly positive (large surfaces, W3, larger W4) to negative (W5). For one-shot
+clearly positive (large surfaces, W3, larger W4) to negative (W5); for one-shot
 static recomputation the collapse never paid for itself (E1).
+% PENDING-ABLATION: drb-rand -- say here whether a random build order costs
+% more than the insertion and Morse orders (tab_rand); do not invent numbers.
 
 \paragraph{Baselines.}
 The insertion order of \method{full-id} depends on the history of edits, and its
 cost drifts upward during the W3 and the smaller W4 runs; we report matched
-windows where this matters (E3, E4). A static baseline in a canonical order is
-not part of this evaluation. \method{gudhi} runs through its Python interface
+windows where this matters (E3, E4).
+% PENDING-ABLATION: full-sorted -- state here how the canonical-order static
+% baseline compares on the matched windows; do not invent numbers.
+\method{gudhi} runs through its Python interface
 and computes persistence pairs; its times are a reference point for a widely used
 library, not the best possible static recomputation.
 

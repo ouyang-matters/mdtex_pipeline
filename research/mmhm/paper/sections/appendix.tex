@@ -5,12 +5,11 @@
 % paper/generated/ and experiments/results/.
 \section{Full result tables}\label{sec:appendix}
 
-The tables below give, for every instance, the quantities the text relies on.
-Latencies are per update in \textmu s, the updates of the three runs pooled; a
-$'$ marks \method{gudhi} on the prefix $T'={}$\NumPrefix{}, and an empty cell a
-method not run in that experiment. Medians, the E7 grid, per-seed ranges, noise
-measurements and the pairwise overlap of seed ranges are in
-\path{experiments/results/} and \path{paper/generated/}.
+Latencies are per update in \textmu s, the three runs pooled; $'$ marks
+\method{gudhi} on the prefix $T'={}$\NumPrefix{}, and an empty cell a method not
+run in that experiment. Medians, the E7 grid, per-seed ranges, noise and pairwise
+overlaps of seed ranges are in \path{experiments/results/} and
+\path{paper/generated/}.
 
 \newcommand{\appendixtable}[3]{% #1 label, #2 caption, #3 generated file stem
   \par\bigskip
@@ -27,6 +26,8 @@ measurements and the pairwise overlap of seed ranges are in
   and in the Morse order (\method{mmhm-norb}): $\nnz(R)+\nnz(V)$ after INIT and
   column additions of the build, with the ratios Morse/insertion (E8).}{tab_build}
 
+% PENDING-ABLATION: full-sorted -- tab_drift already has full-sorted's drift and
+% mmhm x full-sorted on both windows; extend this caption.
 \appendixtable{tab:drift}{Drift (\cref{sec:exp-timing}): median latency of
   \method{full-id} over the first and the last 200 updates and their ratio; the
   same ratio for \method{full-morse}, \method{drb-id} and \method{mmhm}; and the

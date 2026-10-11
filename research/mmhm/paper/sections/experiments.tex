@@ -136,7 +136,8 @@ never recompresses and has no gates (\cref{sec:erratum}). It is run only to
 measure how often it is wrong.
 % PENDING-ABLATION: lcr-rc (lcr with version 1's periodic recompression, m = 32)
 % -- describe here and report its error rate in E0 once the data agent's runs
-% are in; do not invent its numbers. \method{euler} maintains $\chi$ and the numbers of edges with one, two or
+% are in; do not invent its numbers.
+\method{euler} maintains $\chi$ and the numbers of edges with one, two or
 more cofaces in $O(1)$ per atomic edit and returns the Betti numbers of
 \cref{rem:surfaces}. At the end of every update it checks that the complex has a
 triangle, no tetrahedron, and no edge outside one or two triangles, and aborts
@@ -450,6 +451,8 @@ on the mix of instances and is not an error rate of version~1
     mismatches. Lower part: the ablation \method{lcr} on one instance of each
     workload variant, three runs each: updates, updates after which it was
     wrong, and the first wrong update (minimum over the runs).}
+  % PENDING-ABLATION: lcr-rc, full-sorted, drb-rand -- the generated table already
+  % has an lcr-rc column and full-sorted/drb-rand rows; describe them here.
   \label{tab:correctness}
   \small
   \generatedtable{tab_correctness}
@@ -548,10 +551,12 @@ implementation, we cannot say.
     $|K_0|$, the number $T$ of timed updates per run, the median, p95 and
     amortised per-update latency in \textmu s (three runs pooled), and the
     speedup over \method{full-id} (ratio of amortised latencies over all $T$
-    updates). \method{gudhi} entries with $T=200$ cover the first 200 updates
-    only, and on W3 \method{full-id} drifts (\cref{tab:drift}); the text gives
+    updates). \method{gudhi} entries with $T={}$\NumPrefix{} cover only the
+    first $T'$ updates, and on W3 \method{full-id} drifts (\cref{tab:drift}); the text gives
     matched comparisons. Every instance is listed in
     \cref{tab:full-amort,tab:full-p99}.}
+  % PENDING-ABLATION: full-sorted -- the generated table already has its rows;
+  % name it in this caption once the methods paragraph defines it.
   \label{tab:summary}
   \small
   \generatedtable{tab_summary}
