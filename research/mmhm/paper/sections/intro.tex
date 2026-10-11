@@ -40,13 +40,18 @@ numbers at a cost governed by the size of the edit. The update rule is not
 exact, for two independent reasons. It re-reduces a replaced column but not the
 reduced columns that had absorbed it, which is the deletion problem described
 above; and its set of affected critical columns misses columns whose Morse
-boundary changes through gradient paths that end far from the edit. Its
-experiments could not reveal either defect, because in each of them the Betti
-numbers were constant or followed from the Euler characteristic.
-\Cref{sec:erratum} states what version~1 specified and gives concrete
-counterexamples to both exactness claims. This version replaces the method, its
+boundary changes through gradient paths that end far from the edit. The
+experiments of version~1 did not detect either defect. Two of them are connected
+surfaces whose Betti numbers its gates give without any algebra; for the third,
+whose Betti numbers are constant, version~1 reports no Betti numbers and compares
+its output with no independent computation. Such a comparison would have
+sufficed: on our analogue of that workload, an ablation that applies the rule
+without basis tracking is wrong after \NumLcrWTwoNFifteenSEightWrong{} of
+\NumLcrWTwoNFifteenSEightUpdates{} updates (\cref{sec:e0}). \Cref{sec:erratum}
+states what version~1 specified and gives instances on which its rule fails
+although none of its safeguards applies. This version replaces the method, its
 analysis and its experiments. It keeps the title because discrete Morse theory
-still has a role, though a different one.
+still has a role, though a smaller one.
 
 \paragraph{Approach.}
 For each dimension $k$ we store a reduced matrix $R=\Bm{k}V$ together with the
@@ -58,13 +63,13 @@ a cycle, that cycle is added to the others (Case~A); otherwise the column with
 the smallest pivot is added to the others (Case~B). This keeps the Betti numbers
 exact after every atomic edit, for every order of the cells. The order affects
 only the cost, and this is where discrete Morse theory enters. When the
-structure is built or rebuilt, we compute an acyclic matching by collapses and
-order the cells by reverse removal time. Under this order every gradient pair is
-an apparent pair, so the static reduction performs all its column additions in
-the columns of critical cells, and on these columns, after following the
-gradient flow, it performs exactly the additions of the reduction of the Morse
-complex. The Morse complex itself is never formed; its boundary is what an edit
-can change far away from the edit.
+structure is built or rebuilt, we may compute an acyclic matching by collapses
+and order the cells by reverse removal time. Under this order every gradient
+pair is an apparent pair, a fact close to folklore
+(\cref{rem:morse-literature}), so the static reduction performs all its column
+additions in the columns of critical cells. We use the order as a heuristic for
+a sparse basis; how much it buys is a measurement, and on our workloads it is
+less than the theory might suggest.
 
 \paragraph{Contributions.}
 \begin{enumerate}[label=(\roman*),leftmargin=2.2em]
@@ -78,43 +83,50 @@ can change far away from the edit.
   factorisations~\cite{carlsson2009zigzag,luo2023warmstart,giunti2026pruning};
   we prove it in a self-contained way because the basis tracking it relies on is
   what version~1 omitted.
-\item The Morse order as a sparsifier. Ordering the cells by reverse removal
-  time of a collapse makes every gradient pair an apparent pair
-  (\cref{lem:apparent}); hence, at a rebuild, all column additions take place in
-  columns of critical cells (\cref{cor:critical-work}), and there they coincide
-  with the reduction of the Morse boundary matrices
-  (\cref{cor:morse-reduction}). Between rebuilds the order is a heuristic, and we
-  measure its effect.
+\item The Morse order, evaluated. In the order given by a collapse every gradient
+  pair is an apparent pair (\cref{lem:apparent}, not new in substance), so a
+  build or rebuild performs column additions only in critical columns
+  (\cref{cor:critical-work}), where they coincide with the reduction of the Morse
+  boundary matrices (\cref{cor:morse-reduction}). Measured at build time, this
+  saves nothing over the insertion orders written by our generators, and on the
+  flag complexes it costs more additions. Its measurable effect is between
+  rebuilds and depends on the workload: it makes the DRB faster on surfaces,
+  cavities and the larger flag complexes, makes no difference on the refinement
+  workload, and makes it slower on the non-locality witnesses (\cref{sec:e8}).
 \item Output-sensitive costs instead of a locality theorem: the cost of an edit
   in terms of footprints and reduction chains (\cref{prop:cost}), and explicit
-  families, a cycle graph and a triangulated sphere with one toggled simplex, on
-  which every update of size one costs this data structure $\Omega(n)$
-  operations (\cref{prop:nonlocal}).
+  families, a cycle graph and a triangulated sphere, on which every toggle of
+  one simplex costs this data structure $\Omega(n)$ operations
+  (\cref{prop:nonlocal}).
 \item An evaluation on five workload families (punctured surfaces; refinement,
   coarsening and cavities in a $3$-ball; flag complexes of moving points;
   non-locality witnesses) against static recomputation, including
   GUDHI~\cite{maria2014gudhi}, and against ablations of the order and of the
-  rebuild policy (\cref{sec:experiments}). All \NumReportedStates{} Betti
-  vectors reported by exact methods agree with three independent oracles. On
-  workloads whose edits touch only small cycles the update latency hardly
-  depends on the size of the complex; on the largest W2 instance
-  (\NumWTwoNThirtyThreeSEightSize{} simplices) \method{mmhm} is
-  \NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{} times faster than static
-  recomputation. On punctured surfaces it is at most
+  rebuild policy (\cref{sec:experiments}). Every one of the
+  \NumCoverageVectors{} Betti vectors reported by exact methods was compared with
+  at least one reference computation, \NumCoverageExternalPct\,\% with an
+  external one, and none disagreed. On workloads whose edits touch only small
+  cycles the update latency of the DRB hardly depends on the size of the
+  complex: on the largest W2 instance (\NumWTwoNThirtyThreeSEightSize{}
+  simplices) all four DRB variants are
+  \NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
+  times faster than static recomputation, with or without the Morse order and
+  rebuilds. On punctured surfaces the DRB is at most
   \NumWOneSphereLFiveMmhmSpeedupFullId{} times faster on average, some variants
   are slower, and every variant has a worse tail latency; on the non-locality
   witnesses its cost grows linearly with the complex. We report these cases with
   the same prominence.
-\item An erratum to version~1 with concrete counterexamples to its update rule
-  for each of its two defects, and a reimplementation of the rule whose error
-  rate we measure (\cref{sec:erratum,sec:e0}).
+\item An erratum to version~1 with instances, for each of its two defects, that
+  meet version~1's own safeguards, and an ablation that isolates the first
+  defect, whose errors we measure (\cref{sec:erratum,sec:e0}).
 \end{enumerate}
 
 \paragraph{What we do not claim.}
 All statements are over $\Z$; we say nothing about integer homology or torsion.
 We do not claim that the method is faster than recomputation in general: the
-experiments show where it is and where it is not.
-We prove no bound on the cost of an update in terms of its size, and
+experiments show where it is and where it is not. We make no quantitative claim
+about version~1 as a whole, only about the defect our ablation isolates. We prove
+no bound on the cost of an update in terms of its size, and
 \cref{prop:nonlocal} shows that none holds for this data structure. The
 maintained basis yields ranks and a basis of each cycle space, but no
 persistence pairing. Between rebuilds we make no sparsity claim.
@@ -122,9 +134,9 @@ persistence pairing. Between rebuilds we make no sparsity claim.
 \paragraph{Outline.}
 \Cref{sec:related} reviews related work. \Cref{sec:theory} defines the dynamic
 reduced basis and proves its exactness, introduces the Morse order, analyses the
-cost of an update, proves that no locality bound holds, and ends with the
-erratum to version~1 (\cref{sec:erratum}). \Cref{sec:experiments} describes the
-experimental setup and results, \cref{sec:discussion} discusses limitations and
-alternatives, and \cref{sec:conclusion} concludes.
+cost of an update and proves that no locality bound holds.
+\Cref{sec:erratum} is the erratum to version~1. \Cref{sec:experiments}
+describes the experimental setup and results, \cref{sec:discussion} discusses
+limitations and alternatives, and \cref{sec:conclusion} concludes.
 
 \input{sections/overview}

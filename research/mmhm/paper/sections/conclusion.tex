@@ -7,37 +7,42 @@ dynamic reduced basis that maintains the $\Z$ Betti numbers of a simplicial
 complex exactly under insertions and deletions of simplices. Insertion is the
 standard reduction step; deletion corrects every basis chain that contains the
 deleted simplex, which is the rank-only form of known zigzag and warm-start
-updates. Exactness holds for every order of the cells. Discrete Morse theory
-enters through the order chosen at a rebuild: ordering cells by reverse removal
-time in a collapse makes every gradient pair an apparent pair and confines the
-column additions of the rebuild to critical columns. The cost of an update is
-bounded by footprints and reduction chains, and it cannot be bounded by the size
-of the update.
+updates. Exactness holds for every order of the cells, and the cost of an update
+cannot be bounded by its size. Discrete Morse theory enters only through the
+order chosen at a build or rebuild, where it locates the column additions in
+critical columns.
 
-The experiments agree with this picture. None of the \NumReportedStates{} Betti
-vectors reported by exact methods was wrong, while
-a reimplementation of the rule of version~1 was wrong after \NumLcrErrAll\,\% of
-the updates. Where the edits touch only small cycles, the method's latency
-hardly depends on the size of the complex, and on the largest W2 instance it is
-\NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{} times below that of static
-recomputation. Where the edits create or destroy cycles that span the complex,
-on surfaces and on the non-locality witnesses, the cost grows with those cycles,
-the average gain over recomputation is at most a constant factor or negative,
-and on the surfaces and the cycle graph the tail latency is worse; on surfaces
-with known connectivity,
-combinatorial counters are the better tool. Rebuilding in the Morse order pays
-off when the basis grows and costs time when it does not, and the Morse order
-itself gives a modest, workload-dependent reduction of the reduction work
-between rebuilds.
+The experiments support the exactness and qualify everything else. Every Betti
+vector reported by an exact method was compared with at least one reference,
+\NumCoverageExternalPct\,\% with one outside our engine, and none disagreed. An
+ablation that applies version~1's re-reduction rule without basis tracking
+errs within the first \NumLcrFirstWrongMaxAll{} updates on surfaces, 3-balls and
+flag complexes. Where the edits touch only small cycles, the dynamic reduced
+basis is fast and nearly independent of the size of the complex: on the largest
+W2 instance all its variants are
+\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
+times faster than static recomputation, so this gain owes nothing to the Morse
+order or to rebuilds. Where the cost grows with the complex, on surfaces and on
+the non-locality witnesses, the average gain is at most a constant factor or
+negative and the tail latency is often worse; on surfaces with known
+connectivity, combinatorial counters are the better tool. The Morse order saved
+nothing at build time on our workloads; between rebuilds it helped on surfaces,
+cavities and the larger flag complexes and hurt on the witnesses. Rebuilding paid
+off on cavities, did not trigger on refinement and flag complexes, and on
+surfaces helped the smaller instances but not the largest.
 
 The results are limited to $\Z$ coefficients, to complexes of dimension at most
-three, to one machine and to single-threaded runs; no locality bound holds, and
-the rebuild policy is a heuristic. Open questions are maintaining the matching
-between rebuilds, so that the guarantees of \cref{lem:apparent} hold at all
-times; rebuild policies with provable guarantees; bounds on footprints and
-reduction chains for structured families of complexes and edits; other
-coefficients; and a comparison with implementations of zigzag persistence.
+three, to one machine and to single-threaded runs; no locality bound holds, the
+logged costs are proxies, and the rebuild policy is a heuristic. Open questions
+are maintaining the matching between rebuilds, so that the guarantees of
+\cref{lem:apparent} hold at all times; rebuild policies with provable
+guarantees; bounds on footprints and reduction chains for structured families of
+complexes and edits; other coefficients; and a comparison with implementations
+of zigzag persistence.
 
 \paragraph{Code and data.} Code, workloads, raw results and the scripts that
 regenerate every number and figure are available from the author.
 % TODO(author): replace with repository URL
+The file \path{experiments/README.md} describes how to regenerate them, and
+\path{experiments/results/WORKLOADS_MANIFEST.csv} records the generator command
+and the SHA-256 of every workload instance.

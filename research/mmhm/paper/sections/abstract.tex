@@ -6,28 +6,33 @@ most three under insertions and deletions of simplices. Version~1 of this paper
 proposed a localised update of a boundary matrix reduced by discrete Morse
 theory; that update is not exact, and this version replaces it. For each
 dimension we maintain a reduced matrix $R=BV$ together with the change of
-basis~$V$. An inserted simplex is reduced against the existing pivots; a
-deleted simplex is removed from every basis chain that contains it, by adding
-either a cycle or the column with the smallest pivot, which is the rank-only
-form of known updates for zigzag persistence and warm-started reductions. We
-prove that the Betti numbers are exact after every edit, for every order of the
-cells. Discrete Morse theory enters only through that order: if cells are
-ordered by reverse removal time in a collapse, every gradient pair is an
-apparent pair, so a rebuild makes column additions only in the columns of
-critical cells, where, after following the gradient flow, it performs the
-reduction of the Morse complex. The cost of
-an edit is output-sensitive, and we prove that it admits no bound in terms of
-the size of the edit. On five workload families with up to \NumSizeMax{}
-simplices, all \NumReportedStates{} Betti vectors reported by exact methods
-agreed with independent oracles. Where edits create and destroy only small
-cycles, in refined and carved 3-balls and in flag complexes, the update latency
-depends little on the size of the complex; at \NumWTwoNThirtyThreeSEightSize{}
-simplices it is \NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{} times lower than
-that of static recomputation. Where edits create or destroy cycles that span the
-complex, the cost follows those cycles: on punctured surfaces the method is at
-most \NumWOneSphereLFiveMmhmSpeedupFullId{} times faster on average, its tail
-latency is worse than recomputation's, and combinatorial counters are far
-cheaper; on non-locality witnesses its cost grows linearly with the complex, as
-the theory predicts. A reimplementation of the rule of version~1 reports wrong Betti numbers
-after \NumLcrErrAll\,\% of the updates.
+basis~$V$. An inserted simplex is reduced against the existing pivots; a deleted
+simplex is removed from every basis chain that contains it, by adding either a
+cycle or the column with the smallest pivot, which is the rank-only form of known
+updates for zigzag persistence and warm-started reductions. We prove that the
+Betti numbers are exact after every edit, for every order of the cells, and that
+the cost of an edit admits no bound in terms of its size. Discrete Morse theory
+enters only through the order: in the order given by a collapse that declares
+critical cells of the highest dimension, every gradient pair is an apparent pair
+and a build performs column additions only in critical columns. On five workload
+families with up to \NumSizeMax{} simplices, every Betti vector reported by an
+exact method was compared with at least one reference computation and
+\NumCoverageExternalPct\,\% with one outside our engine (closed forms or GUDHI);
+none disagreed. Where edits
+create and destroy only small cycles, in refined and carved 3-balls and in flag
+complexes, the latency of the dynamic reduced basis depends little on the size of
+the complex: at \NumWTwoNThirtyThreeSEightSize{} simplices all its variants are
+\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
+times faster than static recomputation, with or without the Morse order. The
+Morse order saves nothing at build time on our workloads and helps between
+rebuilds only on some of them. On punctured surfaces the method is at most
+\NumWOneSphereLFiveMmhmSpeedupFullId{} times faster on average and has the worse
+tail latency, and combinatorial counters are far cheaper; on non-locality
+witnesses its cost grows linearly with the complex, as the theory predicts. An
+ablation that applies version~1's re-reduction rule without basis tracking (and
+without its recompression and gates) errs within the first
+\NumLcrFirstWrongMaxAll{} updates of every run on surfaces, 3-balls and flag
+complexes, and almost always afterwards.
+% PENDING-ABLATION: lcr-rc -- if its error rate is informative, replace the last
+% sentence's scope with the result for lcr with recompression (m = 32).
 \end{abstract}

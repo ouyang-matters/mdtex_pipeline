@@ -3,18 +3,16 @@
 \section{Discussion}\label{sec:discussion}
 
 \paragraph{Two regimes.}
-When the edits create and destroy only small cycles, as in W2, W4 and the larger
-W3 instances, the latency of the DRB methods depends little on the size of the
-complex; on the largest W2 and W4 instances \method{mmhm} is
-\NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{} and
-\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullId{} times faster than static
-recomputation. When an edit creates or destroys a cycle that spans the complex,
-as on W5 and on W1 whenever the last hole closes or the first one opens, the cost
-is linear in the size of that cycle, as \cref{prop:nonlocal} predicts.
-Recomputation is also linear, so the DRB keeps at most a constant factor: on W1
-at most \NumWOneSphereLFiveMmhmSpeedupFullId, with several variants slower than
-recomputation, and on W1 and W5a its tail latency is worse. Which regime a
-workload is in is a property of its cycles, not of the size of its edits.
+On W2, W4 and the larger W3 instances, the latency of the DRB methods depends
+little on the size of the complex. On W5, \cref{prop:nonlocal} forces a cost
+linear in the size of the toggled cycle, and the measurements follow it. On W1
+the median cost of an update also grows with the complex, although typical
+updates create only small cycles; we have not measured why (E5). Where the cost
+grows with the complex, recomputation is also linear, so the DRB keeps at most a
+constant factor: on W1 at most \NumWOneSphereLFiveMmhmSpeedupFullId, with several
+variants slower than recomputation, and on W1 and W5a its tail latency is worse.
+Five workload families do not settle which properties of a workload decide the
+regime.
 
 \subsection{Limitations}\label{sec:limitations}
 
@@ -30,35 +28,50 @@ rationals~\cite{hatcher2002algebraic}. We have neither implemented nor tested
 other coefficients. The proofs of \cref{sec:theory} hold in every dimension, but
 the engine and all experiments are restricted to dimension at most three.
 
-\paragraph{No locality theorem.}
+\paragraph{No locality theorem, and proxies for cost.}
 By \cref{prop:nonlocal} the cost of an update is bounded only in
-output-sensitive terms (\cref{prop:cost}). Where no spanning cycle is created
-these quantities stayed small: on the W2 and W4 instances of E8 the median
-number of column additions per update was at most
-\NumEEightWFourPlaneNSixteenThousandDTwoDrbIdAddsMed. Nothing guarantees this
-for other workloads.
+output-sensitive terms (\cref{prop:cost}), and what we log are proxies for those
+terms: counts of additions and footprints, not the sizes of the chains involved
+(\cref{sec:cost}). The proxies and the time can disagree (E7). Where no spanning
+cycle is created the proxies stayed small: on the W2 and W4 instances of E8 the
+median number of column additions per update was at most
+\NumEEightWFourPlaneNSixteenThousandDTwoDrbIdAddsMed. Nothing guarantees this for
+other workloads.
 
 \paragraph{Rebuild policy and the Morse order.}
 The growth threshold $\alpha$ and the period $m$ are heuristics, and their effect
-depends on the workload (E7); a method that may rebuild in the Morse order also
-pays for the index such a rebuild needs (E4). \Cref{lem:apparent} and its
-corollaries describe the state right after a rebuild only
-(\cref{rem:morse-scope}). Between rebuilds the Morse order is a heuristic whose
-measured benefit is real but modest (E8), and for one-shot static recomputation
-the collapse never paid for itself (E1).
+depends on the workload (E7): rebuilding pays off on W3, hardly ever triggers on
+W2 and W4, and on W1, where the basis also grows, helps the smaller instances but
+not the largest. A method that may rebuild in the Morse order also pays, we
+believe, for the index such a rebuild needs (E4). \Cref{lem:apparent} and its
+corollaries locate the work of a build in the critical columns; they do not make
+it smaller than in a good insertion order, and on our workloads it was not
+(E8). Between rebuilds the Morse order is a heuristic whose effect ranges from
+clearly positive (large surfaces, W3, larger W4) to negative (W5). For one-shot
+static recomputation the collapse never paid for itself (E1).
+
+\paragraph{Baselines.}
+The insertion order of \method{full-id} depends on the history of edits, and its
+cost drifts upward during the W3 and the smaller W4 runs; we report matched
+windows where this matters (E3, E4). A static baseline in a canonical order is
+not part of this evaluation. \method{gudhi} runs through its Python interface
+and computes persistence pairs; its times are a reference point for a widely used
+library, not the best possible static recomputation.
 
 \paragraph{Measurements.}
 All timings come from one virtual machine, single-threaded runs and one compiler
-setting. The run-to-run coefficient of variation of the median latency was
-\NumNoiseCVMmhmMed\,\% for \method{mmhm} and \NumNoiseCVFullIdMed\,\% for
-\method{full-id}, and one run was an outlier attributable to the machine (E1).
-The counts of column additions, the footprints and $\nnz(R)+\nnz(V)$ do not
-depend on the machine. \method{gudhi} runs through its Python interface and
-computes persistence pairs; its times are a reference point for a widely used
-library, not the best possible static recomputation. The dynamic reduced basis
-stores $V$ and the footprint index, which recomputation does not need; we did not
-measure memory. W4 is truncated at dimension $D$, so it measures the algebra on
-non-manifold complexes, not the topology of point clouds (\cref{tab:w4-betti}).
+setting. Run-to-run variation is a few percent on most instances we repeated and
+much larger on microsecond-scale updates (\cref{sec:exp-timing}); we mark
+differences within the per-seed ranges as within noise. One run was an outlier,
+which a rerun did not reproduce (E1). The counters do not depend on the machine.
+We did not measure memory; as a proxy, $\nnz(R)+\nnz(V)$ reached at most
+\NumWTwoNThirtyThreeSEightMmhmNnzPerSimplex{} entries per simplex on the largest
+W2 instance, \NumWOneTorusFiveHundredDrbIdNnzPerSimplex{} on the largest torus
+(\method{drb-id}) and \NumWThreeNTwentySevenDrbIdNnzPerSimplex{} on the largest
+W3 instance (\method{drb-id}), against \NumWThreeNTwentySevenMmhmNnzPerSimplex{}
+for \method{mmhm} there. W4 is truncated at dimension $D$, so it measures the
+algebra on non-manifold complexes, not the topology of point clouds
+(\cref{tab:w4-betti}).
 
 \subsection{When to use what}\label{sec:when}
 
@@ -83,17 +96,19 @@ built by insertions only, the algorithm of Delfinado and
 Edelsbrunner~\cite{delfinado1995incremental} needs near-linear total time.
 
 \paragraph{Small complexes, or tail latency under global cycles:} static
-recomputation with clearing in insertion order (\method{full-id}), not in the
-Morse order. It stores no basis, it was faster on average than two DRB variants
-on the smallest W3 instance, and it had the lower p99 on every W1 instance and at
-every size of W5a. Within the edit sizes we measured ($s\le64$ on W2) it did not
-overtake the DRB methods on average; we did not test larger batches.
+recomputation with clearing (\method{full-id}), not in the Morse order. It stores
+no basis, it was faster on average than \method{drb-id} on the smallest W3
+instance, and it had the lower p99 on every W1 instance and, beyond noise in all
+but one case, on every W5a instance. Within the
+edit sizes we measured ($s\le64$ on W2) it did not overtake the DRB methods on
+average; we did not test larger batches.
 
-\paragraph{Edit-local workloads on large general complexes:} \method{mmhm} with
-the growth-triggered rebuild. It was \NumWTwoNThirtyThreeSEightMmhmSpeedupFullId{}
-times faster than \method{full-id} on the largest W2 instance,
-\NumWFourPlaneNSixteenThousandDTwoMmhmSpeedupFullId{} times on the largest W4
-instance, and the fastest method at every size of W3, where the basis grows. Its
-cost follows the cycles that the edits create or destroy, not the size of the
-complex, and it handles non-manifold complexes in which every Betti number
-changes.
+\paragraph{Edit-local updates on large general complexes:} a dynamic reduced
+basis. On W2 every variant did equally well, so the gain there comes from the
+basis itself, not from the Morse order or rebuilds. Where the basis grows, as on W3,
+the growth-triggered rebuild in the Morse order (\method{mmhm}) was the fastest
+method at every size; on the larger W4 instances and the large W1 surfaces the
+Morse order without rebuilds (\method{mmhm-norb}) was at least as fast; on the
+non-locality witnesses the insertion order was faster. The DRB handles
+non-manifold complexes in which every Betti number changes, and on W2 and W4 its
+latency hardly depended on the size of the complex.
