@@ -1,0 +1,137 @@
+{
+ "exp": "E0rc",
+ "question": "How wrong is v1's rule with v1's periodic recompression (m = 32)? lcr-rc with --verify-every 1 on the E0 instances",
+ "T": 2000,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "verify_every": 50,
+ "instances": [
+  {
+   "workload": "w1_sphere_L5",
+   "gen": [
+    "w1",
+    "--surface",
+    "sphere",
+    "--level",
+    "5"
+   ],
+   "stem": "w1_sphere_L5_k2_h3_T2000_seed{seed}",
+   "K0_approx": 61442
+  },
+  {
+   "workload": "w1_torus_128",
+   "gen": [
+    "w1",
+    "--surface",
+    "torus",
+    "--n",
+    "128",
+    "--m",
+    "128"
+   ],
+   "stem": "w1_torus_128x128_k2_h3_T2000_seed{seed}",
+   "K0_approx": 98304
+  },
+  {
+   "workload": "w2_N15_s8",
+   "gen": [
+    "w2",
+    "--N",
+    "15",
+    "--s",
+    "8"
+   ],
+   "stem": "w2_N15_s8_T2000_seed{seed}",
+   "K0_approx": 92787
+  },
+  {
+   "workload": "w3_N14_k2",
+   "gen": [
+    "w3",
+    "--N",
+    "14",
+    "--k",
+    "2"
+   ],
+   "stem": "w3_N14_k2_c4_T2000_seed{seed}",
+   "K0_approx": 74957
+  },
+  {
+   "workload": "w4_2d_n4000_D2",
+   "gen": [
+    "w4",
+    "--n",
+    "4000",
+    "--ambient",
+    "2",
+    "--D",
+    "2"
+   ],
+   "stem": "w4_2d_n4000_deg10_D2_T2000_seed{seed}",
+   "K0_approx": 63911
+  },
+  {
+   "workload": "w4_2d_n4000_D3",
+   "gen": [
+    "w4",
+    "--n",
+    "4000",
+    "--ambient",
+    "2",
+    "--D",
+    "3"
+   ],
+   "stem": "w4_2d_n4000_deg10_D3_T2000_seed{seed}",
+   "K0_approx": 111763
+  },
+  {
+   "workload": "w4_3d_n4000_D3",
+   "gen": [
+    "w4",
+    "--n",
+    "4000",
+    "--ambient",
+    "3",
+    "--D",
+    "3"
+   ],
+   "stem": "w4_3d_n4000_deg10_D3_T2000_seed{seed}",
+   "K0_approx": 85207
+  },
+  {
+   "workload": "w5a_L10000",
+   "gen": [
+    "w5a",
+    "--L",
+    "10000"
+   ],
+   "stem": "w5a_cycle_L10000_T2000_seed{seed}",
+   "K0_approx": 20000
+  },
+  {
+   "workload": "w5b_L5",
+   "gen": [
+    "w5b",
+    "--level",
+    "5"
+   ],
+   "stem": "w5b_sphere_L5_T2000_seed{seed}",
+   "K0_approx": 61442
+  }
+ ],
+ "methods": [
+  {
+   "label": "lcr-rc",
+   "method": "lcr-rc",
+   "verify_every": 1,
+   "timed": false,
+   "args": [
+    "--period",
+    "32"
+   ]
+  }
+ ]
+}

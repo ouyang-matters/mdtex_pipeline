@@ -62,18 +62,18 @@ set_tests_properties(gen_ball gen_torus PROPERTIES FIXTURES_SETUP seqs)
 add_test(NAME cli_check_ball COMMAND mmhm check --seq ${SEQDIR}/ball.seq)
 add_test(NAME cli_check_torus COMMAND mmhm check --seq ${SEQDIR}/torus.seq)
 set_tests_properties(cli_check_ball cli_check_torus PROPERTIES FIXTURES_REQUIRED seqs)
-foreach(m full-id full-morse drb-id drb-id-rb mmhm mmhm-norb lcr)
+foreach(m full-id full-morse full-sorted drb-id drb-id-rb drb-rand mmhm mmhm-norb lcr lcr-rc)
   add_test(NAME cli_ball_${m} COMMAND mmhm run --method ${m} --seq ${SEQDIR}/ball.seq
     --verify-every 1 --out ${SEQDIR}/ball_${m}.csv --betti-out ${SEQDIR}/ball_${m}.betti)
   set_tests_properties(cli_ball_${m} PROPERTIES FIXTURES_REQUIRED seqs)
 endforeach()
-foreach(m full-id full-morse drb-id drb-id-rb mmhm mmhm-norb lcr euler)
+foreach(m full-id full-morse full-sorted drb-id drb-id-rb drb-rand mmhm mmhm-norb lcr lcr-rc euler)
   add_test(NAME cli_torus_${m} COMMAND mmhm run --method ${m} --seq ${SEQDIR}/torus.seq
     --verify-every 1 --out ${SEQDIR}/torus_${m}.csv)
   set_tests_properties(cli_torus_${m} PROPERTIES FIXTURES_REQUIRED seqs)
 endforeach()
 # Same runs without verification (the store then skips the insertion index).
-foreach(m full-id full-morse drb-id drb-id-rb mmhm mmhm-norb)
+foreach(m full-id full-morse full-sorted drb-id drb-id-rb drb-rand mmhm mmhm-norb)
   add_test(NAME cli_ball_noverify_${m} COMMAND mmhm run --method ${m} --seq ${SEQDIR}/ball.seq
     --out ${SEQDIR}/ball_nv_${m}.csv --betti-out ${SEQDIR}/ball_nv_${m}.betti)
   set_tests_properties(cli_ball_noverify_${m} PROPERTIES FIXTURES_REQUIRED seqs)
@@ -92,5 +92,5 @@ set_tests_properties(cli_euler_rejects_ball PROPERTIES FIXTURES_REQUIRED seqs WI
 add_test(NAME cli_betti_agree COMMAND ${CMAKE_COMMAND}
   -DDIR=${SEQDIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/compare_betti.cmake)
 set_tests_properties(cli_betti_agree PROPERTIES DEPENDS
-  "cli_ball_full-id;cli_ball_full-morse;cli_ball_drb-id;cli_ball_drb-id-rb;cli_ball_mmhm;cli_ball_mmhm-norb;cli_ball_noverify_full-id;cli_ball_noverify_full-morse;cli_ball_noverify_drb-id;cli_ball_noverify_drb-id-rb;cli_ball_noverify_mmhm;cli_ball_noverify_mmhm-norb;cli_ball_drb-id-rb_rebuilds"
+  "cli_ball_full-id;cli_ball_full-morse;cli_ball_drb-id;cli_ball_drb-id-rb;cli_ball_mmhm;cli_ball_mmhm-norb;cli_ball_noverify_full-id;cli_ball_noverify_full-morse;cli_ball_noverify_drb-id;cli_ball_noverify_drb-id-rb;cli_ball_noverify_mmhm;cli_ball_noverify_mmhm-norb;cli_ball_drb-id-rb_rebuilds;cli_ball_full-sorted;cli_ball_drb-rand;cli_ball_noverify_full-sorted;cli_ball_noverify_drb-rand"
   FIXTURES_REQUIRED seqs)

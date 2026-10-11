@@ -35,8 +35,15 @@ COLOR = {
 }
 MARKER = {"mmhm": "o", "drb-id": "^", "mmhm-norb": "h", "drb-id-rb": "v", "full-id": "s",
           "full-morse": "D", "gudhi": "P", "euler": "X"}
+# full-sorted (review follow-up) is a variant of the full-id baseline: same hue,
+# dashed line, hollow square -- no ninth palette slot.
+COLOR["full-sorted"] = COLOR["full-id"]
+MARKER["full-sorted"] = "s"
+LINESTYLE = {"full-sorted": (0, (3.5, 1.6))}
+HOLLOW = {"full-sorted"}
 # legend / plotting order: dynamic methods first, then static baselines
-ORDER = ["mmhm", "mmhm-norb", "drb-id-rb", "drb-id", "full-id", "full-morse", "gudhi", "euler"]
+ORDER = ["mmhm", "mmhm-norb", "drb-id-rb", "drb-id", "full-id", "full-sorted", "full-morse", "gudhi",
+         "euler"]
 
 INK = "#0b0b0b"
 INK2 = "#52514e"
@@ -98,8 +105,21 @@ def method_line(ax, x, y, m, label=None, **kw):
     """Line + markers for method m, with a white ring around markers."""
     kw.setdefault("lw", 1.4)
     kw.setdefault("ms", 4.5)
+    if m in HOLLOW:
+        return ax.plot(x, y, color=COLOR[m], marker=MARKER[m], ls=LINESTYLE.get(m, "-"),
+                       mfc="white", mec=COLOR[m], markeredgewidth=1.0,
+                       label=label if label is not None else m, **kw)
     return ax.plot(x, y, color=COLOR[m], marker=MARKER[m], markeredgecolor="white",
-                   markeredgewidth=0.6, label=label if label is not None else m, **kw)
+                   markeredgewidth=0.6, ls=LINESTYLE.get(m, "-"),
+                   label=label if label is not None else m, **kw)
+
+
+def legend_handle(m):
+    from matplotlib.lines import Line2D
+    if m in HOLLOW:
+        return Line2D([], [], color=COLOR[m], marker=MARKER[m], ls=LINESTYLE.get(m, "-"),
+                      mfc="white", mec=COLOR[m], mew=1.0, label=m)
+    return Line2D([], [], color=COLOR[m], marker=MARKER[m], mec="white", mew=0.6, label=m)
 
 
 def band(ax, x, lo, hi, m):

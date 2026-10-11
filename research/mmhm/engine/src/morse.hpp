@@ -54,4 +54,14 @@ void morse_keys(const Complex& cx, const MorseOrder& mo, std::vector<uint32_t>& 
 // increasing insertion order (only the order within a dimension matters).
 void insertion_keys(Complex& cx, std::vector<uint32_t>& cell2key, std::vector<uint32_t> cols[4]);
 
+// Canonical keys (full-sorted): per dimension, cells in lexicographic order of
+// their vertex tuples -- a function of K as a set, independent of history.
+void tuple_keys(Complex& cx, std::vector<uint32_t>& cell2key, std::vector<uint32_t> cols[4]);
+
+// Random keys (drb-rand): per dimension, a uniformly random permutation of the
+// alive cells drawn from a generator seeded with `seed` (cells are first put
+// in vertex-tuple order, so the result depends only on K and the seed).
+void random_keys(Complex& cx, std::vector<uint32_t>& cell2key, std::vector<uint32_t> cols[4],
+                 uint64_t seed);
+
 }  // namespace mmhm

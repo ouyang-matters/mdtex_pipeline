@@ -62,7 +62,8 @@ DATA = os.path.join(ROOT, "workloads", "data")
 ORACLE = os.path.join(ROOT, "oracle", "gudhi_oracle.py")
 RESULTS = os.path.join(HERE, "results")
 
-EXACT = {"full-id", "full-morse", "gudhi", "drb-id", "drb-id-rb", "mmhm", "mmhm-norb"}
+EXACT = {"full-id", "full-morse", "full-sorted", "gudhi", "drb-id", "drb-id-rb", "drb-rand",
+         "mmhm", "mmhm-norb"}
 MANIFEST_FIELDS = ["exp", "workload", "label", "method", "seed", "instance", "T", "args",
                    "verify_every", "timed", "exit", "wall_s", "started", "cmd", "stderr_tail"]
 

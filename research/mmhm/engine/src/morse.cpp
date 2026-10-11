@@ -1,5 +1,7 @@
 #include "morse.hpp"
 
+#include <random>
+
 namespace mmhm {
 
 void MorseBuilder::compute(Complex& cx, MorseOrder& out, bool record_pairs) {
@@ -99,6 +101,40 @@ void insertion_keys(Complex& cx, std::vector<uint32_t>& cell2key, std::vector<ui
     cols[d].clear();
     if (d > cx.maxdim()) continue;
     cx.cells_by_insertion(d, cols[d]);
+    for (uint32_t c : cols[d]) cell2key[c] = next++;
+  }
+}
+
+void tuple_keys(Complex& cx, std::vector<uint32_t>& cell2key, std::vector<uint32_t> cols[4]) {
+  if (cell2key.size() < cx.capacity()) cell2key.resize(cx.capacity(), NONE);
+  uint32_t next = 0;
+  for (int d = 0; d < 4; ++d) {
+    cols[d].clear();
+    if (d > cx.maxdim()) continue;
+    const auto& t = cx.cells_by_tuple(d);
+    cols[d].reserve(t.size());
+    for (const auto& e : t) {
+      cols[d].push_back(e.c);
+      cell2key[e.c] = next++;
+    }
+  }
+}
+
+void random_keys(Complex& cx, std::vector<uint32_t>& cell2key, std::vector<uint32_t> cols[4],
+                 uint64_t seed) {
+  if (cell2key.size() < cx.capacity()) cell2key.resize(cx.capacity(), NONE);
+  std::mt19937_64 rng(seed);
+  uint32_t next = 0;
+  for (int d = 0; d < 4; ++d) {
+    cols[d].clear();
+    if (d > cx.maxdim()) continue;
+    for (const auto& e : cx.cells_by_tuple(d)) cols[d].push_back(e.c);
+    // Fisher-Yates with the explicit generator (std::shuffle's distribution
+    // use is implementation-defined; this is reproducible across libraries)
+    for (size_t i = cols[d].size(); i > 1; --i) {
+      const size_t j = size_t(rng() % i);
+      std::swap(cols[d][i - 1], cols[d][j]);
+    }
     for (uint32_t c : cols[d]) cell2key[c] = next++;
   }
 }

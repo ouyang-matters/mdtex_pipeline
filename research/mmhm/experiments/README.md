@@ -34,7 +34,7 @@ python3 workloads_manifest.py          # hashes must match: exits 3 otherwise
 
 # 2. the sweep (resumable; <= 2 timed runs at once; 30-min per-run limit)
 python3 run.py configs/E1.json configs/E2.json configs/E3.json configs/E4.json \
-    configs/E5.json configs/E6.json configs/E7.json configs/E0.json \
+    configs/E5.json configs/E6.json configs/E7.json configs/E0.json configs/E0rc.json \
     --mixed --timed-slots 2 --untimed-slots 2 --timeout 1800
 
 # 3. timing noise / interference, sample cross-check

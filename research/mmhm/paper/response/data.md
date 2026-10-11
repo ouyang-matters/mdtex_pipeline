@@ -180,3 +180,66 @@ p99) for every instance. At level 8: `mmhm` 1.13, `mmhm-norb` 1.15,
 - **Results:** `results/{E0_correctness.csv (coverage columns), WORKLOADS_MANIFEST.csv, ENGINE.txt, summary_drift.csv, summary_build.csv, summary_pairs.csv, summary_noise.csv, summary_coverage.csv, summary_overlap.csv}`, `results/noise/noise_extra.csv` and its raw runs, `results/rerun/`.
 - **Generated tables:** `paper/generated/{tab_coverage, tab_build, tab_drift, tab_seed_ranges, tab_seed_ranges_p99, tab_noise}.tex` (new) and `tab_rebuild_effect.tex` (changed).
 - **Figures:** `figures/f2_*.py` and `f3_*.py`, their PDFs, and `figures/README.md`.
+
+## Follow-up: three new methods (M1, M3, M4)
+
+The engine gained three methods (`engine/src/methods.{hpp,cpp}`, `morse.{hpp,cpp}`, `lcr.hpp`, `main.cpp`). Each has a row in the SPEC §5 table and is covered by the randomized differential tests, the known-complex tests, the CLI tests and the sample cross-check. ctest passes 46 of 46 in Release and in Debug.
+- **`lcr-rc`** is `lcr` plus v1's periodic recompression, with m = 32 (`--period`).
+- **`full-sorted`** is a static recomputation in the canonical order: dimension, then lexicographic vertex tuple.
+- **`drb-rand`** is the DRB built in a seeded uniformly random order and never rebuilt.
+
+Tests:
+- `full-sorted` and `drb-rand` are in the exact configurations. `lcr-rc` with m = 1 recompresses after every update, so it is tested as exact.
+- In the sample cross-check, `full-sorted` and `drb-rand` have 0 mismatches. `lcr-rc` is wrong on `\NumSampleLcrRcWrong` = 7 of 8 samples.
+
+Runs: 108 new runs, all finished by 08:15 UTC. `results/NOT_RUN.csv` is empty.
+- **Gate:** `verify.py` passes on 1,290 exact runs with 0 mismatches.
+- **Coverage macros:** the B2 coverage macros update automatically. They are now 52.4% for all three references and 98.3% for at least one external one.
+
+**M1: `lcr-rc`** (`configs/E0rc.json`; untimed, `--verify-every 1`, E0 instances, 3 seeds). It models v1's periodic trigger only: no Morse complex, no ρ trigger, no gates.
+- **Overall:** `\NumLcrRcErrAll` = 60.2% of updates wrong, against `\NumLcrErrAll` = 83.1% for `lcr`.
+- **Per instance:** `\NumLcrRc<inst>ErrPct`.
+  - W2 N=15: 2.8%.
+  - W5b level 5: 0.8%.
+  - W5a: 0.0%.
+  - W1, W3 and W4: 84.5–93.8%.
+- **Time to first error** is unchanged at update 1–16 (`\NumLcrRc<inst>FirstWrongList`). The recompression clears the error every 32 updates, but the error comes back within a few updates on W1, W3 and W4.
+- **Table:** the lower block of `tab_correctness.tex` now has `lcr` and `lcr-rc` (m = 32) side by side.
+
+**M4: `full-sorted`** (all E1, E3, E4 and E5 instances, 3 seeds, timed).
+
+Drift (`\Num<inst>FullSortedDriftMed`, `tab_drift.tex`):
+- W2: ×0.98–1.04, i.e. none.
+- W4: ×1.01–1.23, against `full-id`'s ×1.15–1.64. Most of W4's drift therefore came from `full-id`'s order.
+- W3: ×1.44–1.84, against ×1.44–2.86. On W3, part of the drift is the order and part is the workload: the cavities change the complex.
+
+Speedups of `mmhm` over `full-sorted` (`\Num<inst><m>SpeedupFullSorted`, plus `…FirstBlock` and `…LastBlock` on matched windows):
+
+| instance | overall | updates 1–200 | updates 1801–2000 | vs `full-id` |
+|---|---|---|---|---|
+| W3 N=27 | **5.99×** | 7.45× | 8.44× | 9.46× |
+| W3 N=20 | 3.28× | | | 4.57× |
+| W2 N=33 | 88.6× | 44.2× | 100× | |
+| W4 16k | 114× | | | 94.5× |
+
+On W4 16k, `full-sorted` (14.4 ms) is slower than `full-id` (12.0 ms).
+
+Figures and summaries:
+- **F2:** `full-sorted` is drawn as a dashed line with hollow squares in `full-id`'s colour.
+- **Summary tables:** `full-sorted` has its own rows (`tab_summary.tex`) and column (`tab_summary_full*.tex`).
+- **`tab_summary.tex` scope change:** to keep T2 on one page it no longer has the W4 2D n=4k D=3 group; that instance stays in the full tables.
+
+**M3: `drb-rand`** (one mid size per family, 3 seeds, timed: W1 torus 128², W2 N=15, W3 N=14, W4 2D n=4k D=2). Table `tab_rand.tex` puts it beside insertion order (`drb-id`) and Morse order (`mmhm-norb`).
+- **After INIT, nnz:** a random order gives 1.8–2.3× the nnz(R)+nnz(V) of either structured order (`\Num<inst>NnzInitRandOverId`, `…RandOverMorse`).
+- **Build additions** (`\Num<inst>DrbRandBuildAdds`):
+  - W2: 72k, against 192 (insertion) and 0 (Morse).
+  - W3: 60k, against 0 and 0.
+  - W1: 49k, against 33k and 33k.
+  - W4: 213k, against 100k and 108k.
+- **Amortized latency** (`\Num<inst>DrbRandOverDrbIdAmort`, `…OverMmhmNorbAmort`). Each pair is `drb-rand` against `drb-id` / `mmhm-norb`:
+  - W2: 348 vs 88.4 / 91.1 µs (3.9×).
+  - W1: 8,740 vs 2,950 / 2,420 µs.
+  - W3: 4,760 vs 3,180 / 2,600 µs.
+  - W4: 167 vs 140 / 113 µs.
+
+So a structured order matters a great deal compared with a random one. Between the two structured orders the difference is small and depends on the workload, as before.

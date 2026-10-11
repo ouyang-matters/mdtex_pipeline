@@ -5,7 +5,7 @@ if(len EQUAL 0)
   message(FATAL_ERROR "empty reference betti file")
 endif()
 foreach(m full-morse drb-id drb-id-rb mmhm mmhm-norb nv_full-id nv_full-morse nv_drb-id nv_drb-id-rb nv_mmhm
-          nv_mmhm-norb drb-id-rb_rb)
+          nv_mmhm-norb drb-id-rb_rb full-sorted drb-rand nv_full-sorted nv_drb-rand)
   file(READ ${DIR}/ball_${m}.betti got)
   if(NOT got STREQUAL ref)
     message(FATAL_ERROR "betti file of ${m} differs from full-id")

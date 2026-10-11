@@ -9,7 +9,9 @@ For each sample in workloads/samples/ this runs
     plus mmhm and drb-id-rb with aggressive rebuilds (alpha 0.05, period 4);
   * the pure-Python reference (reference/drb_ref.py) for drb-id, mmhm-norb
     and mmhm;
-  * lcr (v1's rule) with --verify-every 1, to count its wrong states;
+  * full-sorted and drb-rand (review round), exact;
+  * lcr (v1's rule) and lcr-rc (lcr + v1's periodic recompression, m = 32)
+    with --verify-every 1, to count their wrong states;
 
 and compares every Betti file, state by state, with the committed GUDHI
 Betti file (<sample>.betti) and, where it exists, the analytic
@@ -42,7 +44,10 @@ ENGINE_CONFIGS = [
     ("mmhm-norb", "mmhm-norb", []),
     ("mmhm(a0.05,p4)", "mmhm", ["--alpha", "0.05", "--period", "4"]),
     ("drb-id-rb(a0.05,p4)", "drb-id-rb", ["--alpha", "0.05", "--period", "4"]),
+    ("full-sorted", "full-sorted", []),
+    ("drb-rand", "drb-rand", []),
 ]
+INEXACT = [("lcr", "lcr", []), ("lcr-rc", "lcr-rc", ["--period", "32"])]
 REF_CONFIGS = [("ref:drb-id", "drb-id", []), ("ref:mmhm-norb", "mmhm-norb", []),
                ("ref:mmhm", "mmhm", [])]
 
@@ -69,7 +74,7 @@ def main():
             exp_path = os.path.join(SAMPLES, name + ".expected.betti")
             expected = read_betti(exp_path) if os.path.exists(exp_path) else None
             jobs = []
-            for label, meth, extra in ENGINE_CONFIGS + [("lcr", "lcr", [])]:
+            for label, meth, extra in ENGINE_CONFIGS + INEXACT:
                 out = os.path.join(tmp, f"{name}_{len(jobs)}.betti")
                 csvp = os.path.join(tmp, f"{name}_{len(jobs)}.csv")
                 cmd = [ENGINE, "run", "--method", meth, "--seq", seq, "--verify-every", "1",
@@ -96,7 +101,7 @@ def main():
                        "internal_mismatches": internal,
                        "first_wrong_state": (bad_g[0] if bad_g else "")}
                 rows.append(row)
-                exact = meth != "lcr"
+                exact = meth not in ("lcr", "lcr-rc")
                 ok = p.returncode == 0 and len(got) == len(gudhi) and not bad_g and not bad_e
                 if exact and not ok:
                     failed.append((name, label, " ".join(cmd), p.stderr[-500:]))

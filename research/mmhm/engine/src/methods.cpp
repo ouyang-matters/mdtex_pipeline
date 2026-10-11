@@ -45,6 +45,8 @@ void Method::apply(const Edit& e) {
 void FullMethod::recompute() {
   if (order_ == Order::Insertion) {
     insertion_keys(cx, cell2key_, cols_);
+  } else if (order_ == Order::Sorted) {
+    tuple_keys(cx, cell2key_, cols_);
   } else {
     mb_.compute(cx, mo_, false);
     morse_keys(cx, mo_, cell2key_, cols_);
@@ -64,12 +66,15 @@ DrbMethod::DrbMethod(int maxdim, Order o, bool rebuild, const MethodOptions& opt
 
 const char* DrbMethod::name() const {
   if (order_ == Order::Insertion) return rebuild_ ? "drb-id-rb" : "drb-id";
+  if (order_ == Order::Random) return "drb-rand";
   return rebuild_ ? "mmhm" : "mmhm-norb";
 }
 
 void DrbMethod::do_build() {
   if (order_ == Order::Insertion) {
     insertion_keys(cx, cell2key_, cols_);
+  } else if (order_ == Order::Random) {
+    random_keys(cx, cell2key_, cols_, opt_.rand_seed);
   } else {
     mb_.compute(cx, mo, record_pairs);
     morse_keys(cx, mo, cell2key_, cols_);
@@ -114,6 +119,31 @@ void LcrMethod::build() {
   mb_.compute(cx, mo_, false);
   morse_keys(cx, mo_, cell2key_, cols_);
   lcr.build(cx, cell2key_, uint32_t(cx.total()), cols_);
+}
+
+void LcrMethod::end_update(uint64_t t) {
+  last_rebuild = false;
+  last_rebuild_ns = 0;
+  if (!period_ || t - t_last_ < period_) return;
+  // v1's periodic recompression: rebuild every reduced column from scratch in
+  // the current key order (keys renumbered 0..N-1, order preserved).
+  const auto t0 = std::chrono::steady_clock::now();
+  for (int d = 0; d < 4; ++d) cols_[d].clear();
+  for (uint32_t c = 0; c < cx.capacity(); ++c)
+    if (cx.alive(c)) cols_[cx.dim(c)].push_back(c);
+  if (cell2key_.size() < cx.capacity()) cell2key_.resize(cx.capacity(), NONE);
+  uint32_t next = 0;
+  for (int d = 0; d < 4; ++d) {
+    std::sort(cols_[d].begin(), cols_[d].end(),
+              [&](uint32_t a, uint32_t b) { return lcr.key_of(a) < lcr.key_of(b); });
+    for (uint32_t c : cols_[d]) cell2key_[c] = next++;
+  }
+  lcr.build(cx, cell2key_, next, cols_);
+  const auto t1 = std::chrono::steady_clock::now();
+  t_last_ = t;
+  last_rebuild = true;
+  last_rebuild_ns = uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count());
+  ++rebuilds;
 }
 
 void LcrMethod::betti(int64_t b[4]) {
@@ -179,14 +209,19 @@ void EulerMethod::betti(int64_t b[4]) {
 // --------------------------------------------------------------- factory ----
 
 const std::vector<std::string>& method_names() {
-  static const std::vector<std::string> names = {"full-id", "full-morse", "drb-id", "drb-id-rb",
-                                                 "mmhm",    "mmhm-norb",  "lcr",    "euler"};
+  static const std::vector<std::string> names = {
+      "full-id", "full-morse", "full-sorted", "drb-id", "drb-id-rb", "drb-rand",
+      "mmhm",    "mmhm-norb",  "lcr",         "lcr-rc", "euler"};
   return names;
 }
 
 std::unique_ptr<Method> make_method(const std::string& name, int maxdim, const MethodOptions& opt) {
   if (name == "full-id") return std::make_unique<FullMethod>(maxdim, Order::Insertion);
   if (name == "full-morse") return std::make_unique<FullMethod>(maxdim, Order::Morse);
+  if (name == "full-sorted") return std::make_unique<FullMethod>(maxdim, Order::Sorted);
+  if (name == "drb-rand") return std::make_unique<DrbMethod>(maxdim, Order::Random, false, opt);
+  if (name == "lcr-rc")
+    return std::make_unique<LcrMethod>(maxdim, opt.period ? opt.period : uint64_t(32));
   if (name == "drb-id") return std::make_unique<DrbMethod>(maxdim, Order::Insertion, false, opt);
   if (name == "drb-id-rb") return std::make_unique<DrbMethod>(maxdim, Order::Insertion, true, opt);
   if (name == "mmhm") return std::make_unique<DrbMethod>(maxdim, Order::Morse, true, opt);

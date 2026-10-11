@@ -45,7 +45,8 @@ import run as runner  # noqa: E402
 ROOT = os.path.dirname(HERE)
 DATA = os.path.join(ROOT, "workloads", "data")
 RES = os.path.join(HERE, "results")
-EXACT = {"full-id", "full-morse", "gudhi", "drb-id", "drb-id-rb", "mmhm", "mmhm-norb", "euler"}
+EXACT = {"full-id", "full-morse", "full-sorted", "gudhi", "drb-id", "drb-id-rb", "drb-rand",
+         "mmhm", "mmhm-norb", "euler"}
 GUDHI_FULL_LIMIT = 3e5
 GUDHI_PREFIX = 200
 CLOSED_FORM = {"w1", "w2", "w3", "w5a", "w5b"}  # workloads with analytic Betti numbers
@@ -110,10 +111,11 @@ def main():
                     c0 = read_csv(o.csv)[0]
                     K0 = sum(int(c0[f"n{k}"]) for k in range(4))
                     break
-        if r.method == "lcr":
+        if r.method in ("lcr", "lcr-rc"):
             wrong = [int(x["t"]) for x in rows_csv if int(x["mismatch"]) and int(x["t"]) > 0]
             ver = sum(int(x["verified"]) for x in rows_csv if int(x["t"]) > 0)
-            lcr_rows.append({"workload": r.workload, "instance": r.instance, "seed": r.seed,
+            lcr_rows.append({"method": r.method, "workload": r.workload, "instance": r.instance,
+                             "seed": r.seed,
                              "K0": K0, "T": T_done, "verified_updates": ver,
                              "wrong_updates": len(wrong),
                              "frac_wrong": round(len(wrong) / ver, 6) if ver else "",
@@ -188,7 +190,7 @@ def main():
         rows.append(row)
 
     rows.sort(key=lambda x: (x["exp"], x["workload"], x["label"], x["seed"]))
-    lcr_rows.sort(key=lambda x: (x["workload"], x["seed"]))
+    lcr_rows.sort(key=lambda x: (x["method"], x["workload"], x["seed"]))
     out = os.path.join(RES, "E0_correctness.csv")
     fields = ["exp", "workload", "label", "method", "seed", "instance", "K0", "T",
               "betti_states", "internal_verified", "internal_mismatch",

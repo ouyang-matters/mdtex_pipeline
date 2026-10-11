@@ -210,6 +210,9 @@ FULL baselines skip `V` tracking (ranks only). DRB rebuilds keep `V` and build
 | `gudhi` | per update: GUDHI SimplexTree `compute_persistence(homology_coeff_field=2, persistence_dim_max=True)` (external static baseline, Python). The flag is required: without it GUDHI silently omits the top dimension (hollow tetrahedron → `[1, 0]`) | yes |
 | `drb-id` | DRB, insertion order, never rebuilt | yes |
 | `drb-id-rb` | DRB, insertion order, same rebuild policy and flags as `mmhm` (§5.1); a rebuild keeps the current insertion-order keys (ablation: rebuilding at all vs. rebuilding in Morse order) | yes |
+| `drb-rand` | DRB built in a uniformly random order per dimension (seeded, `MethodOptions::rand_seed`; cells first put in vertex-tuple order, so the order depends only on `K_0` and the seed), never rebuilt (ablation: does any structured order matter?) | yes |
+| `full-sorted` | per update: static reduction with clearing, ranks only, in the canonical order (dimension, then lexicographic vertex tuple) recomputed every update — history-independent, so it cannot drift with the edit history as `full-id`'s insertion order does | yes |
+| `lcr-rc` | `lcr` plus v1's periodic recompression only: every `m` updates (`--period`, default v1's `m = 32`) all reduced columns are rebuilt from scratch in the current key order (static reduction with clearing, `R` only, no `V`). Models v1's periodic trigger; no Morse complex, no `ρ` trigger, no gates | **no** — error rate only |
 | `mmhm` | DRB + Morse order + rebuild policy (§5.1) — **the method** | yes |
 | `mmhm-norb` | DRB + Morse order at build only, never rebuilt (ablation) | yes |
 | `lcr` | v1 localized column re-reduction **without** basis tracking (E1); deletion = clear the column's pivot and drop it; insertion = reduce new column | **no** — used only to measure error rate |

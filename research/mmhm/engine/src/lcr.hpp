@@ -26,6 +26,8 @@ class Lcr {
   void remove_cell(uint32_t c);
 
   uint64_t rank(int k) const { return (k >= 1 && k <= 3) ? rank_[k] : 0; }
+  // Current key of cell c (NONE if unknown).
+  uint32_t key_of(uint32_t c) const { return c < cell2key_.size() ? cell2key_[c] : NONE; }
   uint64_t nnz_R() const { return nnz_R_; }
   uint64_t chain_adds = 0;
 

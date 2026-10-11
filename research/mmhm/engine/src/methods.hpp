@@ -22,8 +22,10 @@ struct PreconditionError : std::runtime_error {
 };
 
 struct MethodOptions {
-  uint64_t period = 0;  // rebuild period m (mmhm, drb-id-rb); 0 = off (m = infinity)
+  uint64_t period = 0;  // rebuild period m (mmhm, drb-id-rb, lcr-rc); 0 = off (m = infinity;
+                        // lcr-rc then uses v1's m = 32)
   double alpha = 1.0;   // growth trigger (mmhm, drb-id-rb); negative = off (alpha = infinity)
+  uint64_t rand_seed = 0x5eed2026u;  // drb-rand: seed of the random build order
 };
 
 class Method {
@@ -70,15 +72,21 @@ class Method {
   virtual void on_delete(uint32_t /*c*/) {}  // called before the cell is removed
 };
 
-enum class Order { Insertion, Morse };
+// Insertion: insertion counter. Morse: collapse order (SPEC 3). Sorted:
+// canonical (dimension, lexicographic vertex tuple), history-independent.
+// Random: uniformly random permutation per dimension (seeded).
+enum class Order { Insertion, Morse, Sorted, Random };
 
 // full-id / full-morse: static reduction with clearing after every update.
 class FullMethod : public Method {
  public:
   FullMethod(int maxdim, Order o) : Method(maxdim), order_(o) {}
-  const char* name() const override { return order_ == Order::Insertion ? "full-id" : "full-morse"; }
+  const char* name() const override {
+    return order_ == Order::Insertion ? "full-id" : (order_ == Order::Morse ? "full-morse"
+                                                                            : "full-sorted");
+  }
   bool needs_insertion_index() const override { return order_ == Order::Insertion; }
-  bool needs_tuple_index() const override { return order_ == Order::Morse; }
+  bool needs_tuple_index() const override { return order_ != Order::Insertion; }
   void end_update(uint64_t) override { recompute(); }
   void betti(int64_t b[4]) override { betti_from_ranks(cx, res_.rank, b); }
   uint64_t nnz_R() const override { return res_.nnz_R; }
@@ -140,12 +148,17 @@ class DrbMethod : public Method {
 };
 
 // lcr: Morse order built once at INIT (same order as mmhm-norb), then the v1
-// rule without basis tracking.
+// rule without basis tracking. lcr-rc: the same plus v1's periodic
+// recompression only: every m updates (default 32) all reduced columns are
+// rebuilt from scratch in the current key order (static reduction with
+// clearing, R only). No Morse complex, no rho trigger, no gates.
 class LcrMethod : public Method {
  public:
-  explicit LcrMethod(int maxdim) : Method(maxdim), lcr(maxdim) {}
-  const char* name() const override { return "lcr"; }
+  explicit LcrMethod(int maxdim, uint64_t period = 0)
+      : Method(maxdim), lcr(maxdim), period_(period) {}
+  const char* name() const override { return period_ ? "lcr-rc" : "lcr"; }
   bool exact() const override { return false; }
+  void end_update(uint64_t t) override;
   void betti(int64_t b[4]) override;
   uint64_t nnz_R() const override { return lcr.nnz_R(); }
   uint64_t chain_adds_total() const override { return lcr.chain_adds; }
@@ -161,6 +174,7 @@ class LcrMethod : public Method {
   MorseOrder mo_;
   std::vector<uint32_t> cell2key_;
   std::vector<uint32_t> cols_[4];
+  uint64_t period_ = 0, t_last_ = 0;
 };
 
 // euler: surfaces only, O(1) per atomic edit.

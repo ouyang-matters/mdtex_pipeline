@@ -62,7 +62,7 @@ TEST_CASE(random_cases) {
   t::RandomSpec sp;
   sp.nv = 7;
   sp.updates = 60;
-  for (const char* m : {"drb-id", "drb-id-rb", "mmhm", "mmhm-norb"}) {
+  for (const char* m : {"drb-id", "drb-id-rb", "drb-rand", "mmhm", "mmhm-norb"}) {
     t::Config c{m, m, MethodOptions()};
     Totals T = run_family(sp, 77, 40, {c});
     CHECK_MSG(T.case_a > 0 && T.case_b > 0, m << ": case A " << T.case_a << ", case B " << T.case_b);

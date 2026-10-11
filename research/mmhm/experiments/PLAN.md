@@ -81,3 +81,15 @@ Tables: T1 correctness (E0), T2 summary of medians/amortized across workloads (E
   (`lcr` error-rate runs, the E2 GUDHI oracle) were allowed to run on the two
   remaining cores alongside the ≤ 2 timed runs (`run.py --mixed`), never more
   than 4 processes at once.
+
+## Review follow-up (referee M1, M3, M4)
+
+* **`lcr-rc`** (`configs/E0rc.json`, untimed, `--verify-every 1`, E0 instances,
+  3 seeds): `lcr` plus v1's periodic recompression with m = 32. It models v1's
+  periodic trigger only (no Morse complex, no ρ trigger, no gates).
+* **`full-sorted`** on every E1, E3, E4, E5 instance (3 seeds): the static
+  baseline in a canonical, history-independent order, to separate the
+  insertion order's drift from the workload's.
+* **`drb-rand`** on one mid size per family (W1 torus 128², W2 N = 15, W3
+  N = 14, W4 2D n = 4k D = 2; 3 seeds): the DRB in a random build order, to test
+  whether any structured order matters.

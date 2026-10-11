@@ -114,6 +114,13 @@ CONFIGS = {
     },
 }
 
+# Review round (referee M3, M4): history-independent static baseline on E1,
+# E3, E4, E5 (all sizes), and a random-order DRB on one mid size per family.
+RAND_AT = ["w2_N15_s8", "w3_N14_k2", "w4_2d_n4000_D2", "w1_torus_128"]
+for _e in ("E1", "E3", "E4", "E5"):
+    CONFIGS[_e]["methods"] = CONFIGS[_e]["methods"] + [m("full-sorted"),
+                                                       m("drb-rand", only=RAND_AT)]
+
 # E7: rebuild policy sensitivity, mmhm vs drb-id-rb, one size per workload.
 E7_ALPHA = ["0.25", "0.5", "1", "2", "4", "off"]
 E7_PERIOD = ["off", "64", "256"]
@@ -133,6 +140,15 @@ CONFIGS["E0"] = {
                   w4(4000, 2, 2, 63911), w4(4000, 2, 3, 111763), w4(4000, 3, 3, 85207),
                   w5a(10000), w5b(5)],
     "methods": [m("lcr", verify_every=1, timed=False)],
+}
+
+
+# Review round (referee M1): lcr plus v1's periodic recompression (m = 32).
+CONFIGS["E0rc"] = {
+    "question": "How wrong is v1's rule with v1's periodic recompression (m = 32)? lcr-rc with "
+                "--verify-every 1 on the E0 instances",
+    "instances": CONFIGS["E0"]["instances"],
+    "methods": [m("lcr-rc", verify_every=1, timed=False, args=["--period", "32"])],
 }
 
 

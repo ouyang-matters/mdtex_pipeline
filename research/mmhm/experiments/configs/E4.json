@@ -136,6 +136,20 @@
   {
    "label": "mmhm-norb",
    "method": "mmhm-norb"
+  },
+  {
+   "label": "full-sorted",
+   "method": "full-sorted"
+  },
+  {
+   "label": "drb-rand",
+   "method": "drb-rand",
+   "only": [
+    "w2_N15_s8",
+    "w3_N14_k2",
+    "w4_2d_n4000_D2",
+    "w1_torus_128"
+   ]
   }
  ]
 }

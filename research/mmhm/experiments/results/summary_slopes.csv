@@ -7,6 +7,8 @@ E1,WTwoSEight,full-id,Med,|K_0|,5,1.03857,-2.0729,0.99903,10739,955059,w2_N7_s8 
 E1,WTwoSEight,full-id,Amort,|K_0|,5,1.03453,-2.04008,0.99908,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
 E1,WTwoSEight,full-morse,Med,|K_0|,5,1.1421,-2.12652,0.993914,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
 E1,WTwoSEight,full-morse,Amort,|K_0|,5,1.14157,-2.11076,0.994165,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,full-sorted,Med,|K_0|,5,1.00163,-1.86341,0.999132,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
+E1,WTwoSEight,full-sorted,Amort,|K_0|,5,0.989609,-1.78135,0.998843,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
 E1,WTwoSEight,gudhi,Med,|K_0|,5,1.05694,-0.812546,0.999434,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
 E1,WTwoSEight,gudhi,Amort,|K_0|,5,1.05385,-0.787781,0.999262,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
 E1,WTwoSEight,mmhm,Med,|K_0|,5,0.240351,0.744474,0.980959,10739,955059,w2_N7_s8 w2_N10_s8 w2_N15_s8 w2_N22_s8 w2_N33_s8
@@ -33,6 +35,8 @@ E3,WThree,full-id,Med,|K_0|,3,1.04783,-1.7404,0.999056,74957,525043,w3_N14_k2 w3
 E3,WThree,full-id,Amort,|K_0|,3,1.02939,-1.64741,0.999349,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
 E3,WThree,full-morse,Med,|K_0|,3,1.1376,-1.90825,0.998299,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
 E3,WThree,full-morse,Amort,|K_0|,3,1.13524,-1.88856,0.99838,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,full-sorted,Med,|K_0|,3,0.942167,-1.3515,0.996227,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
+E3,WThree,full-sorted,Amort,|K_0|,3,0.928413,-1.26274,0.997338,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
 E3,WThree,gudhi,Med,|K_0|,3,0.928043,-0.0585635,0.980518,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
 E3,WThree,gudhi,Amort,|K_0|,3,0.92366,-0.0276717,0.98342,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
 E3,WThree,mmhm,Med,|K_0|,3,0.157559,2.16928,0.992177,74957,525043,w3_N14_k2 w3_N20_k2 w3_N27_k2
@@ -47,6 +51,8 @@ E4,WFourPlaneDTwo,full-id,Med,|K_0|,3,0.968496,-1.17934,0.99867,16095.3,254196,w
 E4,WFourPlaneDTwo,full-id,Amort,|K_0|,3,0.971204,-1.18574,0.998062,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
 E4,WFourPlaneDTwo,full-morse,Med,|K_0|,3,1.14083,-1.78959,0.999409,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
 E4,WFourPlaneDTwo,full-morse,Amort,|K_0|,3,1.13446,-1.74333,0.999149,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,full-sorted,Med,|K_0|,3,1.1256,-1.95086,0.99989,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
+E4,WFourPlaneDTwo,full-sorted,Amort,|K_0|,3,1.12109,-1.90575,0.999787,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
 E4,WFourPlaneDTwo,gudhi,Med,|K_0|,3,1.24961,-1.46832,0.999992,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
 E4,WFourPlaneDTwo,gudhi,Amort,|K_0|,3,1.24698,-1.4493,0.999985,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
 E4,WFourPlaneDTwo,mmhm,Med,|K_0|,3,0.0463376,1.75495,0.971593,16095.3,254196,w4_2d_n1000_D2 w4_2d_n4000_D2 w4_2d_n16000_D2
@@ -63,6 +69,8 @@ E5,WOneSphere,full-id,Med,|K_0|,4,1.02279,-1.6814,0.999483,15362,983042,w1_spher
 E5,WOneSphere,full-id,Amort,|K_0|,4,1.0279,-1.6862,0.999677,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
 E5,WOneSphere,full-morse,Med,|K_0|,4,1.17608,-2.3339,0.995782,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
 E5,WOneSphere,full-morse,Amort,|K_0|,4,1.17045,-2.2788,0.996136,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,full-sorted,Med,|K_0|,4,1.12854,-2.28687,0.998945,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
+E5,WOneSphere,full-sorted,Amort,|K_0|,4,1.10788,-2.13904,0.998578,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
 E5,WOneSphere,gudhi,Med,|K_0|,4,1.08628,-1.05284,0.99826,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
 E5,WOneSphere,gudhi,Amort,|K_0|,4,1.0855,-1.04477,0.998009,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
 E5,WOneSphere,mmhm,Med,|K_0|,4,0.986075,-2.17313,0.99593,15362,983042,w1_sphere_L4 w1_sphere_L5 w1_sphere_L6 w1_sphere_L7
@@ -79,6 +87,8 @@ E5,WOneTorus,full-id,Med,|K_0|,4,0.965136,-1.46527,0.995688,24576,1.5e+06,w1_tor
 E5,WOneTorus,full-id,Amort,|K_0|,4,0.989769,-1.56365,0.997855,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
 E5,WOneTorus,full-morse,Med,|K_0|,4,1.19486,-2.44297,0.997903,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
 E5,WOneTorus,full-morse,Amort,|K_0|,4,1.18207,-2.34664,0.998034,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,full-sorted,Med,|K_0|,4,1.09023,-2.17819,0.999844,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
+E5,WOneTorus,full-sorted,Amort,|K_0|,4,1.08048,-2.0796,0.999883,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
 E5,WOneTorus,gudhi,Med,|K_0|,4,1.08226,-1.06651,0.998673,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
 E5,WOneTorus,gudhi,Amort,|K_0|,4,1.07926,-1.04306,0.998449,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500
 E5,WOneTorus,mmhm,Med,|K_0|,4,1.02574,-2.34288,0.991225,24576,1.5e+06,w1_torus_64 w1_torus_128 w1_torus_256 w1_torus_500

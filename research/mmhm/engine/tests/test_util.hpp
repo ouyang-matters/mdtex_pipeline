@@ -164,6 +164,14 @@ inline std::vector<Config> exact_configs(bool with_rebuild_variants = true) {
   c.push_back({"full-morse", "full-morse", def});
   c.push_back({"drb-id", "drb-id", def});
   c.push_back({"drb-id-rb", "drb-id-rb", def});
+  c.push_back({"full-sorted", "full-sorted", def});
+  c.push_back({"drb-rand", "drb-rand", def});
+  {
+    // lcr-rc recompresses after every update when m = 1, so it must be exact
+    mmhm::MethodOptions every;
+    every.period = 1;
+    c.push_back({"lcr-rc(period=1)", "lcr-rc", every});
+  }
   c.push_back({"mmhm", "mmhm", def});
   c.push_back({"mmhm-norb", "mmhm-norb", def});
   if (with_rebuild_variants) {

@@ -14,7 +14,7 @@ python3 verify.py && python3 aggregate.py
 |---|---|
 | `numbers.tex` | `\newcommand{\Num…}{…}` for every number the text may quote; each macro is preceded by a comment saying what it is and which config/script produced it |
 | `tab_correctness.tex` | T1: correctness (E0). Upper block: per exact method, runs, reported Betti vectors, states compared with the engine `full-id` Betti file, with the analytic Betti numbers, with the GUDHI oracle, mismatches. Lower block: `lcr` (v1's rule) per E0 instance: runs, verified updates, wrong updates, % wrong, first wrong update |
-| `tab_summary.tex` | T2 (fits one page at `\small`): per workload × method at the largest size of each family of E1, E3, E4, E5 (W5 is in F6 and the full tables): \|K₀\|, T (2,000 or the prefix T′ = 200), median, p95 and amortized per-update latency (µs), amortized speedup vs `full-id` |
+| `tab_summary.tex` | T2 (fits one page at `\small`): per workload × method at the largest size of each family of E1, E3, E4, E5 (W1 sphere L7, torus 500², W2 N=33, W3 N=27, W4 2D 16k D=2, W4 3D 4k D=3; W5 is in F6 and the full tables): \|K₀\|, T (2,000 or the prefix T′ = 200), median, p95 and amortized per-update latency (µs), amortized speedup vs `full-id` |
 | `tab_summary_full.tex`, `tab_summary_full_med.tex`, `tab_summary_full_p99.tex` | every instance of E1–E6 (rows) × method (columns): amortized / median / p99 per-update latency (µs). `′` marks the prefix T′ = 200; an empty cell means the method is not part of that experiment, `n/r` a configured run without results. Use `\footnotesize` and `\setlength{\tabcolsep}{3pt}` to fit 6.5 in |
 | `tab_e7.tex` | E7: rebuilds per run, amortized and p99 latency (µs) for `mmhm` and `drb-id-rb` over α × period |
 | `tab_rebuild_effect.tex` | does a rebuild help? Per instance where rebuilds fired (default policy α = 1, period off): rebuilds per run (rb = `drb-id-rb`, m = `mmhm`); amortized latency ratios rb/`drb-id` and m/`mmhm-norb`; additions of the rebuilding method in the 100 updates after each of its rebuilds / its never-rebuilding twin on the same updates; and over all non-rebuild updates after the first rebuild, the ratios of additions and of time (> 1: costlier than never rebuilding). W1 rows are here; E7 (F7, `tab_e7`) has no W1 instance |
@@ -24,6 +24,7 @@ python3 verify.py && python3 aggregate.py
 | `tab_drift.tex` | review M4: `full-id` median over updates 1–200 vs 1801–2000, last/first ratio for `full-id`, `full-morse`, `drb-id`, `mmhm`, and `mmhm`'s speedup over `full-id` on those two windows |
 | `tab_seed_ranges.tex`, `tab_seed_ranges_p99.tex` | review M8: per-seed min–max of amortized latency / p99 for `full-id` and the 4 DRB variants, every instance (pairwise overlaps for all methods: `experiments/results/summary_pairs.csv`) |
 | `tab_noise.tex` | review M8: CV of median, amortized and p99 latency over identical runs (noise.py: W2 N=22, W5a L=1e5, W3 N=20, W1 torus 256², W2 N=33; plus the 3 identical-instance seeds of every W5a size) |
+| `tab_rand.tex` | review M3 follow-up: insertion vs Morse vs **random** build order (`drb-id`, `mmhm-norb`, `drb-rand`) on one mid size per family: nnz(R)+nnz(V) after INIT, INIT build additions, amortized latency |
 | `tab_w4_betti.tex` | W4: ranges of β₀..β₃ over all states of the 3 seeds, and β_D / n at INIT |
 
 Each `tab_*.tex` is a complete `tabular` (booktabs rules, no float, no
@@ -67,8 +68,8 @@ Letters only. Numbers inside names are spelled in English words
 | `w5a_L<L>` | `WFiveCycleL<L>` | `w5a_L1000000` → `WFiveCycleLOneMillion` |
 | `w5b_L<L>` (icosphere level) | `WFiveSphereL<L>` | `w5b_L8` → `WFiveSphereLEight` |
 
-**Method tags** `<m>`: `FullId`, `FullMorse`, `Gudhi`, `DrbId`, `DrbIdRb`,
-`Mmhm`, `MmhmNorb`, `Euler`, `Lcr`.
+**Method tags** `<m>`: `FullId`, `FullMorse`, `FullSorted`, `Gudhi`, `DrbId`,
+`DrbIdRb`, `DrbRand`, `Mmhm`, `MmhmNorb`, `Euler`, `Lcr`, `LcrRc`.
 
 **Per instance and method** (E1–E6; configs/E*.json): `\Num<inst><m><stat>`
 with `<stat>` ∈
@@ -145,6 +146,19 @@ j = One..Five, blocks of 400 updates), `\NumOutlierOrig{Amort,PNinetyNine}`,
 `\NumOutlierRerun{Amort,Med,PNinetyNine,Block<j>Med,Identical}`,
 `\NumWTwoNTwentyTwoSEightMmhmNorb{Amort,PNinetyNine}WithRerun`. Rebuild
 effect: also `…WindowTime`, `…AfterFirstTime`, `…AfterFirstTimeInclRebuilds`.
+
+**Review follow-up.** `lcr-rc`: `\NumLcrRc<inst>{ErrPct,Wrong,Updates,FirstWrong,FirstWrongList}`,
+`\NumLcrRc{ErrAll,ErrMax,ErrMin,WorkloadsWrong,Period}`, `\NumSampleLcrRcWrong`;
+the lower block of `tab_correctness.tex` has `lcr` and `lcr-rc` side by side.
+`full-sorted`: the usual per-instance stats (`\Num<inst>FullSorted…`, incl.
+`DriftMed`, `FirstBlockMed`, `LastBlockMed`, `Adds`), and for every other method
+`\Num<inst><m>SpeedupFullSorted`, `…SpeedupFullSortedFirstBlock`,
+`…SpeedupFullSortedLastBlock`; `tab_drift.tex` has `full-sorted`'s drift and
+`mmhm` × `full-sorted` on both windows (set it in `\scriptsize` with
+`\tabcolsep` 2.5pt). `drb-rand`: `\Num<inst>DrbRand…` stats,
+`\Num<inst>DrbRandBuildAdds`, `\Num<inst>NnzInitRandOverId`,
+`\Num<inst>NnzInitRandOverMorse`, `\Num<inst>DrbRandOverDrbIdAmort`,
+`\Num<inst>DrbRandOverMmhmNorbAmort`; table `tab_rand.tex`.
 
 **Rebuild effect** (aggregate.py, `results/summary_rebuild_effect.csv`):
 `\NumRebuildEffect<inst><m>Window` (`<m>` ∈ {`Mmhm`, `DrbIdRb`}) = additions

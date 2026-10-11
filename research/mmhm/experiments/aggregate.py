@@ -56,12 +56,16 @@ ROOT = os.path.dirname(HERE)
 RES = os.path.join(HERE, "results")
 GEN = os.path.join(ROOT, "paper", "generated")
 
-METHOD_ORDER = ["full-id", "full-morse", "gudhi", "drb-id", "drb-id-rb", "mmhm-norb", "mmhm",
-                "euler"]
-DYN = ["drb-id", "drb-id-rb", "mmhm-norb", "mmhm"]
-METHOD_TAG = {"full-id": "FullId", "full-morse": "FullMorse", "gudhi": "Gudhi",
-              "drb-id": "DrbId", "drb-id-rb": "DrbIdRb", "mmhm": "Mmhm",
-              "mmhm-norb": "MmhmNorb", "euler": "Euler", "lcr": "Lcr"}
+METHOD_ORDER = ["full-id", "full-sorted", "full-morse", "gudhi", "drb-id", "drb-id-rb", "drb-rand",
+                "mmhm-norb", "mmhm", "euler"]
+WIDE_METHODS = ["full-id", "full-sorted", "full-morse", "gudhi", "drb-id", "drb-id-rb",
+                "mmhm-norb", "mmhm", "euler"]
+DYN = ["drb-id", "drb-id-rb", "mmhm-norb", "mmhm"]  # the four compared DRB variants
+DYN_ALL = DYN + ["drb-rand"]
+METHOD_TAG = {"full-id": "FullId", "full-morse": "FullMorse", "full-sorted": "FullSorted",
+              "gudhi": "Gudhi", "drb-id": "DrbId", "drb-id-rb": "DrbIdRb", "drb-rand": "DrbRand",
+              "mmhm": "Mmhm", "mmhm-norb": "MmhmNorb", "euler": "Euler", "lcr": "Lcr",
+              "lcr-rc": "LcrRc"}
 
 # ----------------------------------------------------------------- words ----
 _ONES = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -353,13 +357,17 @@ def main():
         g = gT.loc[(e, w)]
         sg.append(g.amort_us / (a if int(g["T"]) >= 2000 else a200))
     S["speedup_gudhi"] = sg
-    # speedups vs full-id on matched windows: first and last block of 200 updates
-    for b, name in ((1, "first"), (10, "last")):
-        col = f"blk{b}_mean_us"
-        if col in S:
-            ref = S[S.label == "full-id"].set_index(["exp", "workload"])[col]
-            S[f"speedup_fullid_{name}200"] = [ref.get((e, w), np.nan) / v
-                                             for e, w, v in zip(S.exp, S.workload, S[col])]
+    # speedups vs full-id / full-sorted on matched windows: first and last 200 updates
+    for refm, tag in (("full-id", "fullid"), ("full-sorted", "fullsorted")):
+        for b, name in ((1, "first"), (10, "last")):
+            col = f"blk{b}_mean_us"
+            if col in S:
+                ref = S[S.label == refm].set_index(["exp", "workload"])[col]
+                S[f"speedup_{tag}_{name}200"] = [ref.get((e, w), np.nan) / v
+                                                for e, w, v in zip(S.exp, S.workload, S[col])]
+    ref = S[S.label == "full-sorted"].set_index(["exp", "workload"]).amort_us
+    S["speedup_fullsorted"] = [ref.get((e, w), np.nan) / a
+                               for e, w, a in zip(S.exp, S.workload, S.amort_us)]
     S["drift_med"] = S.get("blk10_med_us", np.nan) / S["blk1_med_us"]
     S["drift_mean"] = S.get("blk10_mean_us", np.nan) / S["blk1_mean_us"]
     first = ["exp", "workload", "label", "method", "args", "seeds", "T", "T_max", "K0"]
@@ -406,7 +414,7 @@ def main():
             M.add(pre + "SpeedupGudhiUnmatched", sig(row.speedup_gudhi_unmatched),
                   f"{what}: OLD definition, gudhi amortized on its prefix / this method over "
                   f"all T updates (biased where T' < T; do not use for claims)", src)
-        if row.method in DYN:
+        if row.method in DYN_ALL:
             M.add(pre + "Adds", sig(row.adds_mean), f"{what}: mean column additions per update "
                   f"(non-rebuild updates)", src)
             M.add(pre + "Footprint", sig(row.fp_mean), f"{what}: mean footprint_sum per update "
@@ -733,7 +741,42 @@ def main():
           "verify.py")
     M.add("NumReportedStates", intc(C_t.betti_states.sum()),
           "Betti vectors reported by exact runs (INIT + updates)", "verify.py")
-    L = pd.read_csv(lcr_path)
+    L_all = pd.read_csv(lcr_path)
+    if "method" not in L_all:
+        L_all["method"] = "lcr"
+    L = L_all[L_all.method == "lcr"]
+    LR = L_all[L_all.method == "lcr-rc"]
+    if len(LR):
+        rw = LR.groupby("workload").agg(wrong=("wrong_updates", "sum"),
+                                        ver=("verified_updates", "sum"),
+                                        first=("first_wrong_t", "min"))
+        for w, x in rw.iterrows():
+            g = LR[LR.workload == w].sort_values("seed")
+            tag = inst_tag(w)
+            M.add(f"NumLcrRc{tag}ErrPct", pct(x.wrong / x.ver), f"lcr-rc (lcr + periodic "
+                  f"recompression, m = 32) on {w}: % of updates with a wrong Betti vector "
+                  f"({len(g)} seeds, --verify-every 1)", "configs/E0rc.json, verify.py")
+            M.add(f"NumLcrRc{tag}Wrong", intc(x.wrong), f"lcr-rc on {w}: wrong updates",
+                  "verify.py")
+            M.add(f"NumLcrRc{tag}Updates", intc(x.ver), f"lcr-rc on {w}: verified updates",
+                  "verify.py")
+            M.add(f"NumLcrRc{tag}FirstWrongList",
+                  ", ".join("--" if math.isnan(v) else str(int(v)) for v in g.first_wrong_t),
+                  f"lcr-rc on {w}: first wrong update of seeds 0, 1, 2 (-- = never)", "verify.py")
+            if not math.isnan(x["first"]):
+                M.add(f"NumLcrRc{tag}FirstWrong", intc(x["first"]), f"lcr-rc on {w}: first "
+                      f"wrong update (min over seeds)", "verify.py")
+        fr = rw.wrong / rw.ver
+        M.add("NumLcrRcErrAll", pct(rw.wrong.sum() / rw.ver.sum()), "lcr-rc: % of wrong "
+              "updates over all E0rc runs", "verify.py")
+        M.add("NumLcrRcErrMax", pct(fr.max()), "lcr-rc: largest per-instance % of wrong updates",
+              "verify.py")
+        M.add("NumLcrRcErrMin", pct(fr.min()), "lcr-rc: smallest per-instance % of wrong "
+              "updates", "verify.py")
+        M.add("NumLcrRcWorkloadsWrong", intc((rw.wrong > 0).sum()), "E0rc instances on which "
+              "lcr-rc is wrong at least once", "verify.py")
+        M.add("NumLcrRcPeriod", "32", "lcr-rc recompression period m (v1's value)",
+              "configs/E0rc.json")
     lw = L.groupby("workload").agg(wrong=("wrong_updates", "sum"),
                                    ver=("verified_updates", "sum"),
                                    first=("first_wrong_t", "min"), K0=("K0", "mean"))
@@ -756,7 +799,7 @@ def main():
     smp = os.path.join(RES, "E0", "samples_crosscheck.csv")
     if os.path.exists(smp):
         X = pd.read_csv(smp)
-        ex = X[X.method != "lcr"]
+        ex = X[~X.method.isin(["lcr", "lcr-rc"])]
         M.add("NumSampleChecks", intc(ex.states.sum()), "sample cross-check: Betti vectors of "
               "exact configurations compared with GUDHI (all samples)", "crosscheck_samples.py")
         M.add("NumSampleMismatches", intc(ex.mismatch_vs_gudhi.sum() +
@@ -767,6 +810,13 @@ def main():
         M.add("NumSampleLcrWrong", intc((lx.mismatch_vs_gudhi > 0).sum()),
               "samples on which lcr is wrong at least once", "crosscheck_samples.py")
         M.add("NumSamples", intc(len(lx)), "committed workload samples", "crosscheck_samples.py")
+        lrc = X[X.method == "lcr-rc"]
+        if len(lrc):
+            M.add("NumSampleLcrRcWrong", intc((lrc.mismatch_vs_gudhi > 0).sum()),
+                  "samples on which lcr-rc (m = 32) is wrong at least once",
+                  "crosscheck_samples.py")
+        M.add("NumSampleExactConfigs", intc(ex.method.nunique()), "exact configurations in the "
+              "sample cross-check (engine + Python reference)", "crosscheck_samples.py")
 
     # --------------------------------------------------------------- noise --
     npath = os.path.join(RES, "noise", "noise_runs.csv")
@@ -826,7 +876,7 @@ def main():
           "aggregate.py")
     review_extras(M, runs, S, runs_df, C, L, e7)
     M.write(os.path.join(GEN, "numbers.tex"))
-    write_tables(S, C, L, E8, W4, e7, runs_df, NR)
+    write_tables(S, C, L_all, E8, W4, e7, runs_df, NR)
     print(f"{len(runs)} runs, {len(S)} pooled rows, {len(M.items)} macros -> {GEN}")
 
 
@@ -858,24 +908,37 @@ def write_tables(S, C, L, E8, W4, e7, runs_df, NR):
               f"all exact & {intc(len(C))} & {intc(C.betti_states.sum())} & "
               f"{intc(C.fullid_states.sum())} & {intc(C.expected_states.sum())} & "
               f"{intc(C.gudhi_states.sum())} & {mis} \\\\", r"\midrule",
-              r"\method{lcr} instance & runs & updates & wrong & \% wrong & first wrong & \\",
+              r" & & & \multicolumn{2}{c}{\method{lcr}} & \multicolumn{2}{c}{\method{lcr-rc} "
+              r"($m=32$)} \\",
+              r"\cmidrule(lr){4-5}\cmidrule(lr){6-7}",
+              r"instance & runs & updates & \% wrong & first wrong & \% wrong & first wrong \\",
               r"\midrule"]
-    lw = L.groupby("workload").agg(runs=("seed", "count"), ver=("verified_updates", "sum"),
-                                   wrong=("wrong_updates", "sum"),
-                                   first=("first_wrong_t", "min"), K0=("K0", "mean"))
+    if "method" not in L:
+        L = L.assign(method="lcr")
+    agg = dict(runs=("seed", "count"), ver=("verified_updates", "sum"),
+               wrong=("wrong_updates", "sum"), first=("first_wrong_t", "min"))
+    lw = L[L.method == "lcr"].groupby("workload").agg(**agg)
+    lr = L[L.method == "lcr-rc"].groupby("workload").agg(**agg)
     order = sorted(lw.index)
     for w in order:
         x = lw.loc[w]
         first = intc(x["first"]) if not math.isnan(x["first"]) else "--"
-        lines.append(f"{pretty_inst(w)} & {int(x.runs)} & {intc(x.ver)} & {intc(x.wrong)} & "
-                     f"{pct(x.wrong / x.ver)} & {first} & \\\\")
+        if w in lr.index:
+            y = lr.loc[w]
+            rc = (f"{pct(y.wrong / y.ver)} & "
+                  f"{intc(y['first']) if not math.isnan(y['first']) else '--'}")
+        else:
+            rc = "n/r & n/r"
+        lines.append(f"{pretty_inst(w)} & {int(x.runs)} & {intc(x.ver)} & "
+                     f"{pct(x.wrong / x.ver)} & {first} & {rc} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     _write("tab_correctness.tex", lines)
 
     # T2 summary: largest instance of each family ----------------------------
     fam_pick = {
         "E5": ["w1_sphere_L7", "w1_torus_500"], "E1": ["w2_N33_s8"], "E3": ["w3_N27_k2"],
-        "E4": ["w4_2d_n16000_D2", "w4_2d_n4000_D3", "w4_3d_n4000_D3"],
+        # W4 2D n=4k D=3 is only in the full tables (keeps T2 on one page)
+        "E4": ["w4_2d_n16000_D2", "w4_3d_n4000_D3"],
         }
     _write("tab_summary.tex", summary_table(S, fam_pick, NR=NR))
     full_pick = {}
@@ -995,7 +1058,7 @@ def summary_table(S, pick, small=False, NR=None):
 def wide_table(S, pick, col, NR=None):
     """One row per instance, one column per method; cell = S[col] (us). A
     configured but missing entry prints 'n/r'; T' prefixes are marked."""
-    meths = METHOD_ORDER
+    meths = WIDE_METHODS
     lines = [r"\begin{tabular}{@{}llr" + "r" * len(meths) + r"@{}}", r"\toprule",
              r"exp. & instance & $|K_0|$ & " + " & ".join(mname(m) for m in meths) + r" \\",
              r"\midrule"]
@@ -1098,10 +1161,21 @@ def review_extras(M, runs, S, runs_df, C, L, e7):
                 if not math.isnan(row.get("speedup_fullid_last200", float("nan"))):
                     M.add(pre + "SpeedupFullIdLastBlock", sig(row.speedup_fullid_last200),
                           f"{what}: full-id / this method, amortized over updates 1801-2000", src)
-        if row.method in ("full-id", "full-morse"):
+        if row.method in ("full-id", "full-morse", "full-sorted"):
             M.add(pre + "Adds", sig(row.adds_mean), f"{what}: mean column additions per "
                   f"recomputation (per update)", src)
-        if row.method in DYN and row.K0:
+        if row.label != "full-sorted" and not math.isnan(row.get("speedup_fullsorted",
+                                                                 float("nan"))):
+            M.add(pre + "SpeedupFullSorted", sig(row.speedup_fullsorted),
+                  f"{what}: amortized latency of full-sorted (canonical order, no drift) / this "
+                  f"method, all T updates", src)
+            for k, lab in (("first", "FirstBlock"), ("last", "LastBlock")):
+                v = row.get(f"speedup_fullsorted_{k}200", float("nan"))
+                if not math.isnan(v):
+                    M.add(pre + "SpeedupFullSorted" + lab, sig(v),
+                          f"{what}: full-sorted / this method, amortized over updates "
+                          f"{'1-200' if k == 'first' else '1801-2000'}", src)
+        if row.method in DYN_ALL and row.K0:
             M.add(pre + "NnzPerSimplex", f"{row.nnz_max / row.K0:.2f}", f"{what}: max "
                   f"nnz(R)+nnz(V) over the run / |K_0| (memory proxy, entries per simplex)", src)
     # ---- DRB variants side by side (review M2) and pairwise noise overlap (M8)
@@ -1179,14 +1253,15 @@ def review_extras(M, runs, S, runs_df, C, L, e7):
             lines.append(" & ".join(cells) + r" \\")
         lines += [r"\bottomrule", r"\end{tabular}"]
         _write(name, lines)
-    # ---- drift table (review M4)
-    lines = [r"\begin{tabular}{@{}llrrrrrrrr@{}}", r"\toprule",
-             r" & & \multicolumn{3}{c}{\method{full-id} median (\textmu s)} & "
-             r"\multicolumn{3}{c}{last/first block median} & "
-             r"\multicolumn{2}{c}{\method{mmhm} $\times$ \method{full-id}} \\",
-             r"\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-10}",
-             r"exp. & instance & first 200 & last 200 & ratio & \method{full-morse} & "
-             r"\method{drb-id} & \method{mmhm} & first 200 & last 200 \\", r"\midrule"]
+    # ---- drift table (review M4; full-sorted added in the follow-up)
+    lines = [r"\begin{tabular}{@{}llrrrrrrrrrrr@{}}", r"\toprule",
+             r" & & \multicolumn{2}{c}{\method{full-id} med.} & "
+             r"\multicolumn{5}{c}{last/first block median} & "
+             r"\multicolumn{2}{c}{\method{mmhm} $\times$ \method{full-id}} & "
+             r"\multicolumn{2}{c}{\method{mmhm} $\times$ \method{full-sorted}} \\",
+             r"\cmidrule(lr){3-4}\cmidrule(lr){5-9}\cmidrule(lr){10-11}\cmidrule(lr){12-13}",
+             r"exp. & instance & first & last & f-id & f-sorted & f-morse & "
+             r"\method{drb-id} & \method{mmhm} & first & last & first & last \\", r"\midrule"]
     last_e = None
     for e, w in order_w:
         g = base[base.workload == w].set_index("label")
@@ -1200,11 +1275,16 @@ def review_extras(M, runs, S, runs_df, C, L, e7):
         def dr(m):
             return f"{g.loc[m, 'drift_med']:.2f}" if m in g.index else ""
 
-        def sp(m, k):
-            return sig(g.loc[m, f"speedup_fullid_{k}200"]) if m in g.index else ""
+        def sp(m, k, ref="fullid"):
+            if m not in g.index:
+                return ""
+            v = g.loc[m].get(f"speedup_{ref}_{k}200", float("nan"))
+            return "" if (v is None or (isinstance(v, float) and math.isnan(v))) else sig(v)
         lines.append(f"{e} & {pretty_inst(w)} & {sig(f.blk1_med_us)} & {sig(f.blk10_med_us)} & "
-                     f"{f.drift_med:.2f} & {dr('full-morse')} & {dr('drb-id')} & {dr('mmhm')} & "
-                     f"{sp('mmhm', 'first')} & {sp('mmhm', 'last')} \\\\")
+                     f"{f.drift_med:.2f} & {dr('full-sorted')} & {dr('full-morse')} & "
+                     f"{dr('drb-id')} & {dr('mmhm')} & {sp('mmhm', 'first')} & "
+                     f"{sp('mmhm', 'last')} & {sp('mmhm', 'first', 'fullsorted')} & "
+                     f"{sp('mmhm', 'last', 'fullsorted')} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     _write("tab_drift.tex", lines)
     dcols = ["exp", "workload", "label", "seeds"] + [c for c in base.columns if
@@ -1254,6 +1334,48 @@ def review_extras(M, runs, S, runs_df, C, L, e7):
                      f"{'--' if math.isnan(ra) else f'{ra:.2f}'} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     _write("tab_build.tex", lines)
+    # ---- random build order (review M3 follow-up): drb-rand vs drb-id vs mmhm-norb
+    rr = runs_df[runs_df.label.isin(["drb-id", "mmhm-norb", "drb-rand"]) &
+                 runs_df.exp.isin(["E1", "E3", "E4", "E5"])]
+    rws = sorted(rr[rr.label == "drb-rand"].workload.unique(),
+                 key=lambda w: ["w1", "w2", "w3", "w4"].index(w.split("_")[0]))
+    if rws:
+        lines = [r"\begin{tabular}{@{}llrrrrrrrrr@{}}", r"\toprule",
+                 r" & & \multicolumn{3}{c}{$\nnz(R)+\nnz(V)$ after INIT} & "
+                 r"\multicolumn{3}{c}{additions of the INIT build} & "
+                 r"\multicolumn{3}{c}{amortized latency (\textmu s)} \\",
+                 r"\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}",
+                 r"instance & $|K_0|$ & insertion & Morse & random & insertion & Morse & random "
+                 r"& insertion & Morse & random \\", r"\midrule"]
+        for w in rws:
+            g = rr[rr.workload == w].groupby("label").agg(nnz0=("nnz0", "mean"),
+                                                          adds=("build_adds", "mean"),
+                                                          K0=("K0", "mean"))
+            sw = S[(S.workload == w) & S.exp.isin(["E1", "E3", "E4", "E5"])].drop_duplicates(
+                "label").set_index("label")
+            tag = inst_tag(w)
+            for lab in ("drb-rand",):
+                M.add(f"Num{tag}DrbRandBuildAdds", intc(g.loc[lab, "adds"]), f"{w}: additions "
+                      f"of the INIT build in a random order (drb-rand, mean of seeds)",
+                      "aggregate.py")
+                M.add(f"Num{tag}NnzInitRandOverId", f"{g.loc[lab, 'nnz0'] / g.loc['drb-id', 'nnz0']:.2f}",
+                      f"{w}: nnz(R)+nnz(V) after INIT, random / insertion order", "aggregate.py")
+                M.add(f"Num{tag}NnzInitRandOverMorse",
+                      f"{g.loc[lab, 'nnz0'] / g.loc['mmhm-norb', 'nnz0']:.2f}",
+                      f"{w}: nnz(R)+nnz(V) after INIT, random / Morse order", "aggregate.py")
+                M.add(f"Num{tag}DrbRandOverDrbIdAmort",
+                      f"{sw.loc['drb-rand', 'amort_us'] / sw.loc['drb-id', 'amort_us']:.2f}",
+                      f"{w}: amortized latency drb-rand / drb-id", "aggregate.py")
+                M.add(f"Num{tag}DrbRandOverMmhmNorbAmort",
+                      f"{sw.loc['drb-rand', 'amort_us'] / sw.loc['mmhm-norb', 'amort_us']:.2f}",
+                      f"{w}: amortized latency drb-rand / mmhm-norb", "aggregate.py")
+            cells = [pretty_inst(w), intc(g.K0.mean())]
+            cells += [intc(g.loc[l, "nnz0"]) for l in ("drb-id", "mmhm-norb", "drb-rand")]
+            cells += [intc(g.loc[l, "adds"]) for l in ("drb-id", "mmhm-norb", "drb-rand")]
+            cells += [sig(sw.loc[l, "amort_us"]) for l in ("drb-id", "mmhm-norb", "drb-rand")]
+            lines.append(" & ".join(cells) + r" \\")
+        lines += [r"\bottomrule", r"\end{tabular}"]
+        _write("tab_rand.tex", lines)
     # ---- verification coverage (review B2)
     C = C.copy()
     C["family"] = [FAMILY[w.split("_")[0]] for w in C.workload]

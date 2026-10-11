@@ -2,8 +2,10 @@
 
 C++17 implementation of SPEC.md §2–§5 and §7: the dynamic reduced basis (DRB),
 the collapse-based Morse order, static reduction with clearing, the exact
-methods `full-id`, `full-morse`, `drb-id`, `drb-id-rb`, `mmhm`, `mmhm-norb`, and the
-baselines `lcr` (v1's rule, inexact on purpose) and `euler` (surfaces only).
+methods `full-id`, `full-morse`, `full-sorted`, `drb-id`, `drb-id-rb`, `drb-rand`, `mmhm`,
+`mmhm-norb`, and the
+baselines `lcr` / `lcr-rc` (v1's rule, inexact on purpose; `lcr-rc` adds v1's periodic
+recompression, m = 32) and `euler` (surfaces only).
 `gudhi` is not part of the engine (see `../oracle/`).
 
 ## Build, test, run
@@ -150,7 +152,13 @@ update. `drb-id` builds in insertion order at INIT and never rebuilds.
 §5.1 policy, evaluated after each update. `drb-id-rb` is `drb-id` with the
 same policy and flags; its rebuild reassigns keys by insertion counter — the
 order of the keys already in use, renumbered `0..N−1` — and reruns the static
-reduction with `V` (it keeps the store's insertion index for that). `lcr` uses the same order as
+reduction with `V` (it keeps the store's insertion index for that). `full-sorted` recomputes like `full-id` but in the canonical order (dimension,
+then lexicographic vertex tuple; the store's tuple index), so its order cannot
+drift with the edit history. `drb-rand` builds the DRB in a uniformly random
+order per dimension (seeded `std::mt19937_64`, Fisher-Yates over the cells in
+tuple order; `MethodOptions::rand_seed`) and never rebuilds. `lcr-rc` is `lcr`
+plus a rebuild of all reduced columns from scratch in the current key order
+every `--period` updates (default 32). `lcr` uses the same order as
 `mmhm-norb` and keeps only `R` per column. `euler` maintains `χ` and the
 numbers of edges with 1 / 2 / other coface counts, O(1) per atomic edit, and
 checks its preconditions at the end of each update (SPEC §5 note).
