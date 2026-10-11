@@ -201,6 +201,7 @@ int cmd_run(const Args& a) {
     return 2;
   }
   std::unique_ptr<Method> m = make_method(a.method, seq.dim, opt);
+  m->cx.set_track_insertion(m->needs_insertion_index() || a.verify_every > 0);
   const size_t T = std::min<uint64_t>(seq.num_updates(), a.max_updates);
 
   FILE* csv = stdout;

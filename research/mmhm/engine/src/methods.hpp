@@ -46,6 +46,12 @@ class Method {
 
   virtual void betti(int64_t b[4]) = 0;
 
+  // Which order indices of the store the method reads after INIT (the store
+  // maintains only those; see Complex::set_track_*). The insertion index is
+  // also needed by --verify-every (internal full-id).
+  virtual bool needs_insertion_index() const { return false; }
+  virtual bool needs_tuple_index() const { return false; }
+
   // CSV counters (see README). Totals are cumulative; the driver differences them.
   virtual uint64_t nnz_R() const { return 0; }
   virtual uint64_t nnz_V() const { return 0; }
@@ -71,6 +77,8 @@ class FullMethod : public Method {
  public:
   FullMethod(int maxdim, Order o) : Method(maxdim), order_(o) {}
   const char* name() const override { return order_ == Order::Insertion ? "full-id" : "full-morse"; }
+  bool needs_insertion_index() const override { return order_ == Order::Insertion; }
+  bool needs_tuple_index() const override { return order_ == Order::Morse; }
   void end_update(uint64_t) override { recompute(); }
   void betti(int64_t b[4]) override { betti_from_ranks(cx, res_.rank, b); }
   uint64_t nnz_R() const override { return res_.nnz_R; }
@@ -96,6 +104,7 @@ class DrbMethod : public Method {
  public:
   DrbMethod(int maxdim, Order o, bool rebuild, const MethodOptions& opt);
   const char* name() const override;
+  bool needs_tuple_index() const override { return order_ == Order::Morse && rebuild_; }
   void end_update(uint64_t t) override;
   void betti(int64_t b[4]) override;
   uint64_t nnz_R() const override { return drb.nnz_R(); }

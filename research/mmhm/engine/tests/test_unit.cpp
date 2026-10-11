@@ -1,4 +1,5 @@
 // Unit tests of the building blocks.
+#include "column.hpp"
 #include "complex.hpp"
 #include "morse.hpp"
 #include "seq.hpp"
@@ -195,5 +196,113 @@ TEST_CASE(unit_morse_deterministic) {
     std::shuffle(shuffled.begin(), shuffled.end(), rng);
     auto b = build_keys(shuffled, seed + 3);
     CHECK(a == b);
+  }
+}
+
+// The lazily merged order indices must equal a brute-force scan after any
+// edit history, with tracking on, off, or toggled.
+TEST_CASE(unit_order_indices) {
+  t::RandomSpec sp;
+  sp.nv = 8;
+  sp.updates = 60;
+  for (uint64_t seed = 1; seed <= 30; ++seed) {
+    t::TestSeq q = t::random_seq(sp, seed);
+    Complex cx(3);
+    const int mode = int(seed % 3);  // 0: on, 1: off, 2: toggled
+    if (mode == 1) {
+      cx.set_track_insertion(false);
+      cx.set_track_tuples(false);
+    }
+    std::vector<t::Simplex> init = q.init;
+    std::stable_sort(init.begin(), init.end(),
+                     [](const t::Simplex& a, const t::Simplex& b) { return a.size() < b.size(); });
+    std::map<t::Simplex, uint64_t> ins_order;  // simplex -> insertion counter
+    uint64_t counter = 0;
+    auto ins = [&](const t::Simplex& s) {
+      Edit e = t::make_edit('+', s);
+      cx.insert(e.v, e.n);
+      ins_order[t::Simplex(e.v, e.v + e.n)] = counter++;
+    };
+    for (auto& s : init) ins(s);
+    for (size_t u = 0; u < q.updates.size(); ++u) {
+      for (auto& o : q.updates[u]) {
+        if (o.op == '+') {
+          ins(o.s);
+        } else {
+          Edit e = t::make_edit('-', o.s);
+          cx.remove(cx.find_deletable(e.v, e.n));
+          ins_order.erase(t::Simplex(e.v, e.v + e.n));
+        }
+      }
+      if (mode == 2 && u % 7 == 3) {
+        const bool on = (u / 7) % 2 == 0;
+        cx.set_track_insertion(on);
+        cx.set_track_tuples(on);
+      }
+      if (u % 3 != 0) continue;  // query only sometimes so edits accumulate
+      for (int d = 0; d <= 3; ++d) {
+        std::vector<std::pair<uint64_t, t::Simplex>> want_ins;
+        std::vector<t::Simplex> want_tup;
+        for (auto& kv : ins_order)
+          if (int(kv.first.size()) == d + 1) {
+            want_ins.emplace_back(kv.second, kv.first);
+            want_tup.push_back(kv.first);
+          }
+        std::sort(want_ins.begin(), want_ins.end());
+        std::vector<uint32_t> got;
+        cx.cells_by_insertion(d, got);
+        CHECK_MSG(got.size() == want_ins.size(), "insertion index size, seed " << seed);
+        for (size_t i = 0; i < got.size(); ++i) {
+          CHECK(cx.alive(got[i]));
+          CHECK(t::Simplex(cx.verts(got[i]), cx.verts(got[i]) + d + 1) == want_ins[i].second);
+        }
+        const auto& tup = cx.cells_by_tuple(d);
+        CHECK_MSG(tup.size() == want_tup.size(), "tuple index size, seed " << seed);
+        for (size_t i = 0; i < tup.size(); ++i) {
+          CHECK(cx.alive(tup[i].c) && cx.key(tup[i].c) == tup[i].k);
+          CHECK(t::Simplex(cx.verts(tup[i].c), cx.verts(tup[i].c) + d + 1) == want_tup[i]);
+        }
+      }
+    }
+  }
+}
+
+// Working columns: identical results to plain symmetric difference, in both
+// representations (small sorted / heap or append), including low() after
+// every addition.
+TEST_CASE(unit_work_columns) {
+  std::mt19937 rng(11);
+  for (int it = 0; it < 3000; ++it) {
+    const uint32_t universe = 1 + rng() % (it % 3 == 0 ? 40 : 400);
+    auto rand_chain = [&](uint32_t maxlen) {
+      std::set<uint32_t> s;
+      const uint32_t n = rng() % (maxlen + 1);
+      for (uint32_t i = 0; i < n; ++i) s.insert(rng() % universe);
+      return std::vector<uint32_t>(s.begin(), s.end());
+    };
+    std::vector<uint32_t> init = rand_chain(it % 2 ? 8 : 60);
+    std::set<uint32_t> refR(init.begin(), init.end()), refV;
+    WorkR wr;
+    WorkV wv;
+    wr.reset(init.data(), uint32_t(init.size()));
+    const uint32_t s0 = rng() % universe;
+    wv.reset(s0);
+    refV.insert(s0);
+    const int steps = int(rng() % 40);
+    for (int k = 0; k < steps; ++k) {
+      std::vector<uint32_t> c = rand_chain(it % 4 == 0 ? 120 : 10);
+      wr.add(c.data(), uint32_t(c.size()));
+      wv.add(c.data(), uint32_t(c.size()));
+      for (uint32_t x : c) {
+        if (!refR.erase(x)) refR.insert(x);
+        if (!refV.erase(x)) refV.insert(x);
+      }
+      const uint32_t want = refR.empty() ? NONE : *refR.rbegin();
+      CHECK(wr.low() == want);
+    }
+    std::vector<uint32_t> gotR(wr.data(), wr.data() + wr.size());
+    std::vector<uint32_t> gotV(wv.data(), wv.data() + wv.size());
+    CHECK(gotR == std::vector<uint32_t>(refR.begin(), refR.end()));
+    CHECK(gotV == std::vector<uint32_t>(refV.begin(), refV.end()));
   }
 }

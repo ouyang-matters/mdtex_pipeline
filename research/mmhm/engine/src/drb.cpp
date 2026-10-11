@@ -22,23 +22,18 @@ void Drb::ensure_cell(uint32_t c) {
   }
 }
 
-// Reduce the working column (ra_[0..nr), va_[0..nv)) of B_k against the
-// pivot table: while low(R) has a pivot slot p, R ^= R_p and V ^= V_p.
-static inline uint64_t reduce_working(std::vector<SmallVec>& Rk, std::vector<SmallVec>& Vk,
-                                      const std::vector<uint32_t>& pivot, Scratch& ra, Scratch& rb,
-                                      Scratch& va, Scratch& vb, uint32_t& nr, uint32_t& nv) {
+uint64_t Drb::reduce_new(int k, const uint32_t* bd, uint32_t nb, uint32_t s) {
+  wr_.reset(bd, nb);
+  wv_.reset(s);
+  const std::vector<SmallVec>& Rk = R_[k];
+  const std::vector<SmallVec>& Vk = V_[k];
   uint64_t adds = 0;
-  while (nr > 0) {
-    const uint32_t p = pivot[ra.buf[nr - 1]];
+  uint32_t lo;
+  while ((lo = wr_.low()) != NONE) {
+    const uint32_t p = pivot_[lo];
     if (p == NONE) break;
-    const SmallVec& Rp = Rk[p];
-    const SmallVec& Vp = Vk[p];
-    uint32_t* ro = rb.ensure(size_t(nr) + Rp.size());
-    nr = xor_merge(ra.buf.data(), nr, Rp.data(), Rp.size(), ro);
-    std::swap(ra, rb);
-    uint32_t* vo = vb.ensure(size_t(nv) + Vp.size());
-    nv = xor_merge(va.buf.data(), nv, Vp.data(), Vp.size(), vo);
-    std::swap(va, vb);
+    wr_.add(Rk[p].data(), Rk[p].size());
+    wv_.add(Vk[p].data(), Vk[p].size());
     ++adds;
   }
   return adds;
@@ -95,21 +90,19 @@ void Drb::build(const Complex& cx, const std::vector<uint32_t>& cell2key, uint32
         continue;
       }
       const uint32_t* f = cx.facets(c);
-      uint32_t* r = ra_.ensure(k + 1);
+      uint32_t r[4];
       for (int t = 0; t <= k; ++t) r[t] = cell2key_[f[t]];
       sort_small(r, k + 1);
-      uint32_t* v = va_.ensure(1);
-      v[0] = s;
-      uint32_t nr = uint32_t(k + 1), nv = 1;
-      const uint64_t a = reduce_working(Rk, Vk, pivot_, ra_, rb_, va_, vb_, nr, nv);
+      const uint64_t a = reduce_new(k, r, uint32_t(k + 1), s);
       build_adds += a;
       if (adds_per_cell) (*adds_per_cell)[c] = uint32_t(a);
-      Rk[i].assign(ra_.buf.data(), nr);
-      Vk[i].assign(va_.buf.data(), nv);
+      const uint32_t nr = wr_.size(), nv = wv_.size();
+      Rk[i].assign(wr_.data(), nr);
+      Vk[i].assign(wv_.data(), nv);
       nnz_R_ += nr;
       nnz_V_ += nv;
       if (nr) {
-        pivot_[ra_.buf[nr - 1]] = uint32_t(i);
+        pivot_[Rk[i].back()] = uint32_t(i);
         ++rank_[k];
       }
     }
@@ -253,13 +246,11 @@ void Drb::add_cell(uint32_t c, int dim, const uint32_t* facets, int nf) {
       sort_small(r, nf);
     else
       std::sort(r, r + nf);
-    uint32_t* v = va_.ensure(1);
-    v[0] = s;
-    uint32_t nr = uint32_t(nf), nv = 1;
-    chain_adds += reduce_working(R_[k], V_[k], pivot_, ra_, rb_, va_, vb_, nr, nv);
+    chain_adds += reduce_new(k, r, uint32_t(nf), s);
+    const uint32_t nr = wr_.size(), nv = wv_.size();
     const uint32_t j = alloc_slot(k);
-    R_[k][j].assign(ra_.buf.data(), nr);
-    V_[k][j].assign(va_.buf.data(), nv);
+    R_[k][j].assign(wr_.data(), nr);
+    V_[k][j].assign(wv_.data(), nv);
     nnz_R_ += nr;
     nnz_V_ += nv;
     for (uint32_t e : V_[k][j]) occ_push(key2cell_[e], j);

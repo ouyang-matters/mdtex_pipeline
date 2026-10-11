@@ -12,35 +12,41 @@ void MorseBuilder::compute(Complex& cx, MorseOrder& out, bool record_pairs) {
   const size_t N = cx.total();
   out.removal.reserve(N);
 
-  inP_.assign(cap, 0);
-  if (cof_.size() < cap) cof_.resize(cap);
+  node_.assign(cap, Node{0, 0});
   queue_.clear();
   queue_.reserve(N + 16);
 
-  // Sorted views; also mark membership and count cofaces.
+  // Sorted views (lexicographic per dimension); mark P, then count cofaces.
   const std::vector<Complex::TupleEntry>* sorted[4] = {nullptr, nullptr, nullptr, nullptr};
   size_t remaining[4] = {0, 0, 0, 0};
   for (int d = 0; d <= D; ++d) {
     sorted[d] = &cx.cells_by_tuple(d);
     remaining[d] = sorted[d]->size();
-    for (const auto& e : *sorted[d]) {
-      inP_[e.c] = 1;
-      cof_[e.c] = cx.cofaces(e.c).size();
-    }
+    for (const auto& e : *sorted[d]) node_[e.c].cnt = kInP;
   }
+  for (int d = 1; d <= D; ++d)
+    for (const auto& e : *sorted[d]) {
+      const uint32_t* f = cx.facets(e.c);
+      for (int i = 0; i <= d; ++i) {
+        Node& g = node_[f[i]];
+        ++g.cnt;
+        g.xr ^= e.c;
+      }
+    }
   for (int d = 0; d <= D; ++d)
     for (const auto& e : *sorted[d])
-      if (cof_[e.c] == 1) queue_.push_back(e.c);
+      if ((node_[e.c].cnt & ~kInP) == 1) queue_.push_back(e.c);
 
   auto remove_cell = [&](uint32_t c) {
-    inP_[c] = 0;
-    --remaining[cx.dim(c)];
+    node_[c].cnt &= ~kInP;
+    const int d = cx.dim(c);
+    --remaining[d];
     out.removal.push_back(c);
     const uint32_t* f = cx.facets(c);
-    const int nf = cx.num_facets(c);
-    for (int i = 0; i < nf; ++i) {
-      const uint32_t g = f[i];
-      if (inP_[g] && --cof_[g] == 1) queue_.push_back(g);
+    for (int i = 0; i < (d ? d + 1 : 0); ++i) {
+      Node& g = node_[f[i]];  // facets of a cell of P are in P (P is a subcomplex)
+      g.xr ^= c;
+      if ((--g.cnt & ~kInP) == 1) queue_.push_back(f[i]);
     }
   };
 
@@ -50,13 +56,8 @@ void MorseBuilder::compute(Complex& cx, MorseOrder& out, bool record_pairs) {
   while (true) {
     while (head < queue_.size()) {
       const uint32_t x = queue_[head++];
-      if (!inP_[x] || cof_[x] != 1) continue;
-      uint32_t y = NONE;
-      for (uint32_t z : cx.cofaces(x))
-        if (inP_[z]) {
-          y = z;
-          break;
-        }
+      if (node_[x].cnt != (kInP | 1u)) continue;  // not in P, or not free
+      const uint32_t y = node_[x].xr;               // the unique coface of x in P
       // y is maximal in P: P is always a subcomplex, so cof(y) = 0.
       if (record_pairs) out.pairs.emplace_back(x, y);
       ++out.num_pairs;
@@ -68,7 +69,7 @@ void MorseBuilder::compute(Complex& cx, MorseOrder& out, bool record_pairs) {
     int d = D;
     while (d > 0 && remaining[d] == 0) --d;
     const std::vector<Complex::TupleEntry>& S = *sorted[d];
-    while (!inP_[S[cursor[d]].c]) ++cursor[d];
+    while (!(node_[S[cursor[d]].c].cnt & kInP)) ++cursor[d];
     const uint32_t c = S[cursor[d]].c;
     ++out.critical[d];
     remove_cell(c);

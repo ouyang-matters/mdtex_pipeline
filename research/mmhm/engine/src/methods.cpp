@@ -22,6 +22,7 @@ void Method::init(const Edit* edits, size_t n) {
     }
   }
   build();
+  if (!needs_tuple_index()) cx.set_track_tuples(false);
 }
 
 void Method::apply(const Edit& e) {

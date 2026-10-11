@@ -60,8 +60,14 @@ class Complex {
     uint32_t c;
   };
   // Alive cells of dimension d sorted lexicographically by vertex tuple.
-  // Maintained lazily: only cells inserted since the previous call are sorted.
   const std::vector<TupleEntry>& cells_by_tuple(int d);
+
+  // The two order indices above are maintained incrementally (sequential
+  // merge of the edits since the last query) while tracking is on; with
+  // tracking off they cost nothing per edit and are rebuilt by a full sort
+  // on the next query. Both default to on.
+  void set_track_insertion(bool on);
+  void set_track_tuples(bool on);
 
  private:
   int maxdim_;
@@ -80,8 +86,23 @@ class Complex {
     uint32_t c;
     uint64_t ins;
   };
+  void ins_compact(int d);
+  void ins_rebuild(int d);
+  void tuple_refresh(int d);
+  void tuple_rebuild(int d);
+
+  // Insertion index: entries sorted by ins; ins values removed since the
+  // last compaction are dropped by a sequential merge.
+  bool track_ins_ = true;
+  bool ins_fresh_[4] = {true, true, true, true};
   std::vector<InsEntry> ins_list_[4];
+  std::vector<uint64_t> ins_removed_[4];
+  // Tuple index: entries sorted by key; keys removed and ids inserted since
+  // the last refresh are merged sequentially.
+  bool track_tuple_ = true;
+  bool tuple_fresh_[4] = {true, true, true, true};
   std::vector<TupleEntry> tuple_sorted_[4];
+  std::vector<SKey> tuple_removed_[4];
   std::vector<uint32_t> tuple_pending_[4];
 };
 

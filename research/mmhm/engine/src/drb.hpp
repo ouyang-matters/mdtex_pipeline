@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "column.hpp"
 #include "complex.hpp"
 #include "smallvec.hpp"
 
@@ -94,8 +95,13 @@ class Drb {
   uint64_t rank_[4] = {0, 0, 0, 0};
   uint64_t live_[4] = {0, 0, 0, 0};
   uint64_t nnz_R_ = 0, nnz_V_ = 0;
+  // Reduce a new column of B_k with boundary bd (sorted keys) and V = {s}
+  // against the pivot table; result left in wr_ / wv_. Returns #additions.
+  uint64_t reduce_new(int k, const uint32_t* bd, uint32_t nb, uint32_t s);
   // scratch
-  Scratch ra_, rb_, va_, vb_;
+  WorkR wr_;
+  WorkV wv_;
+  Scratch ra_, va_;
   std::vector<uint32_t> added_, O_;
   FacetsFn auto_facets_;
 };

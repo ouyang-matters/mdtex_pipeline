@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "column.hpp"
 #include "complex.hpp"
 #include "smallvec.hpp"
 
@@ -38,9 +39,11 @@ class Lcr {
   std::vector<uint32_t> free_[4];
   uint64_t rank_[4] = {0, 0, 0, 0};
   uint64_t nnz_R_ = 0;
-  Scratch a_, b_;
+  Scratch a_;
+  WorkR wr_;
   void ensure_cell(uint32_t c);
-  uint32_t reduce(int k, uint32_t nr);
+  // Reduce boundary bd against the pivots of B_k; result in wr_.
+  void reduce(int k, const uint32_t* bd, uint32_t nb);
 };
 
 }  // namespace mmhm

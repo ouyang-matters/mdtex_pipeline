@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "column.hpp"
 #include "complex.hpp"
 #include "smallvec.hpp"
 
@@ -27,7 +28,7 @@ class StaticReducer {
  private:
   std::vector<uint32_t> pivot_;  // row key -> index into store_
   std::vector<SmallVec> store_;  // non-zero reduced columns
-  Scratch a_, b_;
+  WorkR wr_;
 };
 
 // Betti numbers from n_k and ranks: b_k = n_k - r_k - r_{k+1}.

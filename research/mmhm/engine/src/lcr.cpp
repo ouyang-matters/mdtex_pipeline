@@ -15,18 +15,15 @@ void Lcr::ensure_cell(uint32_t c) {
   }
 }
 
-// Reduce working column a_[0..nr) of B_k against the pivot table.
-uint32_t Lcr::reduce(int k, uint32_t nr) {
-  while (nr > 0) {
-    const uint32_t p = pivot_[a_.buf[nr - 1]];
+void Lcr::reduce(int k, const uint32_t* bd, uint32_t nb) {
+  wr_.reset(bd, nb);
+  uint32_t lo;
+  while ((lo = wr_.low()) != NONE) {
+    const uint32_t p = pivot_[lo];
     if (p == NONE) break;
-    const SmallVec& Rp = R_[k][p];
-    uint32_t* o = b_.ensure(size_t(nr) + Rp.size());
-    nr = xor_merge(a_.buf.data(), nr, Rp.data(), Rp.size(), o);
-    std::swap(a_, b_);
+    wr_.add(R_[k][p].data(), R_[k][p].size());
     ++chain_adds;
   }
-  return nr;
 }
 
 void Lcr::build(const Complex& cx, const std::vector<uint32_t>& cell2key, uint32_t nkeys,
@@ -57,14 +54,15 @@ void Lcr::build(const Complex& cx, const std::vector<uint32_t>& cell2key, uint32
       const uint32_t s = cell2key_[c];
       if (k < D_ && pivot_[s] != NONE) continue;  // cleared: R = 0
       const uint32_t* f = cx.facets(c);
-      uint32_t* r = a_.ensure(k + 1);
+      uint32_t r[4];
       for (int t = 0; t <= k; ++t) r[t] = cell2key_[f[t]];
       sort_small(r, k + 1);
-      const uint32_t nr = reduce(k, uint32_t(k + 1));
-      R_[k][i].assign(a_.buf.data(), nr);
+      reduce(k, r, uint32_t(k + 1));
+      const uint32_t nr = wr_.size();
+      R_[k][i].assign(wr_.data(), nr);
       nnz_R_ += nr;
       if (nr) {
-        pivot_[a_.buf[nr - 1]] = uint32_t(i);
+        pivot_[R_[k][i].back()] = uint32_t(i);
         ++rank_[k];
       }
     }
@@ -87,7 +85,8 @@ void Lcr::add_cell(uint32_t c, int dim, const uint32_t* facets, int nf) {
     sort_small(r, nf);
   else
     std::sort(r, r + nf);
-  const uint32_t nr = reduce(k, uint32_t(nf));
+  reduce(k, r, uint32_t(nf));
+  const uint32_t nr = wr_.size();
   uint32_t j;
   if (!free_[k].empty()) {
     j = free_[k].back();
@@ -96,7 +95,7 @@ void Lcr::add_cell(uint32_t c, int dim, const uint32_t* facets, int nf) {
     j = uint32_t(R_[k].size());
     R_[k].emplace_back();
   }
-  R_[k][j].assign(a_.buf.data(), nr);
+  R_[k][j].assign(wr_.data(), nr);
   nnz_R_ += nr;
   cell2slot_[c] = j;
   if (nr) {

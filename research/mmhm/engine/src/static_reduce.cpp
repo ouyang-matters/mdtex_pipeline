@@ -19,23 +19,21 @@ StaticResult StaticReducer::run(const Complex& cx, const std::vector<uint32_t>& 
       const uint32_t s = cell2key[c];
       if (pivot_[s] != NONE) continue;  // clearing: s is a pivot row of B_{k+1}
       const uint32_t* f = cx.facets(c);
-      uint32_t* r = a_.ensure(k + 1);
+      uint32_t r[4];
       for (int i = 0; i <= k; ++i) r[i] = cell2key[f[i]];
       sort_small(r, k + 1);
-      uint32_t nr = uint32_t(k + 1);
-      while (nr > 0) {
-        const uint32_t p = pivot_[r[nr - 1]];
+      wr_.reset(r, uint32_t(k + 1));
+      uint32_t lo;
+      while ((lo = wr_.low()) != NONE) {
+        const uint32_t p = pivot_[lo];
         if (p == NONE) break;
-        const SmallVec& Rp = store_[p];
-        uint32_t* o = b_.ensure(nr + Rp.size());
-        nr = xor_merge(r, nr, Rp.data(), Rp.size(), o);
-        std::swap(a_, b_);
-        r = a_.buf.data();
+        wr_.add(store_[p].data(), store_[p].size());
         ++res.adds;
       }
+      const uint32_t nr = wr_.size();
       if (nr > 0) {
-        store_[used].assign(r, nr);
-        pivot_[r[nr - 1]] = uint32_t(used);
+        store_[used].assign(wr_.data(), nr);
+        pivot_[store_[used].back()] = uint32_t(used);
         ++used;
         ++res.rank[k];
         res.nnz_R += nr;

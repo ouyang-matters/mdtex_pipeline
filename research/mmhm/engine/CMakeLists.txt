@@ -72,6 +72,12 @@ foreach(m full-id full-morse drb-id mmhm mmhm-norb lcr euler)
     --verify-every 1 --out ${SEQDIR}/torus_${m}.csv)
   set_tests_properties(cli_torus_${m} PROPERTIES FIXTURES_REQUIRED seqs)
 endforeach()
+# Same runs without verification (the store then skips the insertion index).
+foreach(m full-id full-morse drb-id mmhm mmhm-norb)
+  add_test(NAME cli_ball_noverify_${m} COMMAND mmhm run --method ${m} --seq ${SEQDIR}/ball.seq
+    --out ${SEQDIR}/ball_nv_${m}.csv --betti-out ${SEQDIR}/ball_nv_${m}.betti)
+  set_tests_properties(cli_ball_noverify_${m} PROPERTIES FIXTURES_REQUIRED seqs)
+endforeach()
 add_test(NAME cli_ball_mmhm_rebuilds COMMAND mmhm run --method mmhm --seq ${SEQDIR}/ball.seq
   --verify-every 1 --alpha 0.05 --period 4 --out ${SEQDIR}/ball_mmhm_rb.csv)
 set_tests_properties(cli_ball_mmhm_rebuilds PROPERTIES FIXTURES_REQUIRED seqs)
@@ -82,5 +88,5 @@ set_tests_properties(cli_euler_rejects_ball PROPERTIES FIXTURES_REQUIRED seqs WI
 add_test(NAME cli_betti_agree COMMAND ${CMAKE_COMMAND}
   -DDIR=${SEQDIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/compare_betti.cmake)
 set_tests_properties(cli_betti_agree PROPERTIES DEPENDS
-  "cli_ball_full-id;cli_ball_full-morse;cli_ball_drb-id;cli_ball_mmhm;cli_ball_mmhm-norb"
+  "cli_ball_full-id;cli_ball_full-morse;cli_ball_drb-id;cli_ball_mmhm;cli_ball_mmhm-norb;cli_ball_noverify_full-id;cli_ball_noverify_full-morse;cli_ball_noverify_drb-id;cli_ball_noverify_mmhm;cli_ball_noverify_mmhm-norb"
   FIXTURES_REQUIRED seqs)

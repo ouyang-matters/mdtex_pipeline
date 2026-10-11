@@ -31,8 +31,15 @@ class MorseBuilder {
   void compute(Complex& cx, MorseOrder& out, bool record_pairs);
 
  private:
-  std::vector<uint8_t> inP_;
-  std::vector<uint32_t> cof_;
+  // Per cell: number of immediate cofaces still in P (bit 31 = "x in P") and
+  // the XOR of their ids, so the unique coface of a free face is read off
+  // directly instead of scanning coface lists.
+  struct Node {
+    uint32_t cnt;
+    uint32_t xr;
+  };
+  static constexpr uint32_t kInP = 0x80000000u;
+  std::vector<Node> node_;
   std::vector<uint32_t> queue_;
 };
 
