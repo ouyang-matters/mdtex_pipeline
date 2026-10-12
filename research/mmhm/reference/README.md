@@ -1,7 +1,7 @@
 # reference/ — pure-Python DRB and proof sanity checks
 
-Executable form of SPEC §2–§4 and of the theory section of the paper
-(`paper/sections/theory.tex`). Clarity over speed: Z2 chains are Python sets,
+Executable form of SPEC §2–§4 and of Sections 3–5 of the paper
+(`paper/sections/drb.tex`, `morse.tex`, `cost.tex`). Clarity over speed: Z2 chains are Python sets,
 every step is the literal algorithm of the spec. No dependencies beyond the
 Python 3 standard library.
 
@@ -10,11 +10,13 @@ Python 3 standard library.
 | `drb_ref.py` | `.seq` reader (§6.1), DRB insert (§2.1) and delete Case A/B (§2.2), collapse matching + Morse order (§3), static reduction with clearing tracking `V` (§4), methods `drb-id`, `mmhm`, `mmhm-norb`, `full-id`, `full-morse`, `lcr` (§5, incl. the §5.1 rebuild policy), Betti writer (§6.2) |
 | `check_props.py` | randomized checks of Theorem 1, Lemma 2 and its corollaries, Proposition 4, and the searches that produce the E1/E2 counterexamples of the erratum |
 | `counterexamples.json` | output of `check_props.py --write counterexamples.json` (seed 20250817): every recorded instance below, machine-readable |
-| `check_props_numbers.tex` | output of `check_props.py --write-tex check_props_numbers.tex`: the `\Ref…` macros that `paper/sections/erratum.tex` cites (enumeration counts, ρ bounds) |
+| `check_props_numbers.tex` | output of `check_props.py --write-tex check_props_numbers.tex`: the `\Ref…` macros that `paper/sections/erratum_v1.tex` (the separate v1 erratum) cites (enumeration counts, ρ bounds) |
+| `figure_examples.py` | recomputes and checks every entry of the two worked figures of the paper: Figure 2 (`paper/figures/f2_deletion.tex`, deletion Cases A and B on graphs) and Figure 3 (`paper/figures/f3_morse.tex`, collapse, Morse order, apparent pairs and the reduction of the critical column); exits non-zero on any mismatch |
 
 ```
 python3 drb_ref.py --seq FILE --method mmhm [--period M] [--alpha A] [--betti-out OUT] [--check-invariants]
 python3 check_props.py [--quick] [--seed S] [--write counterexamples.json] [--write-tex check_props_numbers.tex]
+python3 figure_examples.py
 ```
 `check_props.py` takes about 18 s (`--quick`: 2 s) and exits non-zero on any
 failure. `--check-invariants` makes `drb_ref.py` verify (I1)–(I3) after every

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """F4: behaviour over time (seed 0) for the four DRB methods.
 Top row: per-update latency, mean over a sliding window of the last 50 updates
-(plotted from t = 50; the cost of a rebuild is spread over its window), with a
-rug of rebuild events
-(mmhm, drb-id-rb; default policy alpha = 1, period off). Bottom row:
-nnz(R) + nnz(V) after each update. Columns: W2 N = 22 (E1), W3 N = 20 (E3),
+(plotted from t = 50; the cost of a rebuild is spread over its window). Bottom
+row: nnz(R) + nnz(V) after each update. Thin vertical lines through both rows:
+the rebuilds of mmhm and drb-id-rb (default policy alpha = 1, period off). Columns: W2 N = 22 (E1), W3 N = 20 (E3),
 W1 torus 256x256 (E5); on W1 a grey rug marks the updates after which every
 hole is closed (beta_2 = 1, the fundamental 2-cycle is present).
 
@@ -61,18 +60,16 @@ def main(cols=COLS, name="F4_time_series", width=S.TEXTWIDTH, height=3.9):
                     color=S.COLOR[m], mec="white", mew=0.5)
             ymax = max(ymax, roll.max())
         at.set_yscale("log")
-        # rebuild rugs at the top of the latency panel
-        lo, hi = at.get_ylim()
-        for k, m in enumerate(["mmhm", "drb-id-rb"]):
+        # every rebuild as a thin vertical line through both panels, so that it
+        # lines up with the drop of nnz(R)+nnz(V) it causes
+        for m in ["mmhm", "drb-id-rb"]:
             try:
                 df = load(exp, w, m)
             except FileNotFoundError:
                 continue
-            rb = df[df.rebuild == 1].t
-            yy = hi * (2.0 if k == 0 else 1.45)
-            at.plot(rb, np.full(len(rb), yy), ls="none", marker="|", ms=6, mew=1.2,
-                    color=S.COLOR[m])
-        at.set_ylim(lo, hi * 2.8)  # headroom above the data for the rebuild rugs
+            for t in df[df.rebuild == 1].t:
+                for ax in (at, ab):
+                    ax.axvline(t, color=S.COLOR[m], lw=0.75, alpha=0.45, zorder=0.5)
         S.log_axis(at, "y")
         if w.startswith("w1"):
             bpath = os.path.join(S.RES, exp, f"{w}__full-id__seed0.betti.gz")
@@ -92,8 +89,9 @@ def main(cols=COLS, name="F4_time_series", width=S.TEXTWIDTH, height=3.9):
     axes[1, 0].set_ylabel(r"$\mathrm{nnz}(R)+\mathrm{nnz}(V)$ ($10^6$)")
     handles = [Line2D([], [], color=S.COLOR[m], marker=S.MARKER[m], mec="white", mew=0.5,
                       label=m) for m in METHODS]
-    handles.append(Line2D([], [], ls="none", marker="|", ms=7, mew=1.2, color=S.MUTED,
-                          label="rebuild (mmhm, drb-id-rb)"))
+    for m in ["mmhm", "drb-id-rb"]:
+        handles.append(Line2D([], [], ls="none", marker="|", ms=9, mew=1.0, color=S.COLOR[m],
+                              alpha=0.8, label=f"rebuild of {m}"))
     fig.legend(handles=handles, loc="upper center", ncol=len(handles) if len(cols) > 2 else 3,
                bbox_to_anchor=(0.5, 1.04 if len(cols) > 2 else 1.08),
                handlelength=1.6, columnspacing=1.2)

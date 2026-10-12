@@ -229,8 +229,10 @@ contributions of rebuilding and of the order.
   \centering
   \resultfigure[width=0.86\linewidth]{FM2_basis_and_rebuilds}{6cm}
   \caption{The four DRB variants over one run (seed~0). Top: per-update latency,
-    mean over a sliding window of 50 updates, with the rebuilds of
-    \method{mmhm} and \method{drb-id-rb} marked. Bottom: $\nnz(R)+\nnz(V)$.
+    mean over a sliding window of 50 updates. Bottom: $\nnz(R)+\nnz(V)$. Thin
+    vertical lines through both panels: the rebuilds of \method{mmhm} (blue)
+    and of \method{drb-id-rb} (yellow), each aligned with the drop of
+    $\nnz(R)+\nnz(V)$ it causes.
     (a)~W2, $N=22$, $s=8$: the basis does not grow and no rebuild fires;
     (b)~W3, $N=20$: the basis grows until a rebuild resets it. The same plot for
     a W1 torus: Figure~\ref{S-fig:timeseries}.}
@@ -249,6 +251,47 @@ times at $n\ge4000$, and their median latency hardly depends on the size
 on the two instances with $n=1000$ and $D=3$, where the difference is within
 noise. No rebuild fired under the default policy, and on the larger instances
 the Morse order makes the DRB faster (\cref{sec:exp-ablation}).
+
+\paragraph{What an update costs.}
+\Cref{prop:cost} expresses the cost of an edit through its column additions and
+the footprints of its deletions, each weighted by the sizes of the chains
+involved; the engine logs the two counts but not the chain sizes
+(\cref{fig:proxies}). A W2 update, with its $128$ atomic edits, performs a
+median of \NumEEightWTwoNTwentyTwoSEightDrbIdAddsMed{} to
+\NumEEightWTwoNTwentyTwoSEightMmhmAddsMed{} column additions depending on the
+variant, and a W4 update \NumEEightWFourPlaneNSixteenThousandDTwoMmhmAddsMed{} to
+\NumEEightWFourPlaneNSixteenThousandDTwoDrbIdAddsMed; a W3 update, which creates
+or destroys a cavity, performs \NumEEightWThreeNTwentyMmhmAddsMed{} to
+\NumEEightWThreeNTwentyDrbIdAddsMed. The number of additions orders the updates
+by latency well on W4 (Spearman's $\rho$ from \NumMainRhoAddsWFourMin{} to
+\NumMainRhoAddsWFourMax{} across the variants) and less well on W2
+(\NumMainRhoAddsWTwoMin{} to \NumMainRhoAddsWTwoMax) and W3
+(\NumMainRhoAddsWThreeMin{} to \NumMainRhoAddsWThreeMax). On W3, at an equal
+number of additions, the variants that rebuild, whose basis is smaller
+(\cref{fig:mechanism}(b)), are faster than their counterparts without rebuilds;
+this is consistent with \cref{prop:cost}, in which an addition costs time
+proportional to the sizes of the chains involved, but we did not log those
+sizes. The counts compare variants; they do not predict the time of an update.
+
+\begin{figure}[t]
+  \centering
+  \resultfigure[width=\linewidth]{FM3_cost_proxies}{8cm}
+  \caption{The cost proxies of \cref{prop:cost} on one instance per family
+    (updates without a rebuild, three runs pooled). Top: complementary
+    cumulative distribution of the footprint of an update, the sum of
+    $|\occ(\sigma)|$ over its deleted simplices; on W3 about half of the
+    updates delete nothing. Middle: the same for the column additions of an
+    update. Bottom: latency against column additions per update, median (line)
+    and interquartile range (band) in logarithmic bins of at least 20 updates,
+    with the range of Spearman's $\rho$ over the four variants. The proxies
+    count the terms of the sums in \cref{prop:cost}, not the sizes of the
+    chains, and at a fixed count the latency still varies. (a)~W2, $N=22$,
+    $s=8$; (b)~W3, $N=20$; (c)~W4 in the square, $n=16000$, $D=2$. On W2 and W4
+    no rebuild fired, so the proxies of \method{mmhm} equal those of
+    \method{mmhm-norb}, and those of \method{drb-id-rb} those of
+    \method{drb-id}. Quantiles: Table~\ref{S-tab:e8}.}
+  \label{fig:proxies}
+\end{figure}
 
 \subsection{Ablations and algorithmic limits}\label{sec:exp-ablation-limits}
 
@@ -283,13 +326,42 @@ effect: at $N=20$, switching the growth trigger on ($\alpha=1$) takes the
 insertion-order DRB from \NumESevenWThreeNTwentyDrbIdRbAOffPOffAmort{} to
 \NumESevenWThreeNTwentyDrbIdRbAOnePOffAmort\,\textmu s and the Morse-ordered one
 from \NumESevenWThreeNTwentyMmhmAOffPOffAmort{} to
-\NumESevenWThreeNTwentyMmhmAOnePOffAmort\,\textmu s amortised. Where the basis
+\NumESevenWThreeNTwentyMmhmAOnePOffAmort\,\textmu s amortised.
+\Cref{fig:rebuild-policy} shows how this gain depends on how often the basis is
+rebuilt. The first few rebuilds per run remove most of the excess cost; beyond
+about ten per run the amortised latency of \method{drb-id-rb} changes little,
+and that of \method{mmhm} rises again, from its value at the default to
+\NumESevenWThreeNTwentyMmhmAOffPSixtyFourAmort\,\textmu s with a rebuild every
+64 updates. The tail is more sensitive. Once more than one update in a hundred
+carries a rebuild, the p99 is set by the rebuilds themselves: at $\alpha=0.25$
+the p99 of \method{mmhm} is
+\NumESevenWThreeNTwentyMmhmAQuarterPOffPNinetyNine\,\textmu s, against
+\NumESevenWThreeNTwentyMmhmAOnePOffPNinetyNine\,\textmu s at the default and
+\NumWThreeNTwentyFullSortedPNinetyNine\,\textmu s for recomputation
+(\method{full-sorted}). An aggressive policy is therefore counterproductive
+even where rebuilding helps. Where the basis
 does not grow (W2, W4) the trigger does not fire, and forced periodic rebuilds
 only add cost: every 64 updates, they raise the amortised latency of
 \method{mmhm} on W2 from \NumESevenWTwoNTwentyTwoSEightMmhmAOnePOffAmort{} to
 \NumESevenWTwoNTwentyTwoSEightMmhmAOnePSixtyFourAmort\,\textmu s. On the
 surfaces of W1, rebuilds help on the smaller instances but not on the largest
 (Table~\ref{S-tab:rebuild-effect}).
+
+\begin{figure}[t]
+  \centering
+  \resultfigure[width=\linewidth]{FM4_rebuild_policy}{5cm}
+  \caption{The rebuild policy on W3 with $N=20$ (E7; three runs of
+    $T=2000$ updates, pooled): (a)~amortised and (b)~p99 latency per update,
+    rebuilds included, against the number of rebuilds per run. Lines: the growth
+    trigger alone, with $\alpha=\infty$ (never), $4$, $2$, $1$, $0.5$ and $0.25$
+    from left to right; ring: the default $\alpha=1$. Hollow markers: periodic
+    rebuilds alone, every 256 and every 64 updates. Dashed: the static
+    reference on the same instance (\method{full-sorted}, E3). Dotted, in (b):
+    20 rebuilds per run, beyond which more than 1\,\% of the updates carry a
+    rebuild. The full sweep on W2, W3 and W4: Figure~\ref{S-fig:rebuild} and
+    Table~\ref{S-tab:e7}.}
+  \label{fig:rebuild-policy}
+\end{figure}
 
 \paragraph{The Morse order.}
 \Cref{lem:apparent} and its corollaries say where the work of a build is done;
@@ -312,7 +384,11 @@ order (Table~\ref{S-tab:rand}). Between rebuilds the Morse order helps where the
 basis grows or carries large cycles: \method{mmhm-norb} is faster than
 \method{drb-id} on W3 with $N\ge20$, on W4 in the square with $n\ge4000$ and on
 the large W1 surfaces, within noise on W2, and slower on the W5 witnesses
-(\cref{tab:ablation}). At a rebuild it helps on W3, where \method{mmhm} is
+(\cref{tab:ablation}). Without rebuilds it also shortens the tail of the column
+additions on W2, W3 and W4, and that of the footprints on W3 and W4
+(\cref{fig:proxies}); after rebuilds on W3, the insertion-order rebuilds of
+\method{drb-id-rb} leave the lighter tails, although \method{mmhm} is faster
+(Section~\ref{S-sec:s-morse}). At a rebuild it helps on W3, where \method{mmhm} is
 faster than \method{drb-id-rb} in \NumESevenWThreeNTwentyMmhmBelowDrbIdRb{} of
 the \NumESevenWThreeNTwentySettings{} settings of the policy sweep. The
 combination of growth-triggered rebuilds and the Morse order, \method{mmhm}, is
@@ -348,7 +424,12 @@ time~\cite{holm2001polylog}.
   \caption{Amortised latency per toggle on the non-locality witnesses
     (log--log, three runs pooled; the legend gives each least-squares slope).
     (a)~W5a against the cycle length $L$; (b)~W5b against the number $n_2$ of
-    triangles. Hollow markers: \method{gudhi} on the prefix $T'$.}
+    triangles. Dotted: a guide of slope~1. Hollow markers: \method{gudhi} on the
+    prefix $T'$. The linear growth of the DRB variants is what
+    \cref{prop:nonlocal} forces for this representation, not a lower bound for
+    the problem: the surface counters \method{euler} (\cref{rem:surfaces}),
+    which apply only to connected closed surfaces, stay below one microsecond
+    in~(b).}
   \label{fig:nonlocality}
 \end{figure}
 

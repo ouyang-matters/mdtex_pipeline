@@ -48,7 +48,8 @@ python3 verify.py                      # exits 3 on any mismatch, 4 if workload 
                                        # or closed-form files are missing
 python3 aggregate.py                   # -> results/summary*.csv, ../paper/generated/
 python3 main_tables.py                 # main-text tables + \NumMain macros (reads summaries)
-cd ../figures && for f in f*.py; do python3 "$f"; done
+cd ../figures && for f in f*.py; do python3 "$f"; done   # f*.py and fm_*.py
+python3 ../reference/figure_examples.py   # entries of the worked Figures 2 and 3
 # paper, supplement and erratum (xr between paper and supplement): ../paper/build.sh
 ```
 

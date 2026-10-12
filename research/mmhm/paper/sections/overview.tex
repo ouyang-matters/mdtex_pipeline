@@ -55,11 +55,12 @@ existing pivots, as in the standard persistence
 algorithm~\cite{edelsbrunner2002topological,zomorodian2005computing}. A deletion
 rewrites every column in the footprint of the deleted simplex: if one of them is
 a cycle, that cycle is added to the others (Case~A); otherwise the column with
-the smallest pivot is added to the others (Case~B). \Cref{sec:drb} proves that
+the smallest pivot is added to the others (Case~B, \cref{fig:deletion}).
+\Cref{sec:drb} proves that
 this keeps the Betti numbers exact after every atomic edit, for every order of
 the cells. The order affects only the cost. When the structure is built or
 rebuilt we compute an acyclic matching by collapses and order the cells by
-reverse removal time (\cref{sec:morse}); under this order the static reduction
+reverse removal time (\cref{sec:morse,fig:morse}); under this order the static reduction
 performs all its column additions in the columns of critical cells. Between
 rebuilds the order is a heuristic for a sparse basis. \Cref{sec:cost-locality}
 states the cost of an edit in output-sensitive terms and shows that it admits no
@@ -70,19 +71,15 @@ restricted to $\dim K\le3$.
 \begin{figure}[t]
   \centering
   \input{figures/f1_method}
-  \caption{The method. \emph{Top:} an update is processed one atomic edit at a
-    time on the dynamic reduced basis of each boundary matrix
-    (\cref{sec:drb}). An insertion reduces the new column against the pivots; a
-    deletion rewrites every slot in the footprint $\occ(\sigma)$ of the deleted
-    simplex, by a cycle (Case~A) or by the slot with the smallest low (Case~B).
-    The Betti numbers are exact after every edit, whatever the order of the
-    cells. \emph{Bottom, dashed:} a rebuild replaces the order by the Morse
-    order of a collapse matching and recomputes the basis by the static
-    reduction with clearing (\cref{sec:morse}). Under that order every gradient
-    pair is an apparent pair and all column additions happen in columns of
-    critical cells. Between rebuilds the Morse order is only a heuristic for
-    sparsity (\cref{rem:morse-scope}). The ablations of \cref{sec:exp-methods}
-    change the bottom path: \method{drb-id-rb} rebuilds in insertion order, and
-    \method{drb-id} and \method{mmhm-norb} never rebuild.}
+  \caption{The five parts of the method. \emph{Solid arrows:} each atomic edit
+    of an update~(1) changes the dynamic reduced basis of one dimension~(2,
+    \cref{sec:drb}), from which the Betti numbers are read off~(3,
+    \cref{thm:exact}); this path is exact for every order of the cells.
+    \emph{Dashed arrows:} a rebuild~(4, \cref{cor:rebuild}) recomputes the
+    basis by static reduction in the Morse-induced order~(5, \cref{sec:morse});
+    this path changes only the cost. The ablations of \cref{sec:exp-methods} vary the dashed path:
+    \method{drb-id} builds once in insertion order and never rebuilds,
+    \method{mmhm-norb} builds once in the Morse order, and \method{drb-id-rb}
+    rebuilds with the policy of \method{mmhm} but in insertion order.}
   \label{fig:method}
 \end{figure}

@@ -1,0 +1,113 @@
+% figures/f2_deletion.tex -- the two deletion cases worked on graphs (k = 1).
+% Rows of R are vertices with keys 0 < 1 < 2 < 3 (top to bottom, so the low of
+% a column is its lowest non-zero entry); rows of V are edges; columns are slots.
+% Every entry is computed and checked by reference/figure_examples.py.
+\newcommand{\pv}[1]{{\setlength{\fboxsep}{0.6pt}\setlength{\fboxrule}{0.6pt}\fbox{$#1$}}}
+\newcommand{\fc}{\cellcolor{black!14}}
+\newcommand{\chg}[1]{\boldsymbol{#1}}
+\tikzset{
+  dvtx/.style={circle, draw=black!85, fill=white, inner sep=0pt, minimum size=3.6mm,
+    font=\scriptsize},
+  dedg/.style={black!80, semithick},
+  dsig/.style={black, very thick, dash pattern=on 2.4pt off 1.5pt},
+}
+\newcommand{\whybox}[1]{\fcolorbox{black!50}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\scriptsize\raggedright #1}}}
+{\footnotesize\renewcommand{\arraystretch}{1.06}%
+%
+% =========================== (a) Case A ===================================
+\begin{minipage}[t]{0.485\textwidth}
+\textbf{(a) Case A:} $\sigma=01$ lies on a cycle\par\smallskip
+\begin{tabular}{@{}c@{\hspace{0.7em}}l@{\hspace{1.1em}}l@{}}
+\begin{tikzpicture}[baseline=(current bounding box.center)]
+  \node[dvtx] (a0) at (0,0) {0}; \node[dvtx] (a1) at (1.1,0) {1};
+  \node[dvtx] (a2) at (0.55,0.95) {2};
+  \draw[dedg] (a0) -- (a2) (a1) -- (a2);
+  \draw[dsig] (a0) -- node[below=-1pt, font=\scriptsize] {$\sigma$} (a1);
+  \node[font=\scriptsize] at (0.55,-0.62) {$\beta=(1,1)$};
+\end{tikzpicture}
+& $V=\begin{array}{@{}r|ccc@{}}
+    & s_1 & s_2 & s_3\\ \hline
+    \fc 01 & \fc 1 & \fc 0 & \fc 1\\
+    02 & 0 & 1 & 1\\
+    12 & 0 & 0 & 1\end{array}$
+& $R=\begin{array}{@{}r|ccc@{}}
+    & s_1 & s_2 & s_3\\ \hline
+    0 & 1 & 1 & 0\\
+    1 & \pv{1} & 0 & 0\\
+    2 & 0 & \pv{1} & 0\end{array}$\\[16pt]
+$\Big\downarrow$ & \multicolumn{2}{@{}l@{}}{\parbox[c]{5.75cm}{\scriptsize\raggedright
+    $O=\occ(\sigma)=\{s_1,s_3\}$ (the $1$s in the shaded row); $R_{s_3}=0$, so
+    $Z=\{s_3\}$ and $z=s_3$.\\
+    $V_{s_1}\gets V_{s_1}+V_{s_3}$; remove slot $s_3$ and row $\sigma$.}}\\[14pt]
+\begin{tikzpicture}[baseline=(current bounding box.center)]
+  \node[dvtx] (b0) at (0,0) {0}; \node[dvtx] (b1) at (1.1,0) {1};
+  \node[dvtx] (b2) at (0.55,0.95) {2};
+  \draw[dedg] (b0) -- (b2) (b1) -- (b2);
+  \node[font=\scriptsize] at (0.55,-0.62) {$\beta=(1,0)$};
+\end{tikzpicture}
+& $V=\begin{array}{@{}r|cc@{}}
+    & s_1 & s_2\\ \hline
+    02 & \chg{1} & 1\\
+    12 & \chg{1} & 0\end{array}$
+& $R=\begin{array}{@{}r|cc@{}}
+    & s_1 & s_2\\ \hline
+    0 & 1 & 1\\
+    1 & \pv{1} & 0\\
+    2 & 0 & \pv{1}\end{array}$
+\end{tabular}\par\medskip
+\whybox{\textbf{Why a cycle.} $\bd V_{s_3}=R_{s_3}=0$, so the addition removes
+  $\sigma$ from $V_{s_1}$ and leaves every $R_j$, hence every low, as it was.
+  $n_1$ drops and $r_1=2$ stays: $\beta_1$ falls by one.}
+\end{minipage}\hfill
+%
+% =========================== (b) Case B ===================================
+\begin{minipage}[t]{0.485\textwidth}
+\textbf{(b) Case B:} $\sigma=03$ lies on no cycle\par\smallskip
+\begin{tabular}{@{}c@{\hspace{0.7em}}l@{\hspace{1.1em}}l@{}}
+\begin{tikzpicture}[baseline=(current bounding box.center)]
+  \node[dvtx] (c3) at (0.6,1.0) {3};
+  \node[dvtx] (c0) at (0,0) {0}; \node[dvtx] (c1) at (0.6,0) {1};
+  \node[dvtx] (c2) at (1.2,0) {2};
+  \draw[dedg] (c1) -- (c3) (c2) -- (c3);
+  \draw[dsig] (c0) -- node[left=-1pt, font=\scriptsize] {$\sigma$} (c3);
+  \node[font=\scriptsize] at (0.6,-0.62) {$\beta=(1,0)$};
+\end{tikzpicture}
+& $V=\begin{array}{@{}r|ccc@{}}
+    & s_1 & s_2 & s_3\\ \hline
+    \fc 03 & \fc 1 & \fc 1 & \fc 1\\
+    13 & 0 & 1 & 0\\
+    23 & 0 & 0 & 1\end{array}$
+& $R=\begin{array}{@{}r|ccc@{}}
+    & s_1 & s_2 & s_3\\ \hline
+    0 & 1 & 1 & 1\\
+    1 & 0 & \pv{1} & 0\\
+    2 & 0 & 0 & \pv{1}\\
+    3 & \pv{1} & 0 & 0\end{array}$\\[16pt]
+$\Big\downarrow$ & \multicolumn{2}{@{}l@{}}{\parbox[c]{5.75cm}{\scriptsize\raggedright
+    $O=\{s_1,s_2,s_3\}$ and every $R_j\ne0$, so $Z=\emptyset$; the lows are
+    $3,1,2$, and $p=s_2$ has the smallest.\\
+    $(R_j,V_j)\gets(R_j+R_{s_2},V_j+V_{s_2})$ for $j=s_1,s_3$; remove slot $s_2$
+    and row $\sigma$.}}\\[14pt]
+\begin{tikzpicture}[baseline=(current bounding box.center)]
+  \node[dvtx] (d3) at (0.6,1.0) {3};
+  \node[dvtx] (d0) at (0,0) {0}; \node[dvtx] (d1) at (0.6,0) {1};
+  \node[dvtx] (d2) at (1.2,0) {2};
+  \draw[dedg] (d1) -- (d3) (d2) -- (d3);
+  \node[font=\scriptsize] at (0.6,-0.62) {$\beta=(2,0)$};
+\end{tikzpicture}
+& $V=\begin{array}{@{}r|cc@{}}
+    & s_1 & s_3\\ \hline
+    13 & \chg{1} & \chg{1}\\
+    23 & 0 & 1\end{array}$
+& $R=\begin{array}{@{}r|cc@{}}
+    & s_1 & s_3\\ \hline
+    0 & \chg{0} & \chg{0}\\
+    1 & \chg{1} & \chg{1}\\
+    2 & 0 & \pv{1}\\
+    3 & \pv{1} & 0\end{array}$
+\end{tabular}\par\medskip
+\whybox{\textbf{Why the smallest low.} Adding $R_{s_1}=\{0,3\}$, whose low $3$
+  is the largest, would instead give $\{1,3\}$ and $\{2,3\}$: two lows $3$,
+  violating (I2). $R_{s_2}$ lies entirely above the other lows, so adding it
+  moves none. $n_1$ and $r_1$ both drop: $\beta_0$ rises by one.}
+\end{minipage}}%

@@ -130,7 +130,11 @@ v1's localized column update is incorrect (no basis tracking; affected set
 ignores gradient paths); v2 uses an exact dynamic reduced basis with a
 Morse-collapse order as sparsifier. Claim only what is measured.
 
-Status: v2 is written, reviewed twice and committed (paper/main.pdf, 34 pp).
+Status: v2 is written, reviewed twice and committed (paper/main.pdf 21 pp +
+supplement.pdf 19 pp, built by `paper/build.sh`). Eight main figures: three
+TikZ schematics in `paper/figures/` (method, deletion cases, Morse order; the
+worked entries are checked by `reference/figure_examples.py`) and five data
+plots from `figures/fm_*.py` / `f6_nonlocality.py`.
 Start from `research/mmhm/README.md` (open author items) and
 `experiments/README.md` (regeneration). `workloads/data/` is not in git —
 regenerate it with `run.py --only-gen`, then check hashes with

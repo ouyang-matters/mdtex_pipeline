@@ -52,7 +52,23 @@ cofaces. Let $O=\occ(\sigma)$ and $Z=\{j\in O: R_j=0\}$.
   $V_j\gets V_j+V_p$. Remove slot $p$ and the entry $\pivot(\low(R_p))$.
 \end{description}
 Finally remove $\sigma$ from $K$. Inserting or deleting a vertex changes only
-$n_0$.
+$n_0$. \Cref{fig:deletion} carries out both cases on a graph.
+
+\begin{figure}[t]
+\centering
+\input{figures/f2_deletion}
+\caption{The two cases of $\Del(\sigma)$, worked on graphs ($k=1$). Columns are
+slots. The rows of $V$ are edges; the rows of $R$ are vertices in key order from
+top to bottom, so the low of a column is its lowest non-zero entry (boxed). The
+shaded row of $V$ is $\sigma$, and its $1$s mark the footprint $O$. Bold entries
+are those changed by the update; $\beta=(\beta_0,\beta_1)$.
+(a)~A footprint slot is a cycle ($R_{s_3}=0$); adding it to the other footprint
+slot clears $\sigma$ from $V$ and leaves $R$ unchanged.
+(b)~No footprint slot is a cycle; the slot with the smallest low is added to the
+others and removed, and no low moves.
+Every entry is recomputed and checked by \texttt{reference/figure\_examples.py}.}
+\label{fig:deletion}
+\end{figure}
 
 \begin{theorem}[Exactness]\label{thm:exact}
 Let $k\ge1$ and let $(R_j,V_j)_{j\in J_k}$ satisfy (I1)--(I3) for $\Bm{k}(K)$,

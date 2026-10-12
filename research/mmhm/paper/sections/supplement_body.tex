@@ -200,7 +200,7 @@ is a graph and not a surface.
 \Cref{tab:sweeps} lists the workloads, parameters and methods of each
 experiment. Every timed configuration ran with \NumSeeds{} seeds.
 
-\begin{table}[t]
+\begin{table}[tbp]
   \centering
   \caption{Experiments. Parameters not listed are the generator defaults of
     \cref{sec:exp-workloads}. ``as E1'': \method{full-id}, \method{full-sorted}, \method{full-morse},
@@ -318,7 +318,7 @@ test.
 The outlier run is described in \cref{sec:e1}; \cref{tab:noise} lists the
 repeated runs.
 
-\begin{table}[ht]
+\begin{table}[tbp]
   \centering
   \caption{Repeated identical runs: coefficients of variation of the median,
     amortised and p99 latency.}
@@ -387,7 +387,7 @@ verifications against a recomputation, and on the
 \NumReferenceChecks{} vectors of \NumReferenceMethods{} methods
 (\NumReferenceMismatches{} mismatches).
 
-\begin{table}[t]
+\begin{table}[tbp]
   \centering
   \caption{Correctness (E0): per exact method, the runs, the Betti vectors they
     reported, the states compared with the \method{full-id} output of the same
@@ -567,9 +567,9 @@ runs end at \NumWThreeNTwentyMmhmNnzEnd{} and \NumWThreeNTwentyDrbIdRbNnzEnd.
   \centering
   \resultfigure[width=0.82\linewidth]{F4_time_series}{6cm}
   \caption{Behaviour over time of the four DRB methods (seed~0). Top: per-update
-    latency, mean of a sliding window of 50 updates, with the rebuilds of
-    \method{mmhm} and \method{drb-id-rb} marked. Bottom: $\nnz(R)+\nnz(V)$ after
-    each update. (a)~W2 with $N=22$, $s=8$ (E1); (b)~W3 with $N=20$ (E3);
+    latency, mean of a sliding window of 50 updates. Bottom: $\nnz(R)+\nnz(V)$
+    after each update. Thin vertical lines through both rows: the rebuilds of
+    \method{mmhm} (blue) and \method{drb-id-rb} (yellow). (a)~W2 with $N=22$, $s=8$ (E1); (b)~W3 with $N=20$ (E3);
     (c)~W1 torus $256\times256$ (E5), with the updates after which no hole is
     open marked.}
   \label{fig:timeseries}
@@ -806,12 +806,14 @@ additions and the time disagree here, as the counters are only proxies
     latency of \method{mmhm} and \method{drb-id-rb} against the growth threshold
     $\alpha$, one line per period $m$; three runs pooled. (a)~W2 with $N=22$,
     $s=8$; (b)~W3 with $N=20$; (c)~W4 in the square with $n=16000$, $D=2$. With
-    $\alpha=m=\infty$ (``off'') the methods never rebuild. E7 has no W1
-    instance; W1 rebuild data are in \cref{tab:rebuild-effect}.}
+    $\alpha=m=\infty$ (``off'') the methods never rebuild. The W3 panel is
+    summarised as a trade-off in Figure~\ref{main-fig:rebuild-policy} of the main
+    text. E7 has no W1 instance; W1 rebuild data are in
+    \cref{tab:rebuild-effect}.}
   \label{fig:rebuild}
 \end{figure}
 
-\begin{table}[ht]
+\begin{table}[htbp]
   \centering
   \caption{The full E7 grid: amortised and p99 latency and rebuilds per run of
     \method{mmhm} and \method{drb-id-rb} for every growth threshold $\alpha$ and
@@ -879,8 +881,9 @@ square with $n\ge4000$. It is within noise on W2 (except on the instance with
 the outlier run of E1) and on the smaller W3 and W4 instances, and slower beyond noise on W5a for every $L\ge3000$ (at $L=10^6$,
 \NumWFiveCycleLOneMillionMmhmNorbAmort{} against
 \NumWFiveCycleLOneMillionDrbIdAmort\,\textmu s) and on W5b from level~6 on.
-\Cref{fig:footprint,tab:e8} show the counters on the non-rebuild updates of one
-instance each of W2, W3, W4 and W1; the footprint of an update is the sum of
+Figure~\ref{main-fig:proxies} of the main text (top two rows) and
+\cref{tab:e8} show the counters on the non-rebuild updates of one instance each
+of W2, W3, W4 and, in the table only, W1; the footprint of an update is the sum of
 $|\occ(\sigma)|$ over its deleted simplices. Without rebuilds the Morse order
 gives lighter tails of the column additions on all four: on W4 ($n=16000$) the
 p99 falls from \NumEEightWFourPlaneNSixteenThousandDTwoDrbIdAddsPNinetyNine{} to
@@ -899,20 +902,7 @@ against \NumEEightWThreeNTwentyMmhmFootprintPNinetyNine{} on W3), although
 Morse order is a heuristic (Remark~\ref{main-rem:morse-scope}), and these measurements are
 its whole justification.
 
-\begin{figure}[t]
-  \centering
-  \resultfigure[width=0.82\linewidth]{F5_footprint_ccdf}{6cm}
-  \caption{Counters between rebuilds (E8): complementary cumulative
-    distributions of the footprint per update (top; the sum of
-    $|\occ(\sigma)|$ over its deletions) and of the column additions per update
-    (bottom), over the updates without a rebuild (three runs pooled; log--log).
-    (a)~W2 with $N=22$, $s=8$; (b)~W3 with $N=20$; (c)~W4 in the square with
-    $n=16000$, $D=2$. On W2 and W4 no rebuild fired, so \method{mmhm} coincides
-    with \method{mmhm-norb} and \method{drb-id-rb} with \method{drb-id}. The W1
-    torus of \cref{tab:e8} is not shown.}
-  \label{fig:footprint}
-\end{figure}
-
+\clearpage
 \section{Full result tables}\label{sec:s-tables}
 
 Latencies are per update in \textmu s, the three runs pooled; $'$ marks

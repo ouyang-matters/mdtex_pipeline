@@ -1,0 +1,113 @@
+% figures/f3_morse.tex -- the Morse order on a small complex: collapse, gradient
+% pairs, critical cells, apparent pairs in the boundary matrices, and the
+% reduction of the critical column. Rows and columns of every matrix are in key
+% order (rows top to bottom), so a low is the lowest non-zero entry.
+% Every entry is computed and checked by reference/figure_examples.py.
+\newcommand{\pv}[1]{{\setlength{\fboxsep}{0.6pt}\setlength{\fboxrule}{0.6pt}\fbox{$#1$}}}
+\newcommand{\cc}{\cellcolor{black!14}}
+\newcommand{\gz}[1]{\textcolor{black!40}{#1}}
+{\footnotesize\renewcommand{\arraystretch}{1.06}%
+%
+% ====================== (a) complex and matching ==========================
+\begin{minipage}[t]{0.29\textwidth}
+\textbf{(a)} Complex, matching, critical cells\par\medskip
+\centering
+\begin{tikzpicture}[>={Stealth[length=2.1mm,width=1.8mm]},
+    mvtx/.style={circle, draw=black!85, fill=white, inner sep=0pt, minimum size=3.8mm,
+      font=\scriptsize},
+    cvtx/.style={mvtx, fill=black!22, line width=1.1pt},
+    medg/.style={black!60, semithick},
+    cedg/.style={black, line width=1.7pt},
+    pair/.style={->, black, thick},
+    lab/.style={font=\scriptsize, text=black!70, inner sep=1.5pt}]
+  \coordinate (p0) at (0,0);     \coordinate (p1) at (2.1,0);
+  \coordinate (p2) at (2.1,2.1); \coordinate (p3) at (0,2.1);
+  \fill[black!10] (p0) -- (p1) -- (p2) -- cycle;
+  \draw[medg] (p0) -- (p1) -- (p2) -- (p3) -- cycle;
+  \draw[cedg] (p0) -- (p2);
+  \draw[pair] ($(p0)+(0,0.22)$) -- ($(p0)!0.52!(p3)$);
+  \draw[pair] ($(p1)+(0,0.22)$) -- ($(p1)!0.52!(p2)$);
+  \draw[pair] ($(p2)+(-0.22,0)$) -- ($(p2)!0.52!(p3)$);
+  \draw[pair] ($(p0)!0.55!(p1)$) -- ++(0,0.62);
+  \node[mvtx] at (p0) {0}; \node[mvtx] at (p1) {1};
+  \node[mvtx] at (p2) {2}; \node[cvtx] at (p3) {3};
+  \node[lab, below] at ($(p0)!0.5!(p1)+(0,-0.02)$) {$01$};
+  \node[lab, right] at ($(p1)!0.78!(p2)$) {$12$};
+  \node[lab, above] at ($(p2)!0.78!(p3)$) {$23$};
+  \node[lab, left] at ($(p0)!0.78!(p3)$) {$03$};
+  \node[lab, above left=-1pt] at ($(p0)!0.42!(p2)$) {$02$};
+  \node[lab] at (1.62,0.42) {$012$};
+  \node[font=\scriptsize] at (1.05,-0.62) {$\beta=(1,1,0)$};
+\end{tikzpicture}
+\end{minipage}\hfill
+%
+% ====================== (b) collapse and order ============================
+\begin{minipage}[t]{0.68\textwidth}
+\textbf{(b)} Collapse and Morse order\par\medskip
+{\scriptsize Collapse steps: pair $(01,012)$, pair $(1,12)$; no free face is left,
+so $02$ is critical; pair $(2,23)$, pair $(0,03)$; $3$ is critical.}\par\smallskip
+\begin{tabular}{@{}r@{\hspace{0.9em}}*{10}{c}@{}}
+cell & $\mathbf{3}$ & $0$ & $03$ & $2$ & $23$ & $\mathbf{02}$ & $1$ & $12$ & $01$ & $012$\\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){8-9}\cmidrule(lr){10-11}
+& crit. & \multicolumn{2}{c}{pair} & \multicolumn{2}{c}{pair} & crit.
+  & \multicolumn{2}{c}{pair} & \multicolumn{2}{c}{pair}\\[3pt]
+key $\ord$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9\\
+removal time $\rmt$ & 9 & 8 & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0
+\end{tabular}
+\end{minipage}
+
+\bigskip
+%
+% ====================== (c) boundary matrices =============================
+\begin{minipage}[t]{0.5\textwidth}
+\textbf{(c)} Boundary matrices in the Morse order\par\medskip
+\centering
+$B_2=\begin{array}{@{}r|c@{}}
+    & 012\\ \hline
+    03 & 0\\
+    23 & 0\\
+    02 & 1\\
+    12 & 1\\
+    01 & \pv{1}\end{array}$\qquad
+$B_1=\begin{array}{@{}r|ccccc@{}}
+    & 03 & 23 & \cc 02 & 12 & \gz{01}\\ \hline
+    3 & 1 & 1 & \cc 0 & 0 & \gz{0}\\
+    0 & \pv{1} & 0 & \cc 1 & 0 & \gz{1}\\
+    2 & 0 & \pv{1} & \cc 1 & 1 & \gz{0}\\
+    1 & 0 & 0 & \cc 0 & \pv{1} & \gz{1}\end{array}$\par\smallskip
+\raggedright{\scriptsize Boxed: the apparent pivots, $R_y=\bd y$ with low
+$x$ for $(x,y)\in M$. Column $01$ (grey) is cleared, since $01$ is the low of
+$R_{012}$. Only the shaded critical column $02$ is reduced
+(\cref{cor:critical-work}).}
+\end{minipage}\hfill
+%
+% ====================== (d) reduction of the critical column ===============
+\begin{minipage}[t]{0.46\textwidth}
+\textbf{(d)} Reducing the critical column $02$\par\medskip
+\centering
+$\begin{array}{@{}r|c@{}}
+    & \bd 02\\ \hline
+    3 & 0\\
+    0 & 1\\
+    2 & \pv{1}\\
+    1 & 0\end{array}
+\xrightarrow{\;\mu(2)=23\;}
+\begin{array}{@{}c@{}}
+    {+}\bd 23\\ \hline
+    1\\
+    \pv{1}\\
+    0\\
+    0\end{array}
+\xrightarrow{\;\mu(0)=03\;}
+\begin{array}{@{}c@{}}
+    {+}\bd 03\\ \hline
+    0\\
+    0\\
+    0\\
+    0\end{array}$\par\smallskip
+\raggedright{\scriptsize Each addition replaces the low, a lower cell, by the
+other facet of its partner, following the gradient paths $2\to23\to3$ and
+$0\to03\to3$ (\cref{cor:morse-reduction}). The column ends at
+$\dM 02=3+3=0$: $V_{02}=02+23+03$ is the cycle around the empty triangle, so
+$02$ is positive.}
+\end{minipage}}%

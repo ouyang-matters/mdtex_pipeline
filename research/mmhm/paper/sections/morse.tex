@@ -31,7 +31,7 @@ the paired cell $y$ this uses the simplicial diamond property: if $y$ had a
 coface $w\in P$, then $w$ would have exactly two facets containing $x$, namely
 $y$ and some $y'\ne y$, and $y'\in P$ because $P$ is a subcomplex, so $x$ would
 not be free. The queue discipline is not specified; all results below hold for
-every discipline.
+every discipline. \Cref{fig:morse} runs the procedure on a small complex.
 
 A \emph{gradient path} (V-path) is a sequence $\tau_0,\sigma_0,\tau_1,\sigma_1,
 \dots,\tau_m$ with $(\tau_i,\sigma_i)\in M$ and $\tau_{i+1}$ a facet of
@@ -103,6 +103,22 @@ $\low(R_y)=x$, so $x$ is cleared. Upper cells are apparent by
 Lemma~\ref{lem:apparent}(e). Every remaining column belongs to a critical cell.
 \end{proof}
 
+\begin{figure}[t]
+\centering
+\input{figures/f3_morse}
+\caption{The Morse order on a small complex $K$: the square $0123$ with
+diagonal $02$ and the triangle $012$ (shaded); the triangle $023$ is not in $K$.
+(a)~Arrows point from $x$ to $\mu(x)$ for the gradient pairs found by the
+collapse; the critical cells $3$ and $02$ are drawn heavy.
+(b)~Reading the removal times from right to left replays the collapse; the keys
+are $\ord=9-\rmt$. Each pair is adjacent in the order and its lower cell is the
+youngest facet of its partner, so each pair is apparent (\cref{lem:apparent}).
+(c)--(d)~Rows and columns are in key order, rows from top to bottom, so a low is
+the lowest non-zero entry (boxed).
+Every entry is recomputed and checked by \texttt{reference/figure\_examples.py}.}
+\label{fig:morse}
+\end{figure}
+
 \paragraph{Morse boundary.} By Lemma~\ref{lem:apparent}(b) the following
 recursion is well founded and defines a linear map
 $\flow\colon\Cc{k-1}\to\Cc{k-1}$: $\flow(\tau)=\tau$ for $\tau\in\Crit$,
@@ -139,7 +155,7 @@ Each first-phase addition $R\gets R+\bd y$ with $\low(R)=x$ and $y=\mu(x)$
 replaces $x$ by the other facets of $y$; it is one step of the discrete gradient
 flow, and $\flow(R)$ does not change by~\eqref{eq:flow-kills}. This is the
 precise sense in which the reduced column of a critical cell ``traces its
-gradient flow''. $R_c$ may still contain cells of $\Up$; we observed this in
+gradient flow'' (\cref{fig:morse}d). $R_c$ may still contain cells of $\Up$; we observed this in
 the randomised checks and claim nothing about them.
 
 \begin{proof}

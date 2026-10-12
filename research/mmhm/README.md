@@ -4,8 +4,9 @@ Version 2 of arXiv:2508.14429, *Morse-based Modular Homology for Evolving
 Simplicial Complexes*: exact Z2 Betti numbers of a simplicial complex
 (dim ≤ 3) under simplex insertions and deletions.
 
-**The paper:** [`paper/main.pdf`](paper/main.pdf) (34 pages).
-Build it with `latexmk -pdf main.tex` in `paper/`.
+**The paper:** [`paper/main.pdf`](paper/main.pdf) (21 pages), with the
+supplementary material [`paper/supplement.pdf`](paper/supplement.pdf) (19 pages).
+Build both with `./build.sh` in `paper/` (they cross-reference each other).
 
 ## What changed from v1
 

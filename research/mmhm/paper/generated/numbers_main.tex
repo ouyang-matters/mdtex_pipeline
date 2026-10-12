@@ -3,6 +3,9 @@
 % faster (amortised) of full-id and full-sorted on that instance; ProbNinetyNineRatio:
 % p99 of the DRB variant divided by the p99 of that reference.
 % Variants: drb-id, mmhm-norb, drb-id-rb, mmhm (WThreeMmhm...: mmhm only).
+% RhoAdds...: Spearman's rho between column additions and latency per update,
+% non-rebuild updates with at least one addition (W2 N=22 s=8, W3 N=20, W4 2D
+% n=16000 D=2), range over the four variants.
 \newcommand{\NumMainWTwoLargestSpeedupMin}{88.6}
 \newcommand{\NumMainWTwoLargestSpeedupMax}{89.9}
 \newcommand{\NumMainWTwoSmallestSpeedupMin}{2.29}
@@ -19,3 +22,9 @@
 \newcommand{\NumMainWOneSpeedupMax}{1.98}
 \newcommand{\NumMainWOneProbNinetyNineRatioMin}{2.02}
 \newcommand{\NumMainWOneProbNinetyNineRatioMax}{6.81}
+\newcommand{\NumMainRhoAddsWTwoMin}{0.63}
+\newcommand{\NumMainRhoAddsWTwoMax}{0.85}
+\newcommand{\NumMainRhoAddsWThreeMin}{0.46}
+\newcommand{\NumMainRhoAddsWThreeMax}{0.53}
+\newcommand{\NumMainRhoAddsWFourMin}{0.90}
+\newcommand{\NumMainRhoAddsWFourMax}{0.95}

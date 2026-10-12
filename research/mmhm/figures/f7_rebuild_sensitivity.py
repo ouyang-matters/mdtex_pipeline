@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """F7 (E7): rebuild policy sensitivity. For mmhm (rebuild = fresh collapse,
 Morse order) and drb-id-rb (rebuild = static reduction in the current
-insertion order): amortized latency (top) and p99 latency (bottom) vs the
+insertion order): amortised latency (top) and p99 latency (bottom) vs the
 growth trigger alpha, one line per period (off / 256 / 64); 3 seeds pooled.
 alpha = off with period off never rebuilds (= mmhm-norb resp. drb-id).
 
@@ -48,7 +48,7 @@ def main():
                 ax.set_xlabel(r"growth trigger $\alpha$")
             if i == 0:
                 ax.set_title(title, loc="left")
-        axes[0, 0].set_ylabel(r"amortized latency ($\mu$s)")
+        axes[0, 0].set_ylabel(r"amortised latency ($\mu$s)")
         axes[1, 0].set_ylabel(r"p99 latency ($\mu$s)")
     handles = [Line2D([], [], color=S.COLOR[m], marker=S.MARKER[m], mec="white", mew=0.5,
                       label=m) for m in METHODS]

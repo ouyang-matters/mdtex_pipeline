@@ -16,8 +16,9 @@ The cost of an update is governed by the size of the maintained basis, and on
 workloads whose edits change the topology the basis can fill in over time.
 Rebuilding resets it; a growth-triggered policy fired only where fill-in
 occurred and paid off there, whereas rebuilds on a basis that does not grow are
-pure overhead. The threshold and period are heuristics, and no setting was best
-on every workload.
+pure overhead. Even where rebuilding pays off, rebuilding too often raises the
+tail latency above that of recomputation (\cref{fig:rebuild-policy}). The
+threshold and period are heuristics, and no setting was best on every workload.
 
 \paragraph{The role of the Morse order.}
 The order of the cells does not affect correctness (\cref{thm:exact}), and

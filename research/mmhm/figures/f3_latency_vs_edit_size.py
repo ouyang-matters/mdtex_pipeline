@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """F3: cost vs edit size s at fixed |K| (E2: W2, N = 22, s = 1..64; the s = 8
 point is E1's N = 22 instance). (a) per-update latency (pooled median, IQR
-band); (b) amortized latency per atomic edit.
+band); (b) amortised latency per atomic edit.
 
 Reads experiments/results/summary.csv.
 """
@@ -68,9 +68,9 @@ def main():
         ax.xaxis.set_minor_locator(NullLocator())
         ax.set_xlabel(r"stellar moves per update $s$ ($16s$ atomic edits)")
     a1.set_ylabel(r"per-update latency ($\mu$s)")
-    a2.set_ylabel(r"amortized latency per atomic edit ($\mu$s)")
+    a2.set_ylabel(r"amortised latency per atomic edit ($\mu$s)")
     a1.set_title(r"(a) per update, median and IQR", loc="left")
-    a2.set_title(r"(b) per atomic edit, amortized", loc="left")
+    a2.set_title(r"(b) per atomic edit, amortised", loc="left")
     handles = [Line2D([], [], color=S.COLOR[m], marker=S.MARKER[m], mec="white", mew=0.6,
                       label=m) for m in S.ORDER if m in METHODS]
     fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 1.06),
