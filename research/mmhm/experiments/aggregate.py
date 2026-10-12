@@ -933,6 +933,10 @@ def write_tables(S, C, L, E8, W4, e7, runs_df, NR):
                      f"{pct(x.wrong / x.ver)} & {first} & {rc} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     _write("tab_correctness.tex", lines)
+    # Exact methods only (the ablation rows above are kept in tab_correctness.tex,
+    # which the separate erratum document uses).
+    k = next(i for i, l in enumerate(lines) if l.startswith("all exact"))
+    _write("tab_correctness_exact.tex", lines[:k + 1] + [r"\bottomrule", r"\end{tabular}"])
 
     # T2 summary: largest instance of each family ----------------------------
     fam_pick = {

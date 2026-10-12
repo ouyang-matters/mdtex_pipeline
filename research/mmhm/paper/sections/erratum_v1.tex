@@ -16,13 +16,11 @@
 \providecommand{\RefETwoCycleRho}{\textbf{??}}
 \providecommand{\RefETwoTorusRho}{\textbf{??}}
 
-\section{Erratum to version 1}\label{sec:erratum}
+\section{The update rule of version 1}\label{sec:v1-rule}
 
-This paper replaces version~1~\cite{ouyang2025mmhm_v1}. The update rule of
-version~1 does not maintain exact Betti numbers. We state what version~1
-specified, give instances on which it fails although none of its safeguards
-applies, and record an inconsistency in its experiment P2. Section and figure
-numbers below refer to version~1.
+Section and figure numbers prefixed by ``\S'' refer to version~1~\cite{ouyang2025mmhm_v1};
+references to theorems, definitions and sections of the current version are
+marked as such.
 
 \paragraph{What version 1 specified.}
 An acyclic matching on $K$ defines critical cells, critical chain groups
@@ -87,8 +85,8 @@ boundaries. The rule above re-reduces a replaced column $a$, but leaves every
 $R_b$ that absorbed $a$ in place. Such an $R_b$ need not own a pivot (it may be
 zero), so it is never in conflict with anything, and nothing in the rule
 revisits it. A deletion is a replacement by the zero column and fails in the
-same way. The DRB repairs exactly this: $\occ(a)$ lists every slot whose $V$
-contains $a$, and $\Del$ rewrites all of them (Theorem~\ref{thm:exact}(c)).
+same way. The dynamic reduced basis (DRB) of the current version repairs exactly this: $\occ(a)$ lists every slot whose $V$
+contains $a$, and $\Del$ rewrites all of them (Theorem~\ref{main-thm:exact}(c) of the current version).
 
 \begin{example}[E1, matrix form]\label{ex:e1-matrix}
 Rows $e_1<e_2$, $B=[\,a\mid b\,]$ with $a=b=e_1$. Reduction: $R_a=e_1$ owns pivot
@@ -143,7 +141,7 @@ is padded.
 
 \paragraph{E2: the affected set misses distant critical columns.}
 The critical boundary is a sum over gradient paths, $\dM c=\flow(\bd c)$
-(Section~\ref{sec:morse}), and it depends on every pair along every gradient
+(Section~\ref{main-sec:morse} of the current version), and it depends on every pair along every gradient
 path leaving the facets of $c$. These paths can be arbitrarily long, so an edit
 to a matched cell can change $\dM c$ for critical cells $c$ far from the edit,
 while $R_k^C$ contains only critical cells whose own incidences change. Since
@@ -161,7 +159,7 @@ and the incremental reducer only inserts the column of the new critical cell.
 
 \begin{example}[E2 on a graph]\label{ex:e2-cycle}
 Let $K_0$ be two disjoint $8$-cycles, on the vertices $0,\dots,7$ and
-$8,\dots,15$, with the collapse matching of Definition~\ref{def:collapse}. Its
+$8,\dots,15$, with the collapse matching of Definition~\ref{main-def:collapse} of the current version. Its
 critical cells are the edges $c=\{0,1\}$ and $\{8,9\}$ and the vertices
 $r=\{5\}$ and $\{13\}$, and $\dM c=r+r=0$: the gradient paths from the two
 endpoints of $c$ are the two arcs of the first cycle from those endpoints to
@@ -211,18 +209,9 @@ the counting above, so version~1 would recompress and return correct Betti
 numbers. They illustrate the defect of the affected set but do not refute
 version~1 as specified.
 
-\paragraph{The ablation \method{lcr}.}
-The method \method{lcr} of the experiments (\cref{sec:exp-methods}) applies
-version~1's re-reduction rule to the full boundary matrices, without basis
-tracking. It isolates defect~E1 and is not a reimplementation of version~1: it
-forms no Morse complex (so E2 cannot occur), never recompresses, and has no
-gates. Its error rates therefore measure E1, not version~1 as a whole. In
-particular, on the connected surfaces of W1, gates of the kind version~1
-describes would return correct Betti numbers (Remark~\ref{rem:surfaces}) where
-\method{lcr} is wrong, and a periodic recompression would restore a correct
-state every $m$ updates, after which errors can occur again. We did not run a
-variant with recompression or gates, so we make no quantitative claim about
-version~1 itself.
+\paragraph{Measured error rates.}
+\Cref{sec:lcr} measures defect~E1 in isolation, on the workloads of the current
+version, with and without version~1's periodic recompression.
 
 \paragraph{P2: an inconsistent workload description.}
 Version~1, \S3.3, defines the P2 sequence as alternating a refinement and ``its
@@ -232,7 +221,7 @@ coarsening. The same section states that each step injects $O(1)$ new
 simplices, ``thus $|C_t|=\Theta(t)$'', and Figures~4 and~5 of version~1 show
 sizes growing linearly over 500 updates. The two descriptions cannot hold for
 the same sequence, and version~1 does not determine which sequence produced its
-P2 timings. The workload W2 of this paper lets the size perform a random walk
+P2 timings. The workload W2 of the current version lets the size perform a random walk
 around its initial value and records it.
 
 \paragraph{What the experiments of version 1 checked.}
@@ -240,20 +229,20 @@ Version~1 shows Betti traces for P1 and P3 (its Figures~2(b) and~7(b)) and
 states that they match the specification (P1) and agree across methods (P3).
 Both are connected surfaces with
 known connectivity, whose Betti numbers follow from $\chi$, $\beta_0=1$ and the
-boundary-edge criterion without any matrix (Remark~\ref{rem:surfaces}), the
+boundary-edge criterion without any matrix (Remark~\ref{main-rem:surfaces} of the current version), the
 formulas behind version~1's gates; version~1 does not state whether its gates
 were enabled there. For P2, the one experiment run without gates, version~1
 reports no Betti numbers and does not compare its output with an independent
 computation. Such a comparison would have exposed E1 even though the Betti
 numbers of P2 are constant: on the analogous workload W2, \method{lcr} reports
 wrong Betti numbers after almost every update, for the first time at update
-\NumLcrWTwoNFifteenSEightFirstWrong{} (\cref{sec:e0}, \cref{tab:correctness}). In this paper every exact method is compared with independent
-recomputations (\cref{sec:exp-correctness}).
+\NumLcrWTwoNFifteenSEightFirstWrong{} (\cref{sec:lcr}, \cref{tab:correctness}). In the current version every exact method is compared with independent
+recomputations (Section~\ref{main-sec:exp-correctness} of the current version).
 
 \paragraph{Cost claims.}
 Version~1, \S2.6, states a local reduction cost of
 $\Theta\bigl(\sum_k (s_k^C)^2\bigr)$ ``under sparse operations with limited
 fill-in''. That analysis concerns the rule shown above to be inexact, and we
-make no statement about it. For the exact method of this paper,
-Proposition~\ref{prop:nonlocal} shows that no bound in terms of the size of the
+make no statement about it. For the exact method of the current version,
+Proposition~\ref{main-prop:nonlocal} of the current version shows that no bound in terms of the size of the
 update holds, and we report costs as measurements.

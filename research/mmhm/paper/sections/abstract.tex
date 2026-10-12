@@ -1,40 +1,30 @@
 % sections/abstract.tex -- abstract. Every number is a \Num macro
 % (generated/numbers.tex).
 \begin{abstract}
-We maintain the Betti numbers over $\Z$ of a simplicial complex of dimension at
-most three under insertions and deletions of simplices. Version~1 of this paper
-proposed a localised update of a boundary matrix reduced by discrete Morse
-theory; that update is not exact, and this version replaces it. For each
-dimension we maintain a reduced matrix $R=BV$ together with the change of
-basis~$V$. An inserted simplex is reduced against the existing pivots; a deleted
+We study the maintenance of the Betti numbers over $\Z$ of a simplicial complex
+under insertions and deletions of simplices. For each dimension we maintain a
+reduced matrix $R=BV$ together with the change of basis~$V$, a dynamic reduced
+basis. An inserted simplex is reduced against the existing pivots; a deleted
 simplex is removed from every basis chain that contains it, by adding either a
-cycle or the column with the smallest pivot, which is the rank-only form of known
-updates for zigzag persistence and warm-started reductions. We prove that the
-Betti numbers are exact after every edit, for every order of the cells, and that
-the cost of an edit admits no bound in terms of its size. Discrete Morse theory
-enters only through the order: in the order given by a collapse that declares
-critical cells of the highest dimension, every gradient pair is an apparent pair
-and a build performs column additions only in critical columns. On five workload
-families with up to \NumSizeMax{} simplices, every Betti vector reported by an
-exact method was compared with at least one reference computation and
-\NumCoverageExternalPct\,\% with one outside our engine (closed forms or GUDHI);
-none disagreed. Where edits
-create and destroy only small cycles, in refined and carved 3-balls and in flag
-complexes, the latency of the dynamic reduced basis depends little on the size of
-the complex: at \NumWTwoNThirtyThreeSEightSize{} simplices all its variants are
+cycle or the column with the smallest pivot, the rank-only form of known updates
+for zigzag persistence and warm-started reductions. We prove that the Betti
+numbers are exact after every edit, for every order of the cells. In the order
+given by a collapse, every gradient pair is an apparent pair, and a build
+performs column additions only in the columns of critical cells, where they
+coincide with the reduction of the Morse complex. The cost of an edit is
+output-sensitive, and we exhibit families on which every toggle of a single
+simplex costs $\Omega(n)$, so no bound in terms of the size of an edit holds. On
+five workload families with up to \NumSizeMax{} simplices, every Betti vector
+reported by an exact method was checked against a reference computation and none
+disagreed. Where edits create and destroy only small cycles, in refined and
+carved 3-balls and in flag complexes, the latency hardly depends on the size of
+the complex: at \NumWTwoNThirtyThreeSEightSize{} simplices every variant is
 \NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
-times faster than static recomputation, with or without the Morse order. The
-Morse order saves nothing at build time against the insertion orders of our
-generators, although any structured order gives a much sparser basis than a
-random one, and helps between rebuilds only on some workloads. On punctured surfaces the method is at most
-\NumWOneSphereLFiveMmhmSpeedupFullId{} times faster on average and has the worse
-tail latency, and combinatorial counters are far cheaper; on non-locality
-witnesses its cost grows linearly with the complex, as the theory predicts. An
-ablation that applies version~1's re-reduction rule without basis tracking (and
-without its recompression and gates) errs within the first
-\NumLcrFirstWrongMaxAll{} updates of every run on surfaces, 3-balls and flag
-complexes; with version~1's periodic recompression (the periodic trigger only, without
-its locality trigger or gates) it is still wrong after
-\NumLcrRcWFourPlaneNFourThousandDTwoErrPct--\NumLcrRcErrMax\,\% of the updates
-on surfaces, cavities and flag complexes.
+times faster than static recomputation, with or without the Morse order. On
+punctured surfaces the method is at most \NumWOneSphereLFiveMmhmSpeedupFullId{}
+times faster on average and has the worse tail latency, and combinatorial
+counters are far cheaper; on the non-locality witnesses its cost grows linearly
+with the complex. The Morse order saves nothing at build time against
+structured insertion orders but much against a random one, and helps between
+rebuilds only on some workloads.
 \end{abstract}

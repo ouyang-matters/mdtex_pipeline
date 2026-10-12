@@ -45,11 +45,9 @@ declare a cell critical only when no free face is left, and use the resulting
 distribution of critical-cell counts to measure how complicated a
 triangulation is. Our matching is a deterministic variant of their collapse
 strategy. We use it differently from the works
-above, because we never form the Morse complex. Its boundary entries are sums
-over gradient paths, so an edit to a \emph{matched} cell can change the
-boundaries of critical cells far from the edit; this is one of the two defects
-that invalidated the localised update of version~1 \cite{ouyang2025mmhm_v1}.
-Instead we use the matching only to choose the total order of the
+above: we never form the Morse complex, whose boundary entries are sums over
+gradient paths, so that an edit to a \emph{matched} cell can change the
+boundaries of critical cells far from the edit. Instead we use the matching only to choose the total order of the
 \emph{unreduced} boundary matrix, so that every gradient pair is an apparent
 pair. This step is elementary and close to known results: the collapse removes
 each paired coface immediately before its face, so the two are adjacent in the
@@ -110,33 +108,19 @@ $\beta_2$ and $\beta_3$ of an arbitrary complex of dimension at most three
 under insertions and deletions, which is our setting.
 
 \paragraph{Positioning.}
-We maintain, for each $k$, a reduced basis $R_k = B_k V_k$ with $V_k$
-tracked, under column insertion and column deletion. This suffices because a
-simplex's boundary never changes while the simplex exists, so rows appear and
-disappear only while they are zero. Insertion is the usual incremental
-reduction step. Deletion is where $V$ is needed: every column whose chain
-$V_j$ contains the deleted simplex is corrected by a cycle (Case~A) or by
-the column with the smallest low (Case~B). The procedure is not new in
-substance. It is the rank-only specialisation of the deletion updates used
-for zigzag persistence and for warm-started $R = DV$ factorisations
-\cite{carlsson2009zigzag,luo2023warmstart,giunti2026pruning}, and we give a
-self-contained proof because the localised re-reduction of version~1 omitted precisely
-this basis tracking \cite{ouyang2025mmhm_v1}.
-
-The difference lies in the output and in the freedom it buys. Zigzag
-persistence yields the barcode of the entire sequence of complexes, a strictly
-richer output: $\beta_k(K_t)$ is the number of $k$-dimensional intervals
-containing~$t$, so an incremental zigzag algorithm \cite{carlsson2009zigzag}
-already answers our query. In zigzag, vineyard and warm-start methods,
-however, the cell order is the filtration itself and is fixed by the input.
-We report only the current Betti numbers after each update, so the order
-carries no meaning in our output; it is a computational device that we are
-free to choose (the Morse order, under which gradient pairs are apparent pairs,
-chosen in the hope of a sparser stored basis; its measured effect is mixed,
-\cref{sec:e8}) and to replace at a rebuild. We claim no
-locality theorem. Costs are stated in output-sensitive terms (reduction-chain
-lengths and deletion footprints), we measure them, and we exhibit families on
-which they grow linearly with the size of the complex. For $\beta_0$ alone,
-and for insertion-only complexes in $S^3$, the specialised structures above
-have better worst-case bounds. All statements are over $\mathbb{Z}_2$ and say
-nothing about torsion.
+Our dynamic reduced basis maintains $R_k=B_kV_k$ with $V_k$ tracked under column
+insertion and column deletion, which suffices because rows appear and disappear
+only while they are zero. The deletion procedure is not new in substance: it is
+the rank-only specialisation of the deletion updates used for zigzag persistence
+and for warm-started $R=DV$
+factorisations~\cite{carlsson2009zigzag,luo2023warmstart,giunti2026pruning}; we
+give a self-contained proof. The difference lies in the output and in the
+freedom it buys. Zigzag persistence yields the barcode of the entire sequence of
+complexes, a strictly richer output, and an incremental zigzag
+algorithm~\cite{carlsson2009zigzag} already answers our query. In zigzag,
+vineyard and warm-start methods, however, the cell order is the filtration and
+is fixed by the input. We report only the current Betti numbers, so the order is
+a computational device that we may choose (the Morse order) and replace at a
+rebuild; its measured effect is mixed (\cref{sec:e8}). For $\beta_0$ alone, and
+for insertion-only complexes in $S^3$, the specialised structures above have
+better worst-case bounds.

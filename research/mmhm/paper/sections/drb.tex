@@ -1,0 +1,201 @@
+% sections/drb.tex -- the dynamic reduced basis, its exactness (Theorem 1) and rebuilds (Proposition 1.1). Uses macros.tex. Executable checks of every statement:
+% research/mmhm/reference/check_props.py.
+\section{The dynamic reduced basis}\label{sec:drb}
+
+Every cell $x\in K$ carries an \emph{order key} $\ord(x)$; keys of distinct cells
+are distinct. For a non-zero chain $c$, $\low(c)$ is the cell of $c$ with the
+largest key. Keys do not change between rebuilds (Section~\ref{sec:morse}); an
+inserted cell receives a key larger than every key in use. Nothing in this
+section depends on how the keys are chosen; \cref{sec:morse} chooses them.
+
+\begin{definition}[DRB]\label{def:drb}
+Let $k\ge1$. A \emph{dynamic reduced basis} of $\Bm{k}$ is a finite family of
+\emph{slots} $j\in J_k$, each holding a pair $(R_j,V_j)$ with $V_j\in\Cc{k}$
+and $R_j\in\Cc{k-1}$, such that
+\begin{description}
+\item[(I1)] $R_j=\bd_k V_j$ for every $j\in J_k$;
+\item[(I2)] the non-zero $R_j$ have pairwise distinct lows;
+\item[(I3)] $(V_j)_{j\in J_k}$ is a basis of $\Cc{k}$; in particular $|J_k|=n_k$.
+\end{description}
+Two index structures are derived from the slots: $\pivot(\ell)=j$ if $R_j\ne0$
+and $\low(R_j)=\ell$ (well defined by (I2)), and, for $x\in\Kc{k}$,
+$\occ(x)=\{j\in J_k : x\in V_j\}$, the \emph{footprint} of $x$. Both are updated
+together with the chains; we do not spell out this bookkeeping.
+\end{definition}
+
+Writing $R$ and $V$ for the matrices with columns $R_j$ and $V_j$, (I1) and (I3)
+say that $R=\Bm{k}V$ with $V$ invertible, and (I2) says that $R$ is
+\emph{reduced}. Unlike the decomposition used for persistence, $V$ is not
+required to be triangular with respect to $\ord$.
+
+\paragraph{Insertion.} $\Ins(\sigma)$ for a $k$-simplex $\sigma\notin K$, $k\ge1$,
+all of whose facets are in $K$:
+\begin{enumerate}
+\item give $\sigma$ a key larger than all keys in use; create a slot $j$ with
+  $V_j=\{\sigma\}$ and $R_j=\bd\sigma$;
+\item while $R_j\ne0$ and $p=\pivot(\low(R_j))$ is defined: $R_j\gets R_j+R_p$,
+  $V_j\gets V_j+V_p$;
+\item if $R_j\ne0$, set $\pivot(\low(R_j))=j$.
+\end{enumerate}
+The slots $p_1,\dots,p_m$ added in step~2 form the \emph{reduction chain} of
+$\sigma$. We call $\sigma$ \emph{positive} if $R_j=0$ at the end and
+\emph{negative} otherwise.
+
+\paragraph{Deletion.} $\Del(\sigma)$ for $\sigma\in\Kc{k}$, $k\ge1$, without
+cofaces. Let $O=\occ(\sigma)$ and $Z=\{j\in O: R_j=0\}$.
+\begin{description}
+\item[Case A ($Z\ne\emptyset$).] Choose any $z\in Z$ (the implementations take
+  one with $|V_z|$ minimal, ties broken by the smallest slot index). For every $j\in O\setminus\{z\}$:
+  $V_j\gets V_j+V_z$. Remove slot $z$.
+\item[Case B ($Z=\emptyset$).] Let $p\in O$ be the slot whose $\low(R_p)$ has
+  the smallest key. For every $j\in O\setminus\{p\}$: $R_j\gets R_j+R_p$ and
+  $V_j\gets V_j+V_p$. Remove slot $p$ and the entry $\pivot(\low(R_p))$.
+\end{description}
+Finally remove $\sigma$ from $K$. Inserting or deleting a vertex changes only
+$n_0$.
+
+\begin{theorem}[Exactness]\label{thm:exact}
+Let $k\ge1$ and let $(R_j,V_j)_{j\in J_k}$ satisfy (I1)--(I3) for $\Bm{k}(K)$,
+for some injective key function.
+\begin{enumerate}
+\item[(a)] $r_k=\#\{j\in J_k : R_j\ne0\}$, and $\{V_j : R_j=0\}$ is a basis of
+  $\Zc{k}(K)$.
+\item[(b)] Let $\sigma\notin K$ be a $k$-simplex whose facets are all in $K$.
+  The loop of $\Ins(\sigma)$
+  terminates, and afterwards the slots satisfy (I1)--(I3) for
+  $\Bm{k}(K\cup\{\sigma\})$; every family satisfying (I1)--(I3) for
+  $\Bm{k+1}(K)$ satisfies them, unchanged, for $\Bm{k+1}(K\cup\{\sigma\})$.
+\item[(c)] Let $\sigma\in\Kc{k}$ have no coface. Then $O\ne\emptyset$; after
+  $\Del(\sigma)$, in Case A and in Case B, the slots satisfy (I1)--(I3) for
+  $\Bm{k}(K\setminus\{\sigma\})$; every family satisfying (I1)--(I3) for
+  $\Bm{k+1}(K)$ satisfies them, unchanged, for $\Bm{k+1}(K\setminus\{\sigma\})$.
+\item[(d)] Inserting a positive $k$-simplex increases $\beta_k$ by one; inserting
+  a negative one decreases $\beta_{k-1}$ by one. A deletion in Case A decreases
+  $\beta_k$ by one; a deletion in Case B increases $\beta_{k-1}$ by one. No
+  other Betti number changes. Moreover, $\Del(\sigma)$ is in Case A if and only
+  if $\sigma$ lies in the support of a $k$-cycle of $K$, and $\Ins(\sigma)$ is
+  positive if and only if $\sigma$ lies in the support of a $k$-cycle of
+  $K\cup\{\sigma\}$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(a) By (I1) and (I3), $R=\Bm{k}V$ with $V$ invertible, so $\rank R=r_k$. The
+non-zero columns of $R$ are linearly independent: in a non-empty sum of them,
+let $R_i$ be the summand whose low $\ell$ has the largest key; every other
+summand has its low, hence all its cells, strictly below $\ell$, so $\ell$
+survives in the sum. Hence $r_k$ is the number of non-zero $R_j$. Each $V_j$ with
+$R_j=0$ is a cycle; these chains are independent as part of a basis, and there
+are $n_k-r_k=\dim\Zc{k}$ of them.
+
+(b) Let $K'=K\cup\{\sigma\}$. Throughout the loop, $R_j=\bd V_j$ (true at the
+start and preserved by linearity because $R_p=\bd V_p$) and $V_j=\sigma+w$ with
+$w\in\Cc{k}(K)$. An addition is performed only when $\low(R_p)=\low(R_j)=\ell$;
+all cells of both chains have keys at most $\ord(\ell)$ and $\ell$ cancels, so
+afterwards $R_j=0$ or $\low(R_j)$ is strictly smaller. Hence the loop
+terminates, after at most one addition per non-zero slot. On exit either
+$R_j=0$ or $\low(R_j)$ is no pivot, so recording the pivot preserves (I2); (I1)
+holds. Since $\Cc{k}(K')=\Cc{k}(K)\oplus\Z\sigma$ and the old $V_i$ form a basis
+of $\Cc{k}(K)$, the old chains together with $V_j=\sigma+w$ form a basis of
+$\Cc{k}(K')$: they are $n_k+1$ chains spanning $\sigma=V_j+w$. For $\Bm{k+1}$:
+the chain group $\Cc{k+1}$ is unchanged, each $R_i=\bd V_i$ is supported on facets
+of $(k+1)$-simplices of $K'$, none of which is $\sigma$
+(Observation~\ref{obs:structural}), and keys of existing cells are unchanged;
+so (I1)--(I3) continue to hold.
+
+(c) Since the $V_j$ span $\Cc{k}$, $\sigma$ is a sum of some of them, so some
+$V_j$ contains $\sigma$: $O\ne\emptyset$. Each operation $V_j\gets V_j+V_q$ with
+$j\ne q$ is an invertible change of basis, so throughout the loop the family
+remains a basis of $\Cc{k}(K)$. For $j\in O\setminus\{q\}$ (with $q=z$ in Case A,
+$q=p$ in Case B), both $V_j$ and $V_q$ contain $\sigma$, so $V_j+V_q$ does not;
+slots outside $O$ never contained $\sigma$. After the loop, $V_q$ is therefore
+the only chain containing $\sigma$. Removing slot $q$ leaves $n_k-1$ independent
+chains, all in $\Cc{k}(K\setminus\{\sigma\})$, which has dimension $n_k-1$:
+(I3) holds.
+\emph{Case A.} Because $\bd V_z=R_z=0$, the additions leave every $R_j$
+unchanged, so (I1) and (I2) hold; the removed slot had $R_z=0$ and owned no
+pivot.
+\emph{Case B.} Every $R_j$ with $j\in O$ is non-zero, and by (I2) the lows are
+distinct, so $p$ is well defined and $\low(R_p)$ is strictly smaller than
+$\low(R_j)$ for $j\in O\setminus\{p\}$. All cells of $R_p$ have keys at most
+$\ord(\low(R_p))<\ord(\low(R_j))$, so $\low(R_j)\notin R_p$ and
+$\low(R_j+R_p)=\low(R_j)$; in particular $R_j+R_p\ne0$. Lows are unchanged and
+the low of $R_p$ is released with slot $p$, so (I2) holds; (I1) holds by
+linearity. (The minimal choice of $p$ is what guarantees this: adding an $R_p$
+with a larger low would move lows and require further reduction.)
+For $\Bm{k+1}$: $\sigma$ has no coface, so no $R_i=\bd V_i$ of dimension $k+1$
+contains $\sigma$ and $\sigma$ is not a pivot there; deleting the zero row
+$\sigma$ leaves (I1)--(I3) intact.
+
+(d) By (a), $r_k$ increases by one exactly when the inserted $\sigma$ is negative,
+and decreases by one exactly in Case B; $n_k$ changes by $\pm1$; $r_{k+1}$ is
+unchanged because only a zero row of $\Bm{k+1}$ is added or removed
+(Observation~\ref{obs:structural}); all other $n_i$ and $r_i$ are unchanged.
+Formula~\eqref{eq:betti} gives the stated changes. If
+$z\in Z$, then $V_z$ is a cycle containing $\sigma$. Conversely, if a cycle
+$c\in\Zc{k}(K)$ contains $\sigma$, write $c$ in the basis
+$\{V_j:R_j=0\}$ of $\Zc{k}(K)$ from (a); some $V_j$ in this expansion contains
+$\sigma$, and that $j$ lies in $Z$. For insertion, if $\sigma$ is positive then
+the final $V_j$ is a cycle of $K'$ containing $\sigma$. Conversely, if a cycle
+$c$ of $K'$ contains $\sigma$, then $\bd\sigma=\bd(c+\sigma)$ lies in the
+column space of $\Bm{k}(K)$, so $r_k$ does not increase, and by (a) the new slot
+has $R_j=0$.
+\end{proof}
+
+Vertices need no slots: inserting a vertex increases $n_0$ and $\beta_0$ by
+one, and a deletable vertex is isolated, so deleting it decreases both by one
+(Observation~\ref{obs:structural} and~\eqref{eq:betti}). A batch is processed
+one atomic edit at a time, so Theorem~\ref{thm:exact} makes the Betti numbers
+exact after every update. The choice of $z$ in Case A
+is free; it only affects sparsity. Theorem~\ref{thm:exact} holds for every key
+function, so the order chosen in Section~\ref{sec:morse} is a matter of cost
+alone.
+
+\paragraph{Initialisation and rebuilds.}
+The DRB is initialised, and periodically rebuilt, by the static reduction with
+clearing~\cite{chen2011twist}, tracking $V$: for $k=d,d-1,\dots,1$, process the
+columns of $\Bm{k}$ in increasing key order; if the $k$-simplex $\tau$ is the low
+of a non-zero reduced column $R$ of $\Bm{k+1}$, \emph{clear} it ($R_\tau:=0$,
+$V_\tau:=R$); otherwise reduce it as in steps~2--3 of $\Ins$, starting from
+$V_\tau=\{\tau\}$, $R_\tau=\bd\tau$.
+
+\begin{subproposition}[Rebuild]\label{cor:rebuild}
+For every injective key function, the static reduction with clearing produces
+slots satisfying (I1)--(I3) in every dimension. Moreover, every $V_\tau$ consists
+of $\tau$ and cells with smaller keys. The same holds for the reduction without
+clearing. In particular the ranks it reports are exact even when $V$ is not
+stored.
+\end{subproposition}
+
+\begin{proof}
+We show $\low(V_\tau)=\tau$ for every column $\tau$, by induction along the
+processing order. A non-cleared $\tau$ ends with
+$V_\tau=\{\tau\}+\sum V_p$ over pivot owners $p$ processed earlier, hence with
+smaller keys, and by induction every cell of $V_p$ has key at most $\ord(p)$. A
+cleared $\tau$ has $V_\tau=R$ with $\low(R)=\tau$. Ordering rows and columns by
+key, $V$ is therefore upper unitriangular, hence invertible: (I3). (I1) holds
+for non-cleared columns by linearity, and for cleared ones because $R=\bd V'$
+for the slot $V'$ of $\Bm{k+1}$ that produced it (induction over dimensions), so
+$\bd V_\tau=\bd\bd V'=0=R_\tau$. (I2): a non-cleared column ends with $R_\tau=0$ or
+with a low that no earlier column owns; cleared columns are zero. Without
+clearing every column is of the non-cleared kind and the same argument applies.
+The last statement follows from Theorem~\ref{thm:exact}(a).
+\end{proof}
+
+Note that the correctness of clearing here follows from the invariants alone;
+we do not need the classical fact that a cleared column would have reduced to
+zero. After deletions, however, $V$ is no longer triangular (Case A adds
+$V_z$, whose low may exceed that of $V_j$), so the DRB maintains ranks and a cycle
+basis but not a persistence pairing, and we claim none. This is the difference
+from vineyard updates~\cite{cohensteiner2006vines}, which keep $V$ triangular
+for a changing order.
+
+\paragraph{Rebuild policy.} \method{mmhm} rebuilds with the Morse order of Section~\ref{sec:morse}; it
+rebuilds after update $t$ if $t-t_{\mathrm{last}}\ge m$ or
+$\nnz(R)+\nnz(V)>(1+\alpha)\max(\nnz_{\mathrm{last}},|K|)$, where
+$\nnz_{\mathrm{last}}$ is the value right after the previous rebuild (defaults
+$m=\infty$, $\alpha=1$), and the rebuild is charged to update $t$.
+\method{drb-id} uses insertion keys and never rebuilds; \method{mmhm-norb} uses
+the Morse order at the initial build only; \method{drb-id-rb} applies the same
+policy as \method{mmhm} but rebuilds in insertion order
+(Section~\ref{sec:exp-methods}).

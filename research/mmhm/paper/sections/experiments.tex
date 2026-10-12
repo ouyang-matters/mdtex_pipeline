@@ -5,8 +5,7 @@
 \section{Experiments}\label{sec:experiments}
 
 The experiments answer nine questions, E0 to E8 (\cref{tab:sweeps}): whether the
-exact methods are exact and how often version~1's re-reduction rule without basis
-tracking is wrong (E0); how
+exact methods are exact (E0); how
 the cost of an update depends on the size of the complex and on the size of the
 update (E1, E2); how the methods behave on genuine three-dimensional topology
 changes, on non-manifold complexes and on surfaces (E3--E5); where locality fails
@@ -24,23 +23,19 @@ All methods except \method{gudhi} run in one C++17 program and share its
 complex store, which maps the sorted vertex tuple of a simplex to its facets and
 cofaces and validates every atomic edit. Order keys are dense 32-bit integers; a
 (re)build assigns $0,\dots,N-1$ in the chosen order, and every later insertion
-takes the next unused key, as \cref{sec:drb} requires. A chain is a strictly
-increasing array of keys, so its low is the last entry and a $\Z$ addition is a
-linear merge. When short chains are added to a long working column, the column
-switches to a max-heap with lazy cancellation, so an insertion meets the
-ordered-set bound of \cref{prop:cost} up to a logarithmic factor; a deletion
-merges sorted arrays and pays the sorted-array cost of \cref{prop:cost}, which
-includes the size of each target chain. The footprint index keeps the exact
-count $|\occ(\sigma)|$ and a lazily filtered list of slots, compacted when it
-exceeds twice the count plus a constant. In Case~A the engine chooses the cycle
-$V_z$ with the fewest cells (ties: the smallest slot identifier). The store keeps
-an index of the cells by vertex tuple, which a Morse order needs, only for the
-methods that may compute one after $K_0$; among the DRB methods that is
-\method{mmhm}. The collapse of
+takes the next unused key (\cref{sec:drb}). A chain is a strictly increasing
+array of keys, so its low is the last entry and a $\Z$ addition is a linear
+merge; a working column that receives many short chains switches to a max-heap
+with lazy cancellation. Deletions therefore pay the sorted-array cost of
+\cref{prop:cost}, and insertions its ordered-set cost up to a logarithmic
+factor. The footprint index keeps the exact count $|\occ(\sigma)|$ and a lazily
+filtered list of slots. In Case~A the engine chooses the cycle $V_z$ with the
+fewest cells (ties: the smallest slot identifier). Only the methods that may
+compute a Morse order after $K_0$ keep an index of the cells by vertex tuple;
+among the DRB methods that is \method{mmhm}. The collapse of
 \cref{def:collapse} uses a first-in-first-out queue initialised in (dimension,
-vertex tuple) order and visits facets in a fixed order, so the matching depends
-only on the complex, not on the history of edits. Debug builds check
-(I1)--(I3), the pivot table and the footprint index after every operation.
+vertex tuple) order, so the matching depends only on the complex. Debug builds
+check (I1)--(I3), the pivot table and the footprint index after every operation.
 
 \paragraph{Platform.}
 All runs use one cloud virtual machine with an Intel Xeon processor at
@@ -77,12 +72,10 @@ raw data and the figures.
     \method{gudhi}      & GUDHI's own       & ---      & every update & yes & external static baseline: GUDHI simplex tree, persistence over $\Z$ \\
     \method{drb-id}     & insertion         & yes      & never        & yes & ablation: neither Morse order nor rebuilds \\
     \method{drb-id-rb}  & insertion         & yes      & policy       & yes & ablation: rebuilds without the Morse order \\
-    \method{mmhm}       & Morse             & yes      & policy       & yes & the method of \cref{sec:theory} \\
+    \method{mmhm}       & Morse             & yes      & policy       & yes & the method of \cref{sec:drb,sec:morse} \\
     \method{mmhm-norb}  & Morse of $K_0$    & yes      & never        & yes & ablation: no rebuilds \\
     \method{drb-rand}   & random            & yes      & never        & yes & ablation: an unstructured order \\
     \midrule
-    \method{lcr}        & Morse of $K_0$    & $R$ only & never        & no  & ablation: version~1's re-reduction without basis tracking (isolates E1) \\
-    \method{lcr-rc}     & Morse of $K_0$    & $R$ only & every \NumLcrRcPeriod{} & no & \method{lcr} with version~1's periodic recompression \\
     \method{euler}      & ---               & ---      & ---          & on surfaces & counters of \cref{rem:surfaces}; surfaces only \\
     \bottomrule
   \end{tabularx}
@@ -97,8 +90,7 @@ order of a collapse matching computed anew after every update. By
 \cref{cor:critical-work,cor:morse-reduction} the column additions of
 \method{full-morse} all occur in critical columns and, after the gradient-flow
 steps, are those of the reduction of the Morse complex, but it pays for a
-collapse after every update; it plays the role of version~1's
-``coreduction-only'' baseline without reimplementing it. The insertion order of
+collapse after every update. The insertion order of
 \method{full-id} is the order in which the cells now present were inserted, so
 it depends on the history of edits: refilled cells receive late keys
 (\cref{sec:exp-timing} reports the consequence). The canonical order of
@@ -118,7 +110,7 @@ for this task; it serves as a reference point for a widely used library and as
 an oracle.
 
 \paragraph{Dynamic methods.}
-\method{mmhm} is the method of \cref{sec:theory}: a dynamic reduced basis built
+\method{mmhm} is the method of \cref{sec:drb,sec:morse}: a dynamic reduced basis built
 in the Morse order and rebuilt in a fresh Morse order under the rebuild policy of
 \cref{sec:drb}, with $m=\infty$ and $\alpha=1$ unless stated otherwise (E7
 varies both). Three ablations separate its ingredients. \method{drb-id} uses
@@ -133,19 +125,7 @@ uniformly random order of the cells of each dimension, drawn from the seed, and
 never rebuilds; against \method{drb-id} and \method{mmhm-norb} it tests whether
 a structured order matters at all (E8).
 
-\paragraph{The ablations of version 1's rule and the surface counters.}
-\method{lcr} applies version~1's re-reduction rule to the full boundary matrices
-without basis tracking: an inserted column is reduced against the existing
-pivots, and a deleted column releases its pivot and is dropped. It uses exactly
-the order of \method{mmhm-norb} and differs from it only in not storing $V$ and
-$\occ$, so its errors are caused by defect~E1 alone. It is not a
-reimplementation of version~1: it forms no Morse complex (so E2 cannot occur),
-never recompresses and has no gates (\cref{sec:erratum}). \method{lcr-rc} adds
-version~1's periodic recompression: every $m={}$\NumLcrRcPeriod{} updates,
-version~1's default, it recomputes all reduced columns from scratch in the
-current key order by the static reduction with clearing. It models only this
-trigger, without a Morse complex, the $\rho$ trigger or gates. Both are run only
-to measure how often they are wrong.
+\paragraph{Surface counters.}
 \method{euler} maintains $\chi$ and the numbers of edges with one, two or
 more cofaces in $O(1)$ per atomic edit and returns the Betti numbers of
 \cref{rem:surfaces}. At the end of every update it checks that the complex has a
@@ -202,8 +182,7 @@ Because coarsening can only undo subdivisions, $K_0$ already contains $8s$ live
 subdivisions, and with $x$ live subdivisions the generator refines with
 probability $\min\bigl(0.95,\max(0.05,\,0.5-0.5(x-8s)/(8s))\bigr)$, and always
 when fewer than $s$ leaf subdivisions exist. Since $|K|=|K_{\mathrm{base}}|+14x$,
-the size performs a random walk around its initial value instead of growing
-linearly (compare experiment P2 of version~1, \cref{sec:erratum}). The Betti
+the size performs a random walk around its initial value. The Betti
 numbers are $(1,0,0,0)$ after every update, but not within an update: by
 \cref{thm:exact}(d) every atomic edit changes one Betti number by one.
 
@@ -270,7 +249,7 @@ experiment. Every timed configuration ran with \NumSeeds{} seeds.
     \toprule
     & Workload & Sweep & Methods \\
     \midrule
-    E0 & samples; all runs of E1--E7; one instance per variant for \method{lcr}, \method{lcr-rc} & --- & all exact methods; \method{lcr}, \method{lcr-rc} untimed \\
+    E0 & samples; all runs of E1--E8 & --- & all exact methods \\
     E1 & W2, $s=8$ & $N\in\{7,10,15,22,33\}$ & as E1 \\
     E2 & W2, $N=22$ & $s\in\{1,2,4,8,16,32,64\}$ & DRB methods, \method{full-id}, \method{full-morse} \\
     E3 & W3, $k=2$ & $N\in\{14,20,27\}$ & as E1 \\
@@ -304,8 +283,8 @@ $T={}$\NumUpdates{} updates, except \method{gudhi} on instances with more than
 we pool the per-update latencies of the three runs and report their median,
 interquartile range and 95th and 99th percentiles (p95, p99), and the
 \emph{amortised latency}: the total processing time of all updates, rebuilds
-included, divided by their number (unlike in version~1, the initial build is
-not included; we report it separately). A \emph{speedup} is a ratio of amortised
+included, divided by their number (the initial build is not included; we
+report it separately). A \emph{speedup} is a ratio of amortised
 latencies over the same updates; for \method{gudhi} on a prefix, both methods
 are taken over that prefix. Slopes are least-squares fits of $\log$ latency
 against $\log$ size. All
@@ -333,35 +312,28 @@ updates and against \method{full-sorted}.
 
 \paragraph{Noise.}
 Five identical runs of \method{mmhm} and \method{full-id} on W2 with $N=22$ gave
-coefficients of variation of the median, amortised and p99 latency of
-\NumNoiseCVMmhmMed, \NumNoiseCVMmhmAmort{} and
-\NumNoiseCVWTwoNTwentyTwoSEightMmhmPNinetyNine\,\% (\method{mmhm}) and
-\NumNoiseCVFullIdMed, \NumNoiseCVFullIdAmort{} and
-\NumNoiseCVWTwoNTwentyTwoSEightFullIdPNinetyNine\,\% (\method{full-id}). On the W1
-torus $256\times256$, W3 with $N=20$ and W5a with $L=10^5$ (five runs each of
+coefficients of variation (CV) of the amortised latency of
+\NumNoiseCVMmhmAmort{} and \NumNoiseCVFullIdAmort\,\% and of the p99 of
+\NumNoiseCVWTwoNTwentyTwoSEightMmhmPNinetyNine{} and
+\NumNoiseCVWTwoNTwentyTwoSEightFullIdPNinetyNine\,\%. On the W1 torus
+$256\times256$, W3 with $N=20$ and W5a with $L=10^5$ (five runs each of
 \method{mmhm}, \method{drb-id} and \method{full-id}) the amortised CV was
 \NumNoiseCVWOneTorusTwoHundredFiftySixDrbIdAmort{} to
 \NumNoiseCVWThreeNTwentyMmhmAmort\,\% and the p99 CV
 \NumNoiseCVWOneTorusTwoHundredFiftySixMmhmPNinetyNine{} to
-\NumNoiseCVWFiveCycleLOneHundredThousandFullIdPNinetyNine\,\%. The three runs of
-W5a, which repeat one instance, reach CVs of \NumNoiseCVAmortMax\,\% (amortised)
-and \NumNoiseCVPNinetyNineMax\,\% (p99) at $L=1000$, where an update takes
-microseconds. Concurrent load changed the median on W2 with $N=22$ by
-$\NumNoiseMmhmTwoTimedPct\,\%$ and $\NumNoiseFullIdTwoTimedPct\,\%$ (one other
-timed run) and $\NumNoiseMmhmFourBusyPct\,\%$ and $\NumNoiseFullIdFourBusyPct\,\%$
-(three busy processes), within the run-to-run spread; at
-\NumWTwoNThirtyThreeSEightSize{} simplices, three busy processes raised it by
-$\NumNoiseMmhmLargeFourBusyPct\,\%$ (\method{mmhm}) and
-$\NumNoiseFullIdLargeFourBusyPct\,\%$ (\method{full-id}). At most two timed runs
-executed at once; untimed runs used the other two cores until \NumUntimedEnd{}
-UTC and overlapped \NumTimedRunsWithUntimed{} timed runs, \NumTimedRunsWithUntimedEngine{}
-of them engine runs and the others \method{gudhi}. We did not measure two
-concurrent timed runs at about $10^6$ simplices, the usual condition after that
-time. We call a difference between two methods \emph{within noise} when their
-per-seed ranges overlap (\path{experiments/results/summary_pairs.csv}) and say
-so where it matters. Each range has only three points, and on W1--W4 the three
-seeds are different workload instances, so a range mixes instance and timing
-variation; \emph{beyond noise} is therefore a weak criterion, not a test.
+\NumNoiseCVWFiveCycleLOneHundredThousandFullIdPNinetyNine\,\%; on
+microsecond-scale updates (W5a, $L=1000$) the CV reaches
+\NumNoiseCVAmortMax\,\% (amortised) and \NumNoiseCVPNinetyNineMax\,\% (p99). At
+most two timed runs executed at once. Concurrent load changed the median within
+the run-to-run spread at $N=22$, but at \NumWTwoNThirtyThreeSEightSize{} simplices
+three busy processes raised it by $\NumNoiseFullIdLargeFourBusyPct\,\%$
+(\method{full-id}) and $\NumNoiseMmhmLargeFourBusyPct\,\%$ (\method{mmhm});
+untimed verification jobs overlapped \NumTimedRunsWithUntimed{} timed runs early
+in the sweep (\path{experiments/ENVIRONMENT.md}). We call a difference between
+two methods \emph{within noise} when their per-seed ranges overlap
+(\path{experiments/results/summary_pairs.csv}). Each range has three points, and
+on W1--W4 the seeds are different instances, so this is a weak criterion, not a
+test.
 
 \paragraph{Counters.}
 Besides time, every run records per update the number of column additions, the
@@ -396,17 +368,13 @@ last one, outside the timed region. On the \NumSamples{} committed samples, all
 exact engine configurations (including aggressive rebuild settings), the
 reference implementation, GUDHI and the closed-form values are cross-checked on
 every state. A mismatch of an exact method stops the whole pipeline.
-\method{lcr} runs untimed on one instance of each workload variant and is
-compared with \method{full-id} after every update; its \emph{error rate} is the
-fraction of updates after which at least one of its Betti numbers is wrong.
 \Cref{tab:coverage} gives the resulting coverage.
 
 Below the level of outputs, the engine's randomised tests check (I1)--(I3) and
 compare every exact method with a brute-force rank computation on random edit
 sequences, and the reference implementation checks (I1)--(I3) after every
 atomic edit, \cref{lem:apparent,cor:critical-work,cor:morse-reduction} on random
-complexes and \cref{prop:nonlocal} on the W5 families; it also produced the
-counterexamples of \cref{sec:erratum}.
+complexes and \cref{prop:nonlocal} on the W5 families.
 
 
 % ---------------------------------------------------------------------------
@@ -414,13 +382,10 @@ counterexamples of \cref{sec:erratum}.
 % a \Num macro (generated/numbers.tex) or sits in a generated table.
 % ---------------------------------------------------------------------------
 
-\subsection{E0: Are the exact methods exact, and how wrong is version~1's rule without basis tracking?}\label{sec:e0}
+\subsection{E0: Are the exact methods exact?}\label{sec:e0}
 
-Every exact method reported correct Betti numbers in every state that was
-checked, and every state was checked against at least one reference. The
-ablation \method{lcr} is wrong from the first few updates on, on every instance
-of W1--W4; with version~1's periodic recompression added (\method{lcr-rc}), it
-is still wrong after most updates on W1, W3 and W4.
+Yes, in every state that was checked, and every state was checked against at
+least one reference.
 
 The \NumExactRuns{} runs of exact methods reported \NumCoverageVectors{} Betti
 vectors (\cref{tab:correctness}). Every one was compared with at least one
@@ -436,58 +401,15 @@ verifications against a recomputation, and on the
 \NumReferenceChecks{} vectors of \NumReferenceMethods{} methods
 (\NumReferenceMismatches{} mismatches).
 
-\method{lcr} is wrong after \NumLcrWOneTorusOneHundredTwentyEightErrPct\,\% to
-\NumLcrWTwoNFifteenSEightErrPct\,\% of the updates of every W1--W4 instance; on
-W2 after \NumLcrWTwoNFifteenSEightWrong{} of \NumLcrWTwoNFifteenSEightUpdates.
-Its first error comes within the first \NumLcrFirstWrongMaxAll{} updates of
-every run in which it errs, and on W1--W4 it stays wrong after almost every
-later update, so these percentages mainly say how early the first error comes. The Betti
-numbers of W2 are constant; the errors there come from the algebra alone, and a
-comparison with the known $(1,0,0,0)$ detects them. On W1, gates of the kind
-version~1 describes would give correct Betti numbers (\cref{rem:surfaces}). On
-W5b, \method{lcr} is wrong after \NumLcrWFiveSphereLFiveErrPct\,\% of the
-updates: after every deletion of the toggled triangle and after no reinsertion.
-The zero column that represents the $2$-cycle of the sphere absorbed the column
-of the toggled triangle when $K_0$ was reduced; \method{lcr} never revisits it,
-so after each deletion it still reports the destroyed $2$-cycle, which exists
-again after each reinsertion. On W5a, \method{lcr} is never wrong
-(\NumLcrWFiveCycleLTenThousandErrPct\,\%), and W5a cannot expose defect~E1. The
-cycle graph has no free face, so the collapse first removes the edge with the
-smallest vertex tuple, $\{0,1\}$, as a critical cell, which gives it the largest
-key; W5a toggles exactly this edge, and every reinsertion gives it the largest
-key again. No other column ever absorbs the column with the largest key, so
-dropping it leaves a correct reduction. Pooled over the E0 instances,
-\method{lcr} is wrong after \NumLcrErrAll\,\% of the updates; this number depends
-on the mix of instances and is not an error rate of version~1
-(\cref{sec:erratum}).
-
-\method{lcr-rc} coincides with \method{lcr} until its first recompression, and
-its first errors come at the same updates (\cref{tab:correctness}). A
-recompression is a static reduction, so it makes the Betti numbers correct
-again. Pooled over the E0 instances, \method{lcr-rc} is wrong after
-\NumLcrRcErrAll\,\% of the updates (\method{lcr}: \NumLcrErrAll\,\%): after
-\NumLcrRcWTwoNFifteenSEightErrPct\,\% on W2
-(\NumLcrRcWTwoNFifteenSEightWrong{} of \NumLcrRcWTwoNFifteenSEightUpdates),
-\NumLcrRcWFiveSphereLFiveErrPct\,\% on W5b and
-\NumLcrRcWFiveCycleLTenThousandErrPct\,\% on W5a, but after
-\NumLcrRcWFourPlaneNFourThousandDTwoErrPct\,\% to \NumLcrRcErrMax\,\% on W1, W3
-and W4, where the errors return soon after each recompression. On W2, the
-analogue of version~1's P2, recompression thus hides most errors, but a
-comparison with the known Betti numbers still finds them from the first updates
-on.
-
 \begin{table}[t]
   \centering
-  \caption{Correctness (E0). Upper part: per exact method, the runs, the Betti
-    vectors they reported, the states compared with the \method{full-id} output
-    of the same instance, with the closed-form values and with GUDHI, and the
-    mismatches (\method{drb-rand} ran on four instances only). Lower part: the
-    ablations \method{lcr} and \method{lcr-rc} on one instance of each workload
-    variant, three runs each: updates, the percentage of updates after which
-    each was wrong, and the first wrong update (minimum over the runs).}
+  \caption{Correctness (E0): per exact method, the runs, the Betti vectors they
+    reported, the states compared with the \method{full-id} output of the same
+    instance, with the closed-form values and with GUDHI, and the mismatches
+    (\method{drb-rand} ran on four instances only).}
   \label{tab:correctness}
   \small
-  \generatedtable{tab_correctness}
+  \generatedtable{tab_correctness_exact}
 \end{table}
 
 \begin{table}[t]
@@ -542,19 +464,12 @@ store, took \NumWTwoNThirtyThreeSEightMmhmInitMs\,ms for \method{mmhm} and
 $\nnz(R)+\nnz(V)$, a proxy for the memory of the DRB, reached at most
 \NumWTwoNThirtyThreeSEightMmhmNnzPerSimplex{} entries per simplex.
 
-One run is an outlier. At $N=22$, one of the three \method{mmhm-norb} runs was
-slow in its first 400 updates (median \NumOutlierSeedOneBlockOneMed\,\textmu s,
+One run is an outlier: at $N=22$, one of the three \method{mmhm-norb} runs was
+slow in its first 400 updates only (median \NumOutlierSeedOneBlockOneMed\,\textmu s,
 against \NumOutlierSeedZeroBlockOneMed{} and \NumOutlierSeedTwoBlockOneMed\,\textmu s
-for the other two runs) and not slower than them after update 800. A rerun of
-the same command produced identical Betti numbers, additions, $\nnz$ and
-footprints and was as fast as the other runs throughout (amortised
-\NumOutlierRerunAmort{} against \NumOutlierOrigAmort\,\textmu s), so we
-attribute the slow start to the machine. The tables keep the original run; with
-the rerun in its place, the pooled amortised and p99 latencies of
-\method{mmhm-norb} at this size are \NumWTwoNTwentyTwoSEightMmhmNorbAmortWithRerun{}
-and \NumWTwoNTwentyTwoSEightMmhmNorbPNinetyNineWithRerun\,\textmu s instead of
-\NumWTwoNTwentyTwoSEightMmhmNorbAmort{} and
-\NumWTwoNTwentyTwoSEightMmhmNorbPNinetyNine\,\textmu s.
+for the other two). A rerun produced identical Betti numbers, additions, $\nnz$
+and footprints and normal timings (amortised \NumOutlierRerunAmort{} against
+\NumOutlierOrigAmort\,\textmu s); the tables keep the original run.
 
 \paragraph{Static recomputation in the Morse order.}
 \method{full-morse} is slower than \method{full-id} and \method{full-sorted} on
@@ -565,9 +480,7 @@ insertion order needs only \NumWTwoNThirtyThreeSEightFullIdAdds{} additions per
 recomputation, and on the largest W4 instance \method{full-morse} performs more
 additions than \method{full-id} (\NumWFourPlaneNSixteenThousandDTwoFullMorseAdds{}
 against \NumWFourPlaneNSixteenThousandDTwoFullIdAdds). For one-shot static
-recomputation the collapse does not pay for itself on our workloads; whether
-this carries over to version~1's coreduction-only baseline, a different
-implementation, we cannot say.
+recomputation the collapse does not pay for itself on our workloads.
 
 \begin{figure}[t]
   \centering
@@ -739,14 +652,6 @@ consistent with E7, where \method{mmhm} with both triggers off, which never
 rebuilds but keeps the index, has a median of
 \NumESevenWFourPlaneNSixteenThousandDTwoMmhmAOffPOffMed\,\textmu s against
 \NumWFourPlaneNSixteenThousandDTwoMmhmNorbMed\,\textmu s for \method{mmhm-norb}.
-
-As anticipated in \cref{sec:exp-workloads}, $\beta_D$ dominates: at INIT,
-$\beta_D/n$ is \NumWFourPlaneNFourThousandDThreeBetaDRatio{} to
-\NumWFourPlaneNOneThousandDTwoBetaDRatio{} in the square and
-\NumWFourSpaceNFourThousandDThreeBetaDRatio{} to
-\NumWFourSpaceNOneThousandDThreeBetaDRatio{} in the cube, far above $\beta_0$
-and $\beta_1$ (\cref{tab:w4-betti}). These results concern the algebra on
-non-manifold complexes, not the topology of point clouds.
 
 \subsection{E5: On surfaces, what does linear algebra cost compared with combinatorial invariants?}\label{sec:e5}
 

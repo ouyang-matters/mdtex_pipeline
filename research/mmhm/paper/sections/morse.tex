@@ -1,0 +1,231 @@
+% sections/morse.tex -- the Morse order: Lemma 2 and Corollaries 2.1--2.2. Uses macros.tex. Executable checks of every statement:
+% research/mmhm/reference/check_props.py.
+\section{The Morse order}\label{sec:morse}
+
+Discrete Morse theory~\cite{forman2002user} enters only through the choice of
+keys at a rebuild. A rebuild computes an acyclic matching by collapses, in the
+spirit of~\cite{benedetti2014random}, and orders cells by reverse removal time.
+
+\begin{definition}[Collapse matching and Morse order]\label{def:collapse}
+Run the following on $P:=K$, with a counter $t:=0$ and a queue $Q$ of the cells
+$x$ that have exactly one immediate coface in $P$ (\emph{free faces}).
+\begin{enumerate}
+\item While $Q\ne\emptyset$: pop $x$; skip it unless $x\in P$ and $x$ has
+  exactly one immediate coface $y$ in $P$. Then \emph{pair} $(x,y)$, set
+  $\rmt(y):=t$, $\rmt(x):=t+1$, $t\gets t+2$, remove $y$ and $x$ from $P$, and
+  push every facet of $y$ or $x$ that has become free.
+\item If $P\ne\emptyset$, choose a cell $c$ of the highest dimension present in
+  $P$ (smallest vertex tuple), declare it \emph{critical}, set $\rmt(c):=t$,
+  $t\gets t+1$, remove it, push the facets that have become free, and go to~1.
+\end{enumerate}
+The \emph{Morse order} is $\ord(x):=-\rmt(x)$ (relabelled to $0,\dots,|K|-1$).
+Write $M$ for the set of pairs, $\Crit$ for the critical cells, $\Lo$ for the
+cells $x$ with $(x,y)\in M$ and $\Up$ for the cells $y$ with $(x,y)\in M$; for
+$x\in\Lo$ let $\mu(x)$ be its partner. For a cell $x$, its \emph{youngest facet}
+is the facet with the largest key and its \emph{oldest coface} the coface with
+the smallest key.
+\end{definition}
+
+The removed cells are always maximal in $P$, and $P$ remains a subcomplex. For
+the paired cell $y$ this uses the simplicial diamond property: if $y$ had a
+coface $w\in P$, then $w$ would have exactly two facets containing $x$, namely
+$y$ and some $y'\ne y$, and $y'\in P$ because $P$ is a subcomplex, so $x$ would
+not be free. The queue discipline is not specified; all results below hold for
+every discipline.
+
+A \emph{gradient path} (V-path) is a sequence $\tau_0,\sigma_0,\tau_1,\sigma_1,
+\dots,\tau_m$ with $(\tau_i,\sigma_i)\in M$ and $\tau_{i+1}$ a facet of
+$\sigma_i$ different from $\tau_i$.
+
+\begin{lemma}[Gradient pairs are apparent pairs]\label{lem:apparent}
+For every execution of the collapse procedure, with $\ord=-\rmt$:
+\begin{enumerate}
+\item[(a)] $\ord$ is a filtration order: $\ord(f)<\ord(s)$ whenever $f$ is a facet
+  of $s$.
+\item[(b)] $\rmt$ strictly increases along the lower cells of every gradient
+  path ($\rmt(\tau_{i+1})>\rmt(\tau_i)$); in particular $M$ has no closed
+  gradient path, so it is an acyclic matching.
+\item[(c)] For every $(\tau,\sigma)\in M$: $\tau$ is the youngest facet of
+  $\sigma$, i.e.\ $\tau=\low(\bd\sigma)$, and $\sigma$ is the oldest coface of
+  $\tau$.
+\item[(d)] If $z\ne0$ is a cycle, then $\low(z)\notin\Up$.
+\item[(e)] In the static reduction under $\ord$, with or without clearing, for
+  every $(\tau,\sigma)\in M$ the column $\sigma$ is not cleared, receives no
+  addition, and obtains pivot $\tau$; thus $R_\sigma=\bd\sigma$ and
+  $(\tau,\sigma)$ is an \emph{apparent pair}~\cite{bauer2021ripser}.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(a) Only maximal cells of $P$ are removed (above), so every cell is removed
+before each of its facets.
+
+(b) When $\sigma_i$ is removed at time $\rmt(\sigma_i)$, its facet $\tau_{i+1}$ is
+still in $P$. Times $\rmt(\sigma_i)$ and $\rmt(\tau_i)=\rmt(\sigma_i)+1$ are
+used by $\sigma_i$ and $\tau_i$, and $\tau_{i+1}\ne\tau_i$, so
+$\rmt(\tau_{i+1})>\rmt(\tau_i)$. A closed gradient path would give
+$\rmt(\tau_0)<\rmt(\tau_0)$.
+
+(c) The pair is removed at consecutive times, so $\ord(\tau)=\ord(\sigma)-1$:
+the two cells are adjacent in the order. By (a) every facet of $\sigma$ precedes
+$\sigma$, hence has key at most $\ord(\tau)$, and every coface of $\tau$ follows
+$\tau$, hence has key at least $\ord(\sigma)$. (This is the elementary fact that
+a facet and a coface that are adjacent in a filtration order form an apparent
+pair.)
+
+(d) Let $u=\low(z)\in\Up$ with $u=\mu(w)$. The coefficient of $w$ in $\bd z=0$
+vanishes and $w\in\bd u$, so some $u'\in z$ with $u'\ne u$ has $w$ as a facet.
+By (c), $u$ is the oldest coface of $w$, so $\ord(u')>\ord(u)$, contradicting
+$u=\low(z)$.
+
+(e) If $\sigma$ were cleared, it would be the low of a reduced column $R$ of the
+next dimension; $R=\bd V'$ (Proposition~\ref{cor:rebuild}) is a non-zero cycle with
+low $\sigma\in\Up$, contradicting (d). Columns are processed in increasing key
+order. When $\sigma$ is processed, every earlier column $x$ has $R_x=0$ (if
+cleared) or $R_x=\bd V_x$ with all cells of $V_x$ of key at most
+$\ord(x)<\ord(\sigma)$ (Proposition~\ref{cor:rebuild}); by (c) no such cell has
+$\tau$ as a facet, so $\tau\notin R_x$ and $\pivot(\tau)$ is undefined. Since
+$\low(\bd\sigma)=\tau$ by (c), the reduction loop performs no addition and
+assigns $\pivot(\tau)=\sigma$.
+\end{proof}
+
+\begin{corollary}[Work happens only on critical columns]\label{cor:critical-work}
+In the static reduction with clearing under the Morse order, the column of every
+$x\in\Lo$ with $\dim x\ge1$ is cleared, the column of every $y\in\Up$ is
+apparent, and therefore every column addition is performed while reducing the
+column of a critical cell.
+\end{corollary}
+
+\begin{proof}
+For $(x,y)\in M$ with $\dim y=k+1\ge2$, Lemma~\ref{lem:apparent}(e) applied to
+$\Bm{k+1}$, which is processed before $\Bm{k}$, gives $R_y=\bd y$ with
+$\low(R_y)=x$, so $x$ is cleared. Upper cells are apparent by
+Lemma~\ref{lem:apparent}(e). Every remaining column belongs to a critical cell.
+\end{proof}
+
+\paragraph{Morse boundary.} By Lemma~\ref{lem:apparent}(b) the following
+recursion is well founded and defines a linear map
+$\flow\colon\Cc{k-1}\to\Cc{k-1}$: $\flow(\tau)=\tau$ for $\tau\in\Crit$,
+$\flow(\tau)=0$ for $\tau\in\Up$, and
+$\flow(\tau)=\sum_{\tau'\in\bd\mu(\tau),\,\tau'\ne\tau}\flow(\tau')$ for
+$\tau\in\Lo$. Thus $\flow(\tau)$ is the sum, over all gradient paths from $\tau$
+to a critical cell, of their endpoints, counted mod~2. The \emph{Morse boundary}
+of a critical $k$-cell $c$ is $\dM c:=\flow(\bd c)$, the boundary of the Morse
+complex of the matching~\cite{forman2002user}; the Morse boundary matrices
+$\Bm{k}^M$ have rows $\Crit\cap\Kc{k-1}$ and columns $\Crit\cap\Kc{k}$. For
+$y\in\Up$ with partner $x$, the definition of $\flow(x)$ gives
+\begin{equation}\label{eq:flow-kills}
+  \flow(\bd y)=\flow(x)+\sum_{f\in\bd y,\,f\ne x}\flow(f)=0 .
+\end{equation}
+
+\begin{corollary}[Critical columns perform the Morse reduction]\label{cor:morse-reduction}
+Consider the static reduction with clearing under the Morse order and, next to
+it, the standard reduction with clearing of the Morse boundary matrices
+$\Bm{d}^M,\dots,\Bm{1}^M$, critical cells taken in increasing key order. For
+every critical $k$-cell $c$, $k\ge1$:
+\begin{enumerate}
+\item[(i)] the additions performed on column $c$ are first additions of apparent
+  columns $R_y=\bd y$ ($y\in\Up$), then additions of columns of critical cells;
+\item[(ii)] if $c$ is not cleared, then when the first phase ends the column
+  contains no cell of $\Lo$ and its restriction to $\Crit$ equals $\dM c$;
+\item[(iii)] the second phase performs, one for one, the additions that the
+  Morse reduction performs on column $c$; $c$ is cleared exactly when it is
+  cleared in the Morse reduction; and the final column $R_c$ contains no cell
+  of $\Lo$, while $R_c\cap\Crit$ is the reduced Morse column of $c$.
+\end{enumerate}
+\end{corollary}
+
+Each first-phase addition $R\gets R+\bd y$ with $\low(R)=x$ and $y=\mu(x)$
+replaces $x$ by the other facets of $y$; it is one step of the discrete gradient
+flow, and $\flow(R)$ does not change by~\eqref{eq:flow-kills}. This is the
+precise sense in which the reduced column of a critical cell ``traces its
+gradient flow''. $R_c$ may still contain cells of $\Up$; we observed this in
+the randomised checks and claim nothing about them.
+
+\begin{proof}
+We use the rule of Definition~\ref{def:collapse} that a critical cell is chosen
+of the highest dimension present in $P$. (Lemma~\ref{lem:apparent} did not use
+it.)
+
+\emph{Claim (separation).} For every $q$, every critical $q$-cell has a smaller
+key than every $q$-cell of $\Lo$. Indeed, when a critical $q$-cell $t$ is removed,
+$P$ contains no $(q+1)$-cell. If $\ell\in\Lo$ were a $q$-cell with
+$\rmt(\ell)>\rmt(t)$, its partner $\mu(\ell)$, a $(q+1)$-cell removed at time
+$\rmt(\ell)-1\ge\rmt(t)$, would be in $P$ at that moment.
+
+We argue by induction over the dimensions (top-down) and, within $\Bm{k}$, over
+the columns in increasing key order. The statement about clearing is shown below;
+a cleared column receives no addition and has $R_c=0$, matching the zero column
+of the Morse reduction. So let $c$ be a column that is not cleared, and let $R$
+denote its column during its reduction; initially $R=\bd c$.
+
+\emph{First phase.} Suppose $\ell=\low(R)\in\Lo$ and let $y=\mu(\ell)$. All cells
+added to $V_c$ so far are $c$ and upper cells with smaller keys, so $\ell$ is a
+facet of a cell $x$ with $\ord(x)\le\ord(c)$; since $y$ is the oldest coface of
+$\ell$ (Lemma~\ref{lem:apparent}(c)) and $y\ne c$, $\ord(y)<\ord(c)$. By
+Lemma~\ref{lem:apparent}(e), the column of $y$ has been processed, holds
+$R_y=\bd y$ and owns $\pivot(\ell)$; the algorithm adds it, which
+strictly decreases the low and preserves $\flow(R)$ by~\eqref{eq:flow-kills}.
+The phase ends with $R=0$ or with $t=\low(R)\notin\Lo$. In the latter case $R$
+is a non-zero cycle (by (I1), $R=\bd V_c$), so $t\notin\Up$ by
+Lemma~\ref{lem:apparent}(d), and $t\in\Crit$. By the separation claim every
+cell of $R$, having key at most $\ord(t)$, lies outside $\Lo$. As $\flow$ fixes
+critical cells and kills upper cells,
+$R\cap\Crit=\flow(R)=\flow(\bd c)=\dM c$. This proves (ii) and the first part
+of (i).
+
+\emph{Clearing.} The cells cleared in $\Bm{k}$ are the lows of the non-zero
+reduced columns of $\Bm{k+1}$: the lower cells (lows of apparent columns) and
+the lows of non-zero critical columns. By the induction hypothesis (iii) for
+dimension $k+1$, the latter are critical and coincide with the lows of the
+non-zero reduced Morse columns, i.e.\ with the cells cleared in the Morse
+reduction. So a critical $c$ is cleared in one reduction if and only if in the
+other; in the top dimension nothing is cleared in either.
+
+\emph{Second phase.} A pivot on a critical row cannot be owned by an apparent
+column (its low is in $\Lo$) or a cleared one (zero), so it is owned by a
+critical column $c'$ processed earlier. By the induction hypothesis $R_{c'}$ has
+no cell of $\Lo$, it is a cycle, its low is critical and equals
+$\low(R_{c'}\cap\Crit)$, and $R_{c'}\cap\Crit$ is the reduced Morse column of
+$c'$; hence the pivot tables of the two reductions agree on critical rows.
+Adding such columns keeps $R\cap\Lo=\emptyset$ and keeps $R$ a cycle, so while
+$R\ne0$ its low is critical and equals $\low(R\cap\Crit)$. The sequence of pivot
+look-ups and additions on $R\cap\Crit$, which starts from $\dM c$, is therefore
+exactly the Morse reduction of column $c$, and no apparent column is added any
+more. This proves (i) and (iii).
+\end{proof}
+
+\begin{remark}[Relation to known results]\label{rem:morse-literature}
+Lemma~\ref{lem:apparent} is not new in substance. Its part~(c) is the
+elementary fact noted in its proof, and the relation between gradient pairs and
+apparent pairs is known in both directions: the apparent pairs of any
+simplexwise filtration form a discrete gradient, which Ripser uses to skip
+columns~\cite{bauer2021ripser}, and Bauer and Roll~\cite{bauer2024wrapping}
+relate the gradient pairs of a (generalised) discrete Morse function to the
+zero-persistence apparent pairs of a lexicographically refined filtration
+order. Lemma~\ref{lem:apparent} is a self-contained version for the order
+produced by our collapse procedure, in the form used below: for every queue
+discipline, with and without clearing, and with part~(d), on which
+Corollary~\ref{cor:morse-reduction} rests. Mischaikow and Nanda~\cite{mischaikow2013morse} showed that
+Morse reductions compatible with a filtration preserve persistent homology;
+Corollary~\ref{cor:morse-reduction} is a matrix-level form of this for our order:
+on critical rows and columns, the static reduction \emph{is} the reduction of
+the Morse complex, and by Corollary~\ref{cor:critical-work} the other columns
+cost no additions. This is what the \method{full-morse} baseline exploits. In the
+language of algebraic Morse theory~\cite{skoldberg2006morse,jollenbeck2009minimal},
+the first phase of
+Corollary~\ref{cor:morse-reduction} is Gaussian elimination of the invertible
+entries $\langle\bd y,x\rangle=1$ of the matched pairs, which is how the Morse
+complex arises algebraically; the order makes the reduction algorithm perform
+these eliminations by itself, without a separate Morse-reduction pass.
+\end{remark}
+
+\begin{remark}[Scope]\label{rem:morse-scope}
+Lemma~\ref{lem:apparent} and its corollaries describe the state produced by a
+rebuild. Between rebuilds the matching is not maintained, inserted cells get
+keys larger than all others, and deletions add chains whose lows may exceed
+those of their targets. We make no claim that the DRB stays sparse between
+rebuilds; the Morse order is a heuristic for small footprints and short
+reduction chains, its effect is measured, and the rebuild policy bounds the
+drift of $\nnz(R)+\nnz(V)$.
+\end{remark}

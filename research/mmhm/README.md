@@ -19,9 +19,11 @@ paths. v2 makes three changes:
   reduction at a build.
 
 There is no locality theorem. The paper proves that none holds for this data
-structure and measures footprints instead. The erratum (paper §4) gives
-concrete instances where v1's rule, as v1 specified it, reports wrong Betti
-numbers.
+structure and measures footprints instead. The paper presents the method on its
+own terms. The withdrawal of v1's exactness claim is recorded in
+[`paper/VERSION_HISTORY.md`](paper/VERSION_HISTORY.md). The detailed erratum,
+with counterexamples to v1's rule as v1 specified it, is the separate document
+`paper/MMHM_v1_erratum.tex`.
 
 ## Where things are
 

@@ -1,0 +1,122 @@
+% MMHM_v1_erratum.tex -- erratum to version 1 of arXiv:2508.14429, kept apart from
+% the main paper. Build after main.tex (it reads main.aux for references to the
+% current version):  latexmk -pdf main.tex && latexmk -pdf MMHM_v1_erratum.tex
+% Counterexamples: reference/check_props.py (checks (c), (d), (f)); measured
+% error rates: experiments/ (configs E0.json, E0rc.json), generated/numbers.tex.
+\documentclass[10pt]{article}
+\usepackage{xr-hyper}
+\input{preamble}
+\externaldocument[main-]{main}
+\renewcommand{\shorttitle}{Erratum to arXiv:2508.14429v1}
+\hypersetup{pdftitle={Erratum to arXiv:2508.14429v1}}
+
+\title{Erratum to Version 1 of ``Morse-based Modular Homology for Evolving
+  Simplicial Complexes'' (arXiv:2508.14429v1)}
+\author{%
+  Anqiao Ouyang\\
+  Mount Boucherie Secondary School\\
+  West Kelowna, British Columbia, Canada\\[11pt]
+  Department of Aerospace Engineering\\
+  San Diego State University\\
+  San Diego, California, USA\\
+  \texttt{aouyang@sdsu.edu}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Version~1 of arXiv:2508.14429 maintained Betti numbers under local edits by
+re-reducing, after each edit, only the critical columns of a discrete-Morse
+reduced boundary matrix that the edit affects directly. It stated that this
+update is exact. That claim is withdrawn: the rule is not exact, for two
+independent reasons. It re-reduces a replaced column but not the reduced
+columns that had absorbed it (E1), and its set of affected critical columns
+misses columns whose Morse boundary changes through gradient paths that end far
+from the edit (E2). This note states what version~1 specified, gives instances
+on which its rule fails although none of its safeguards applies, records an
+inconsistency in its experiment P2, and measures how often an ablation that
+isolates E1 is wrong. The current version of arXiv:2508.14429 uses a different
+algorithm, the dynamic reduced basis, whose exactness is proved there.
+\end{abstract}
+
+\input{sections/erratum_v1}
+
+\section{Measured error rates of the rule without basis tracking}\label{sec:lcr}
+
+\paragraph{Ablations.}
+\method{lcr} applies version~1's re-reduction rule to the full boundary matrices
+without basis tracking: an inserted column is reduced against the existing
+pivots, and a deleted column releases its pivot and is dropped. It runs in the
+engine of the current version, uses exactly the order of its method
+\method{mmhm-norb} (the Morse order of $K_0$, no rebuilds) and differs from it
+only in not storing $V$ and the footprints, so its errors are caused by
+defect~E1 alone. It is not a reimplementation of version~1: it forms no Morse
+complex (so E2 cannot occur), never recompresses and has no gates.
+\method{lcr-rc} adds version~1's periodic recompression: every
+$m={}$\NumLcrRcPeriod{} updates, version~1's default, it recomputes all reduced
+columns from scratch in the current key order by the static reduction with
+clearing. It models only this trigger, without a Morse complex, the $\rho$
+trigger or gates. Both ran untimed on one instance of each workload variant of
+the current version (Section~\ref{main-sec:exp-workloads} there), three runs
+each, and were compared with a static recomputation after every update; the
+\emph{error rate} is the fraction of updates after which at least one Betti
+number is wrong. These rates measure E1, not version~1 as a whole: on the
+connected surfaces of W1, gates of the kind version~1 describes would return
+correct Betti numbers (Remark~\ref{main-rem:surfaces} of the current version).
+
+\paragraph{Results.}
+\method{lcr} is wrong after \NumLcrWOneTorusOneHundredTwentyEightErrPct\,\% to
+\NumLcrWTwoNFifteenSEightErrPct\,\% of the updates of every W1--W4 instance; on
+W2 after \NumLcrWTwoNFifteenSEightWrong{} of \NumLcrWTwoNFifteenSEightUpdates.
+Its first error comes within the first \NumLcrFirstWrongMaxAll{} updates of
+every run in which it errs, and on W1--W4 it stays wrong after almost every
+later update, so these percentages mainly say how early the first error comes.
+The Betti numbers of W2 are constant; the errors there come from the algebra
+alone, and a comparison with the known $(1,0,0,0)$ detects them. On W5b,
+\method{lcr} is wrong after \NumLcrWFiveSphereLFiveErrPct\,\% of the updates:
+after every deletion of the toggled triangle and after no reinsertion. The zero
+column that represents the $2$-cycle of the sphere absorbed the column of the
+toggled triangle when $K_0$ was reduced; \method{lcr} never revisits it, so after
+each deletion it still reports the destroyed $2$-cycle, which exists again after
+each reinsertion. On W5a, \method{lcr} is never wrong
+(\NumLcrWFiveCycleLTenThousandErrPct\,\%), and W5a cannot expose defect~E1: the
+cycle graph has no free face, so the collapse first removes the edge with the
+smallest vertex tuple, $\{0,1\}$, as a critical cell, which gives it the largest
+key; W5a toggles exactly this edge, and every reinsertion gives it the largest
+key again. No other column ever absorbs the column with the largest key, so
+dropping it leaves a correct reduction. Pooled over these instances,
+\method{lcr} is wrong after \NumLcrErrAll\,\% of the updates; this number
+depends on the mix of instances.
+
+\method{lcr-rc} coincides with \method{lcr} until its first recompression, and
+its first errors come at the same updates (\cref{tab:correctness}). A
+recompression is a static reduction, so it makes the Betti numbers correct
+again. Pooled over the same instances, \method{lcr-rc} is wrong after
+\NumLcrRcErrAll\,\% of the updates: after
+\NumLcrRcWTwoNFifteenSEightErrPct\,\% on W2
+(\NumLcrRcWTwoNFifteenSEightWrong{} of \NumLcrRcWTwoNFifteenSEightUpdates),
+\NumLcrRcWFiveSphereLFiveErrPct\,\% on W5b and
+\NumLcrRcWFiveCycleLTenThousandErrPct\,\% on W5a, but after
+\NumLcrRcWFourPlaneNFourThousandDTwoErrPct\,\% to \NumLcrRcErrMax\,\% on W1, W3
+and W4, where the errors return soon after each recompression. On W2, the
+analogue of version~1's P2, recompression thus hides most errors, but a
+comparison with the known Betti numbers still finds them from the first updates
+on.
+
+\begin{table}[t]
+  \centering
+  \caption{Upper part: correctness of the exact methods of the current version
+    (as in its correctness table). Lower part: the ablations \method{lcr} and
+    \method{lcr-rc} on one instance of each workload variant, three runs each:
+    updates, the percentage of updates after which each was wrong, and the first
+    wrong update (minimum over the runs).}
+  \label{tab:correctness}
+  \small
+  \generatedtable{tab_correctness}
+\end{table}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

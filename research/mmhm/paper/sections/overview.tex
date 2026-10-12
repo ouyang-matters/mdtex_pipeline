@@ -1,5 +1,72 @@
-% sections/overview.tex -- Figure 1 (F1): schematic of the method.
-% \input at the end of sections/intro.tex; the TikZ source is figures/f1_method.tex.
+% sections/overview.tex -- the problem (setting, Observation 2.1) and an overview
+% of the algorithm with Figure 1 (TikZ source: figures/f1_method.tex).
+\section{Problem and algorithm overview}\label{sec:overview}
+
+\subsection{Setting}\label{sec:setting}
+
+Let $K$ be a finite simplicial complex of dimension $d$. A $k$-simplex is a set of
+$k+1$ vertices; $\Kc{k}$ is the set of $k$-simplices of $K$ and $n_k=|\Kc{k}|$.
+We identify the chain group $\Cc{k}=C_k(K;\Z)$ with the set of finite subsets of
+$\Kc{k}$, addition being symmetric difference. The boundary
+$\bd_k\colon\Cc{k}\to\Cc{k-1}$ sends a simplex to the set of its facets
+(codimension-one faces); $\Bm{k}$ is its matrix, with rows indexed by
+$\Kc{k-1}$ and columns by $\Kc{k}$. We write $\Zc{k}=\ker\bd_k$,
+$r_k=\rank\Bm{k}$ for $1\le k\le d$, and $r_0=r_{d+1}=0$. By rank--nullity,
+$\dim\Zc{k}=n_k-r_k$ and $\dim\operatorname{im}\bd_{k+1}=r_{k+1}$, so
+\begin{equation}\label{eq:betti}
+  \beta_k \;=\; n_k - r_k - r_{k+1}\qquad(0\le k\le d).
+\end{equation}
+
+\paragraph{Edits and updates.} An \emph{atomic edit} is either
+$\Ins(\sigma)$, for a simplex $\sigma\notin K$ all of whose facets lie in $K$, or
+$\Del(\sigma)$, for a simplex $\sigma\in K$ that has no proper coface in $K$.
+Each atomic edit leaves a simplicial complex. An \emph{update} $u_t$ is a finite
+sequence of atomic edits (a batch); its \emph{size} is $s_t=|u_t|$. The task is
+to output $\beta_0,\dots,\beta_d$ of $K_t$ after every update $t$.
+
+\begin{observation}[Structural fact]\label{obs:structural}
+Let $\sigma$ be a $k$-simplex. While $\sigma\in K$, its boundary $\bd\sigma$ does
+not change. Inserting $\sigma$ appends the column $\bd\sigma$ to $\Bm{k}$ and
+appends a zero row (indexed by $\sigma$) to $\Bm{k+1}$; deleting $\sigma$
+removes its column from $\Bm{k}$ and removes its row from $\Bm{k+1}$, and that
+row is zero. No other boundary matrix changes, and among $n_0,\dots,n_d$ only
+$n_k$ changes.
+\end{observation}
+
+\begin{proof}
+The boundary of a simplex is determined by its vertex set. When $\sigma$ is
+inserted it has no coface: a coface would already be in $K$, and $K$ is closed
+under faces while $\sigma\notin K$. A deleted simplex has no coface by the
+precondition of $\Del$. In both cases the row $\sigma$ of $\Bm{k+1}$ is zero.
+\end{proof}
+
+Consequently, for each $k\ge1$ the problem is to maintain $r_k=\rank\Bm{k}$ under
+\emph{column insertion and column deletion}, where rows appear and disappear
+only while they are zero; adding or removing a zero row changes no rank. The
+vertex dimension $k=0$ needs no matrix: $\bd_0=0$.
+
+\subsection{The algorithm at a glance}\label{sec:approach}
+
+For each dimension $k\ge1$ we store a reduced matrix $R=\Bm{k}V$ together with
+the invertible change of basis~$V$, and for every $k$-simplex $\sigma$ the set
+$\occ(\sigma)$ of columns of $V$ that contain it, the \emph{footprint}
+of~$\sigma$ (\cref{fig:method}). An insertion reduces the new column against the
+existing pivots, as in the standard persistence
+algorithm~\cite{edelsbrunner2002topological,zomorodian2005computing}. A deletion
+rewrites every column in the footprint of the deleted simplex: if one of them is
+a cycle, that cycle is added to the others (Case~A); otherwise the column with
+the smallest pivot is added to the others (Case~B). \Cref{sec:drb} proves that
+this keeps the Betti numbers exact after every atomic edit, for every order of
+the cells. The order affects only the cost. When the structure is built or
+rebuilt we compute an acyclic matching by collapses and order the cells by
+reverse removal time (\cref{sec:morse}); under this order the static reduction
+performs all its column additions in the columns of critical cells. Between
+rebuilds the order is a heuristic for a sparse basis. \Cref{sec:cost-locality}
+states the cost of an edit in output-sensitive terms and shows that it admits no
+bound in terms of the size of the edit. Coefficients are in $\Z$ throughout. The
+proofs hold in every dimension; the implementation and the experiments are
+restricted to $\dim K\le3$.
+
 \begin{figure}[t]
   \centering
   \input{figures/f1_method}

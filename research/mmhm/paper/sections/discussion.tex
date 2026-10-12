@@ -1,6 +1,6 @@
 % sections/discussion.tex -- what the results mean, limitations, when to use what.
 % Every number is a \Num macro (generated/numbers.tex).
-\section{Discussion}\label{sec:discussion}
+\section{Discussion and limitations}\label{sec:discussion}
 
 \paragraph{Two regimes.}
 On W2, W4 and the larger W3 instances, the latency of the DRB methods depends
@@ -9,78 +9,66 @@ linear in the size of the toggled cycle, and the measurements follow it. On W1
 the median cost of an update also grows with the complex, although typical
 updates create only small cycles; we have not measured why (E5). Where the cost
 grows with the complex, recomputation is also linear, so the DRB keeps at most a
-constant factor: on W1 at most \NumWOneSphereLFiveMmhmSpeedupFullId, with several
-variants slower than recomputation, and on W1 and W5a its tail latency is worse, as is that of the
-Morse-ordered variants at the largest W5b size.
-Five workload families do not settle which properties of a workload decide the
-regime.
+constant factor, and its tail latency can be worse (E5, E6). Five workload
+families do not settle which properties of a workload decide the regime.
 
 \subsection{Limitations}\label{sec:limitations}
 
 \paragraph{Coefficients and dimension.}
-Every result of this paper is over $\Z$. Version~1 discussed integer
-coefficients, torsion and the Smith normal form, and described its update as
-working over a chosen coefficient ring; nothing in it supports these statements,
-and we withdraw them. Ranks over a field do not see torsion, which requires the
-Smith normal form over the integers~\cite{munkres1984elements}, and Betti
-numbers over $\Z$ can differ from those over other fields: the real projective
-plane has Betti numbers $(1,1,1)$ over $\Z$ and $(1,0,0)$ over the
-rationals~\cite{hatcher2002algebraic}. We have neither implemented nor tested
-other coefficients. The proofs of \cref{sec:theory} hold in every dimension, but
-the engine and all experiments are restricted to dimension at most three.
+Every result of this paper is over $\Z$. Ranks over a field do not see torsion,
+which requires the Smith normal form over the
+integers~\cite{munkres1984elements}, and Betti numbers over $\Z$ can differ from
+those over other fields: the real projective plane has Betti numbers $(1,1,1)$
+over $\Z$ and $(1,0,0)$ over the rationals~\cite{hatcher2002algebraic}. We have
+neither implemented nor tested other coefficients. The proofs of
+\cref{sec:drb,sec:morse,sec:cost-locality} hold in every dimension, but the
+engine and all experiments are restricted to dimension at most three.
 
-\paragraph{No locality theorem, and proxies for cost.}
+\paragraph{Worst-case cost and proxies.}
 By \cref{prop:nonlocal} the cost of an update is bounded only in
 output-sensitive terms (\cref{prop:cost}), and what we log are proxies for those
-terms: counts of additions and footprints, not the sizes of the chains involved
-(\cref{sec:cost}). The proxies and the time can disagree (E7). Where no spanning
-cycle is created the proxies stayed small: on the W2 and W4 instances of E8 the
-median number of column additions per update was at most
+terms: counts of additions and footprints, not the sizes of the chains involved.
+The proxies and the time can disagree (E7). Where no spanning cycle is created
+the proxies stayed small: on the W2 and W4 instances of E8 the median number of
+column additions per update was at most
 \NumEEightWFourPlaneNSixteenThousandDTwoDrbIdAddsMed. Nothing guarantees this for
 other workloads.
 
 \paragraph{Rebuild policy and the Morse order.}
 The growth threshold $\alpha$ and the period $m$ are heuristics whose effect
-depends on the workload (E7). A method that may rebuild in the Morse order also pays, we
-believe, for the index such a rebuild needs (E4). \Cref{lem:apparent} and its
-corollaries locate the work of a build in the critical columns; they do not make
-it smaller than in a good insertion order, and on our workloads it was not
-(E8). Between rebuilds the Morse order is a heuristic whose effect ranges from
-clearly positive (large surfaces, W3, larger W4) to negative (W5); for one-shot
-static recomputation the collapse never paid for itself (E1). A structured order
-matters more than which one: in a random order the basis had
-\NumWFourPlaneNFourThousandDTwoNnzInitRandOverId--\NumWThreeNFourteenNnzInitRandOverId{}
-times as many entries after the build, and updates on W1--W3 were
-\NumWThreeNFourteenDrbRandOverDrbIdAmort--\NumWTwoNFifteenSEightDrbRandOverDrbIdAmort{}
-times slower (E8).
+depends on the workload (E7), and a method that may rebuild in the Morse order
+also pays, we believe, for the index such a rebuild needs (E4). The results of
+\cref{sec:morse} locate the work of a build in the critical columns; they do not
+make it smaller than in a good insertion order, and on our workloads it was not
+(E8). Between rebuilds the Morse order is a heuristic whose measured effect
+ranges from positive to negative, and for one-shot static recomputation the
+collapse did not pay for itself (E1).
 
 \paragraph{Baselines.}
 The insertion order of \method{full-id} depends on the history of edits, and its
-cost drifts upward during the W3 and the smaller W4 runs. The canonical order of
-\method{full-sorted} removes this dependence and most of the drift on W4, but not
-on W3, where the later complexes cost more to reduce in any order. Against it
+cost drifts upward during the W3 and the smaller W4 runs; the canonical order of
+\method{full-sorted} removes most of this drift on W4 but not on W3. Against it
 the gains of the DRB on W3 are smaller (\method{mmhm} at $N=27$:
 \NumWThreeNTwentySevenMmhmSpeedupFullSorted{} instead of
 \NumWThreeNTwentySevenMmhmSpeedupFullId) and the methods without rebuilds lose
-on the smallest instance; on W2 and W4 the conclusions do not change (E1, E3,
-E4). \method{gudhi} runs through its Python interface
-and computes persistence pairs; its times are a reference point for a widely used
-library, not the best possible static recomputation.
+on the smallest instance. \method{gudhi} runs through its Python interface and
+computes persistence pairs; its times are a reference point for a widely used
+library, not the best possible static recomputation. We did not compare against
+implementations of zigzag persistence.
 
 \paragraph{Measurements.}
 All timings come from one virtual machine, single-threaded runs and one compiler
 setting. Run-to-run variation is a few percent on most instances we repeated and
 much larger on microsecond-scale updates (\cref{sec:exp-timing}); we mark
-differences within the per-seed ranges as within noise. One run was an outlier,
-which a rerun did not reproduce (E1). The counters do not depend on the machine.
-We did not measure memory; as a proxy, $\nnz(R)+\nnz(V)$ reached at most
-\NumWTwoNThirtyThreeSEightMmhmNnzPerSimplex{} entries per simplex on the largest
-W2 instance, \NumWOneTorusFiveHundredDrbIdNnzPerSimplex{} on the largest torus
-(\method{drb-id}) and \NumWThreeNTwentySevenDrbIdNnzPerSimplex{} on the largest
-W3 instance (\method{drb-id}), against \NumWThreeNTwentySevenMmhmNnzPerSimplex{}
-for \method{mmhm} there. W4 is truncated at dimension $D$, so it measures the
-algebra on non-manifold complexes, not the topology of point clouds
-(\cref{tab:w4-betti}).
+differences within the per-seed ranges as within noise. The counters do not
+depend on the machine. We did not measure memory; as a proxy, $\nnz(R)+\nnz(V)$
+reached at most \NumWTwoNThirtyThreeSEightMmhmNnzPerSimplex{} entries per
+simplex on the largest W2 instance, \NumWOneTorusFiveHundredDrbIdNnzPerSimplex{}
+on the largest torus (\method{drb-id}) and
+\NumWThreeNTwentySevenDrbIdNnzPerSimplex{} on the largest W3 instance
+(\method{drb-id}; \method{mmhm}: \NumWThreeNTwentySevenMmhmNnzPerSimplex). W4 is
+truncated at dimension $D$, so it measures the algebra on non-manifold
+complexes, not the topology of point clouds.
 
 \subsection{When to use what}\label{sec:when}
 
@@ -94,8 +82,7 @@ $\beta_k(K_t)$ is the number of $k$-dimensional intervals of the zigzag barcode
 that contain~$t$, so zigzag
 algorithms~\cite{carlsson2009zigzag,milosavljevic2011zigzag,maria2024discrete,dey2022fast}
 answer our query as well, the incremental algorithm of Carlsson, de Silva and
-Morozov~\cite{carlsson2009zigzag} after every update. We did not compare
-against zigzag implementations.
+Morozov~\cite{carlsson2009zigzag} after every update.
 
 \paragraph{Connectivity only:} fully dynamic connectivity, which maintains
 $\beta_0$ (and, for graphs, $\beta_1=n_1-n_0+\beta_0$) in polylogarithmic
@@ -106,19 +93,17 @@ Edelsbrunner~\cite{delfinado1995incremental} needs near-linear total time.
 
 \paragraph{Small complexes, or tail latency under global cycles:} static
 recomputation with clearing, not in the Morse order. It stores no basis. In the
-canonical order (\method{full-sorted}) it was faster on average than the DRB
-methods without rebuilds on the smallest W3 instance and than \method{drb-id} on
-almost every W1 instance; \method{full-id} had the lower p99 on every W1
-instance and, beyond noise in all but one case, on every W5a instance. Within the
-edit sizes we measured ($s\le64$ on W2) it did not overtake the DRB methods on
-average; we did not test larger batches.
+canonical order it was faster on average than the DRB methods without rebuilds
+on the smallest W3 instance and than \method{drb-id} on almost every W1
+instance; \method{full-id} had the lower p99 on every W1 instance and, beyond
+noise in all but one case, on every W5a instance. Within the edit sizes we
+measured ($s\le64$ on W2) it did not overtake the DRB methods on average; we did
+not test larger batches.
 
 \paragraph{Edit-local updates on large general complexes:} a dynamic reduced
 basis. On W2 every variant did equally well, so the gain there comes from the
-basis itself, not from the Morse order or rebuilds. Where the basis grows, as on W3,
-the growth-triggered rebuild in the Morse order (\method{mmhm}) was the fastest
-method at every size; on the larger W4 instances and the large W1 surfaces the
-Morse order without rebuilds (\method{mmhm-norb}) was at least as fast; on the
-non-locality witnesses the insertion order was faster. The DRB handles
-non-manifold complexes in which every Betti number changes, and on W2 and W4 its
-latency hardly depended on the size of the complex.
+basis itself, not from the Morse order or rebuilds. Where the basis grows, as on
+W3, the growth-triggered rebuild in the Morse order (\method{mmhm}) was the
+fastest method at every size; on the larger W4 instances and the large W1
+surfaces the Morse order without rebuilds (\method{mmhm-norb}) was at least as
+fast; on the non-locality witnesses the insertion order was faster.

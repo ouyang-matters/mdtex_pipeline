@@ -1,0 +1,151 @@
+% sections/cost.tex -- update cost (Proposition 3) and the limits of locality (Proposition 4). Uses macros.tex. Executable checks of every statement:
+% research/mmhm/reference/check_props.py.
+\section{Update cost and the limits of locality}\label{sec:cost-locality}
+
+\subsection{Output-sensitive cost}\label{sec:cost}
+
+We state the cost in two storage models. In the \emph{ordered-set model}, a
+chain is a balanced search tree keyed by $\ord$ and a footprint is a set of
+slots; inserting, removing or testing one cell or slot, one pivot-table
+operation and one low query are \emph{elementary operations}, each of
+$O(\log n)$ time, $n=|K|$. In the \emph{sorted-array model}, which is what the
+engine implements (Section~\ref{sec:exp-platform}), a chain is an increasing
+array of keys, its low is its last entry, and a sum $x+y$ of two chains is a
+linear merge that costs $\Theta(|x|+|y|)$, the size of the target included.
+For an insertion we write $R^{(i)}$ and $V^{(i)}$ for the working column just
+before the $i$-th addition of its reduction chain.
+
+\begin{proposition}[Output-sensitive cost]\label{prop:cost}
+Let $\sigma$ be a $k$-simplex, $k\ge1$.
+\begin{enumerate}
+\item[(a)] $\Ins(\sigma)$ with reduction chain $p_1,\dots,p_m$ costs
+  $\Theta\bigl(k+1+\sum_{i=1}^{m}(1+|R_{p_i}|+|V_{p_i}|)\bigr)$ elementary
+  operations in the ordered-set model and
+  $\Theta\bigl(k+1+\sum_{i=1}^{m}(1+|R^{(i)}|+|V^{(i)}|+|R_{p_i}|+|V_{p_i}|)\bigr)$
+  time in the sorted-array model. In both, the $p_i$ are pairwise distinct, so
+  $m\le r_k$ and $\sum_i(|R_{p_i}|+|V_{p_i}|)\le\nnz(R)+\nnz(V)$ of the DRB of
+  $\Bm{k}$.
+\item[(b)] $\Del(\sigma)$ with footprint $O=\occ(\sigma)$ costs, including the
+  maintenance of the footprints and of $\pivot$,
+  $\Theta\bigl(|O|\,(1+|V_z|)\bigr)$ elementary operations in Case A and
+  $\Theta\bigl(|O|\,(1+|R_p|+|V_p|)\bigr)$ in Case B in the ordered-set model,
+  and $\Theta\bigl(\sum_{j\in O}(1+|V_j|+|V_z|)\bigr)$ in Case A and
+  $\Theta\bigl(\sum_{j\in O}(1+|R_j|+|V_j|+|R_p|+|V_p|)\bigr)$ in Case B in the
+  sorted-array model.
+\item[(c)] An update costs the sum over its atomic edits; a vertex edit costs
+  $O(1)$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+(a) Each addition touches every cell of $R_p$ and $V_p$ once, and in the
+sorted-array model also every cell of the working column, and performs one
+pivot look-up and one low query; the final chain $V_j$, of size at most
+$1+\sum_i|V_{p_i}|$, is entered into the footprints; $|\bd\sigma|=k+1$. Along
+the chain the lows strictly decrease (proof of Theorem~\ref{thm:exact}(b)), and
+each slot owns one low, so no slot is added twice.
+(b) Scanning $O$ to determine $Z$, and $z$ or $p$, costs $O(|O|)$ (sizes $|V_j|$
+are stored). In Case A each of the $|O|-1$ additions touches the $|V_z|$ cells of
+$V_z$ in $V_j$ and in the footprints (in the sorted-array model also the
+$|V_j|$ cells of the target), and removing slot $z$ removes it from $|V_z|$
+footprints. Case B is the same with $R_p$ and $V_p$, plus one pivot removal.
+\end{proof}
+
+The engine is a hybrid: when short chains are added to a long working column it
+switches the column to a max-heap, which brings an insertion to the
+ordered-set bound up to a logarithmic factor, whereas its deletions pay the
+sorted-array cost (Section~\ref{sec:exp-platform}). The engine does not log
+these costs. Per update it records the number of column additions (the number
+$m$ of terms in (a), and $|O|-1$ per deletion in (b)), the sum of the
+footprints $|\occ(\sigma)|$ of the deleted simplices, and $\nnz(R)+\nnz(V)$
+(Section~\ref{sec:exp-timing}). These are proxies: they count the terms of the
+sums above but not the sizes of the chains involved, so they need not move in
+the same direction as running time. Neither model counts the engine's lazy
+footprint lists: entries left behind by earlier eliminations are skipped when
+$\occ(\sigma)$ is read, which adds work proportional to the stale entries met.
+
+The quantities in Proposition~\ref{prop:cost} --- footprints $|\occ(\sigma)|$,
+reduction-chain lengths and the sizes of the chains involved --- depend on the
+whole history and on the order, not on $s_t$. We report proxies for them as
+measurements and state no locality theorem. Proposition~\ref{prop:nonlocal}
+shows that none is possible for this data structure.
+
+\subsection{No worst-case locality}\label{sec:nonlocal}
+
+\begin{proposition}[No worst-case locality for the DRB]\label{prop:nonlocal}
+Let $K$ be either (W5a) the cycle graph $C_L$, $L\ge3$, and $\sigma$ one of its
+edges, with $n:=L$; or (W5b) a triangulated $2$-sphere (more generally, a
+connected closed triangulated surface) and $\sigma$ one of its triangles, with
+$n:=n_2$. Let $k=\dim\sigma$. Then, for every key function and every choice in
+Case A:
+\begin{enumerate}
+\item[(a)] for every DRB of $\Bm{k}(K)$ satisfying (I1)--(I3), $\Del(\sigma)$ is in
+  Case A with $|V_z|=n$ and performs at least $n$ elementary operations;
+\item[(b)] for every DRB of $\Bm{k}(K\setminus\{\sigma\})$ satisfying
+  (I1)--(I3), $\Ins(\sigma)$ is positive, ends with $V_j=\Kc{k}$, and its
+  reduction chain satisfies $\sum_i|V_{p_i}|\ge n-1$;
+\item[(c)] if $S$ is any DRB state of $K\setminus\{\sigma\}$ and $S'$ is the state
+  after $\Ins(\sigma)$, then $\Del(\sigma)$ applied to $S'$ restores $S$ exactly.
+  Hence, after the first deletion, toggling $\sigma$ alternates between two fixed
+  states $S_0,S_1$, and each toggle costs at least $n$ and, in the ordered-set
+  model, at most $O\bigl(n+\nnz(R)+\nnz(V)\bigr)$ elementary operations, with
+  $\nnz$ taken in $S_0$.
+\end{enumerate}
+So on these families every toggle of $\sigma$, an update of size $s_t=1$,
+costs this algorithm $\Omega(n)$ work in either storage model, and $\Theta(n)$
+elementary operations whenever $\nnz(R)+\nnz(V)=O(n)$ in $S_0$. Other updates of
+size one, such as inserting a pendant edge, can of course be cheap.
+\end{proposition}
+
+The statement bounds the work of \emph{this} algorithm, which must maintain
+(I1)--(I3) and the footprint index; it is not a lower bound for computing Betti
+numbers under edits. For (W5a), $\beta_1=n_1-n_0+\beta_0$ and $\beta_0$ can be
+maintained by dynamic connectivity in polylogarithmic amortised time per edge
+edit~\cite{holm2001polylog}; for (W5b), see Remark~\ref{rem:surfaces}. What the
+proposition does show is that any method that stores cycle representatives
+explicitly, as (I3) forces, has to write the $n$-cell cycle when it appears.
+
+\begin{proof}
+In both cases $\Zc{k}(K)=\{0,\Kc{k}\}$. For $C_L$, a $1$-cycle is a set of edges
+meeting every vertex an even number of times, and the only non-empty such set is
+the whole cycle. For a connected closed surface, a $2$-cycle that contains a
+triangle contains, for each edge of it, the other triangle on that edge; as the
+surface is strongly connected, it contains every triangle. Also
+$\Zc{k}(K\setminus\{\sigma\})=\{0\}$, since the only non-zero cycle of $K$
+contains $\sigma$.
+
+(a) By Theorem~\ref{thm:exact}(a) exactly one slot $z$ has $R_z=0$, and
+$V_z=\Kc{k}\ni\sigma$. So $z\in O$, the deletion is in Case A with $Z=\{z\}$, and
+removing slot $z$ removes it from the footprints of all $n$ cells of $V_z$.
+
+(b) $\beta_k(K)=\beta_k(K\setminus\{\sigma\})+1$, so by
+Theorem~\ref{thm:exact}(d) $\sigma$ is positive; the final $V_j$ is then a non-zero
+cycle of $K$, i.e.\ $V_j=\Kc{k}$. Since $V_j=\{\sigma\}+\sum_iV_{p_i}$, we get
+$n\le1+\sum_i|V_{p_i}|$.
+
+(c) In $S$ no chain contains $\sigma$, and $\Ins(\sigma)$ creates one slot $j$
+and modifies no other. So in $S'$ we have $\occ(\sigma)=\{j\}$ and $R_j=0$ by
+(b): $\Del(\sigma)$ is in Case A with $O=Z=\{j\}$, modifies nothing and removes
+$j$. The key given to $\sigma$ differs between insertions, but it is always the
+largest key in use and the algorithms only compare keys, so every insertion from
+$S_0$ performs the same computation. The bounds follow from (a), (b) and
+Proposition~\ref{prop:cost}.
+\end{proof}
+
+\begin{remark}[Surfaces need no linear algebra]\label{rem:surfaces}
+Let $S$ be a connected triangulated surface, possibly with boundary (every edge
+lies in one or two triangles and every vertex link is a path or a cycle). Over
+$\Z$: $\beta_0=1$; $\beta_2=1$ if no edge lies in exactly one triangle and
+$\beta_2=0$ otherwise (by strong connectivity a non-zero $2$-cycle is the set of
+all triangles, whose boundary is the set of boundary edges); and
+$\beta_1=\beta_0+\beta_2-\chi(S)$ with $\chi=n_0-n_1+n_2$. Under atomic edits that
+keep $S$ a connected surface, $n_0,n_1,n_2$ and the number of boundary edges are
+maintained in $O(1)$ per edit from per-edge triangle counts. All Betti numbers
+are then available in $O(1)$ per edit without any matrix --- provided that
+connectivity and the surface property are known in advance; the counters do not
+certify connectivity. This is the \method{euler} method. Consequently, workloads
+consisting of connected surfaces with known connectivity cannot evaluate the
+algebraic part of a homology-maintenance method: a method that switches to these
+formulas returns correct Betti numbers there whether or not its matrix updates
+are correct.
+\end{remark}
