@@ -48,7 +48,6 @@ ORDER = ["mmhm", "mmhm-norb", "drb-id-rb", "drb-id", "full-id", "full-sorted", "
 INK = "#0b0b0b"
 INK2 = "#52514e"
 MUTED = "#898781"
-GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 
 
@@ -83,11 +82,7 @@ def setup():
         "ytick.major.size": 3,
         "xtick.minor.size": 1.8,
         "ytick.minor.size": 1.8,
-        "axes.grid": True,
-        "axes.grid.which": "major",
-        "grid.color": GRID,
-        "grid.linewidth": 0.5,
-        "grid.linestyle": "-",
+        "axes.grid": False,  # no grid: values are read from the ticks
         "axes.spines.top": False,
         "axes.spines.right": False,
         "lines.linewidth": 1.4,

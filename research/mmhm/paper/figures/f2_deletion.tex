@@ -11,7 +11,7 @@
   dedg/.style={black!80, semithick},
   dsig/.style={black, very thick, dash pattern=on 2.4pt off 1.5pt},
 }
-\newcommand{\whybox}[1]{\fcolorbox{black!50}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\scriptsize\raggedright #1}}}
+\newcommand{\whynote}[1]{{\scriptsize\raggedright #1\par}}
 {\footnotesize\renewcommand{\arraystretch}{1.06}%
 %
 % =========================== (a) Case A ===================================
@@ -55,7 +55,7 @@ $\Big\downarrow$ & \multicolumn{2}{@{}l@{}}{\parbox[c]{5.75cm}{\scriptsize\ragge
     1 & \pv{1} & 0\\
     2 & 0 & \pv{1}\end{array}$
 \end{tabular}\par\medskip
-\whybox{\textbf{Why a cycle.} $\bd V_{s_3}=R_{s_3}=0$, so the addition removes
+\whynote{\textbf{Why a cycle.} $\bd V_{s_3}=R_{s_3}=0$, so the addition removes
   $\sigma$ from $V_{s_1}$ and leaves every $R_j$, hence every low, as it was.
   $n_1$ drops and $r_1=2$ stays: $\beta_1$ falls by one.}
 \end{minipage}\hfill
@@ -106,7 +106,7 @@ $\Big\downarrow$ & \multicolumn{2}{@{}l@{}}{\parbox[c]{5.75cm}{\scriptsize\ragge
     2 & 0 & \pv{1}\\
     3 & \pv{1} & 0\end{array}$
 \end{tabular}\par\medskip
-\whybox{\textbf{Why the smallest low.} Adding $R_{s_1}=\{0,3\}$, whose low $3$
+\whynote{\textbf{Why the smallest low.} Adding $R_{s_1}=\{0,3\}$, whose low $3$
   is the largest, would instead give $\{1,3\}$ and $\{2,3\}$: two lows $3$,
   violating (I2). $R_{s_2}$ lies entirely above the other lows, so adding it
   moves none. $n_1$ and $r_1$ both drop: $\beta_0$ rises by one.}

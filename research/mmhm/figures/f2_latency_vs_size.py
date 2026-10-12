@@ -60,7 +60,6 @@ def main():
                     fontsize=6.2, color=S.INK2)
         ax.set_xlabel(r"complex size $|K_0|$ (simplices)")
         ax.set_ylabel(r"per-update latency ($\mu$s)")
-        ax.grid(True, which="major")
     handles = [S.legend_handle(m) for m in S.ORDER if m in used]
     handles.append(Line2D([], [], ls="none", marker="o", ms=6, mfc="white", mec=S.MUTED,
                           label="prefix $T'=200$"))
