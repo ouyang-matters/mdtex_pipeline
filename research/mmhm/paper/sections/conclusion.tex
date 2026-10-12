@@ -1,40 +1,31 @@
-% sections/conclusion.tex -- conclusion. Every number is a \Num macro
-% (generated/numbers.tex).
+% sections/conclusion.tex -- conclusion. Every number is a \Num macro.
 \section{Conclusion}\label{sec:conclusion}
 
-We have presented a dynamic reduced basis that maintains the $\Z$ Betti numbers
-of a simplicial complex exactly under insertions and deletions of simplices.
-Insertion is the standard reduction step; deletion corrects every basis chain
-that contains the deleted simplex, which is the rank-only form of known zigzag
-and warm-start updates. Exactness holds for every order of the cells. Discrete
-Morse theory enters through the order chosen at a build or rebuild: in the
-collapse order every gradient pair is an apparent pair, and the static
-reduction performs its column additions only in critical columns, where they are
-exactly the reduction of the Morse complex. The cost of an update is
-output-sensitive and cannot be bounded by the size of the update.
+Tracking the change of basis of a reduced boundary matrix makes it possible to
+maintain the $\Z$ Betti numbers of a simplicial complex exactly under insertions
+and deletions of simplices, for every order of the cells. Insertion is the
+standard reduction step, and deletion is the rank-only form of known zigzag and
+warm-start updates. A collapse order makes every gradient pair an apparent pair,
+so that a build performs its column additions only in critical columns, where
+they are exactly the reduction of the Morse complex. The cost of an update is
+output-sensitive, and on explicit families it is linear in the size of the
+complex for edits of size one.
 
-The experiments confirm the exactness and delimit where the method is useful.
-Where the edits touch only small cycles, the dynamic reduced basis is fast and
-nearly independent of the size of the complex: on the largest refinement
-instance all its variants are
-\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
-times faster than static recomputation, a gain that owes nothing to the Morse
-order or to rebuilds. Where the cost grows with the complex, on surfaces and on
-the non-locality witnesses, the average gain is at most a constant factor or
-negative and the tail latency is often worse; on surfaces with known
-connectivity, combinatorial counters are the better tool. A structured order
-matters far more than which one: in a random order updates were up to
-\NumWTwoNFifteenSEightDrbRandOverDrbIdAmort{} times slower, while the Morse order
-saved nothing at build time against the insertion orders of our generators and
-helped between rebuilds only on some workloads. Rebuilding paid off on cavities,
-did not trigger on refinement and flag complexes, and on surfaces helped the
-smaller instances but not the largest.
+Experimentally, the dynamic basis is exact on every state we checked and, where
+edits create and destroy only small cycles, much cheaper than recomputation:
+on our largest refinement instance every variant is
+\NumMainWTwoLargestSpeedupMin--\NumMainWTwoLargestSpeedupMax{} times faster than
+the better static baseline. This gain comes from the basis itself. Rebuilding
+controls the growth of the basis where edits change the topology, and the Morse
+order helps on some of these workloads; their combination is the fastest variant
+on cavities. Where edits create cycles that span the complex, the work is
+linear, as the theory predicts, and the method keeps at most a constant factor
+over recomputation, with a heavier tail.
 
-Open questions are maintaining the matching between rebuilds, so that the
-guarantees of \cref{sec:morse} hold at all times; rebuild policies with provable
-guarantees; bounds on footprints and reduction chains for structured families
-of complexes and edits; other coefficients; and a comparison with
-implementations of zigzag persistence.
+Open questions are maintaining the matching between rebuilds, rebuild policies
+with guarantees, bounds on footprints and reduction chains for structured
+families of complexes and edits, other coefficients, and comparisons with
+dynamic algorithms such as zigzag persistence and warm-started factorisations.
 
 \paragraph{Code and data.} Code, workloads, raw results and the scripts that
 regenerate every number and figure are available from the author.

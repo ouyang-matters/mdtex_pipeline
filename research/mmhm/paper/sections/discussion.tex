@@ -1,109 +1,61 @@
-% sections/discussion.tex -- what the results mean, limitations, when to use what.
-% Every number is a \Num macro (generated/numbers.tex).
+% sections/discussion.tex -- what the results mean and their limitations.
 \section{Discussion and limitations}\label{sec:discussion}
 
-\paragraph{Two regimes.}
-On W2, W4 and the larger W3 instances, the latency of the DRB methods depends
-little on the size of the complex. On W5, \cref{prop:nonlocal} forces a cost
-linear in the size of the toggled cycle, and the measurements follow it. On W1
-the median cost of an update also grows with the complex, although typical
-updates create only small cycles; we have not measured why (E5). Where the cost
-grows with the complex, recomputation is also linear, so the DRB keeps at most a
-constant factor, and its tail latency can be worse (E5, E6). Five workload
-families do not settle which properties of a workload decide the regime.
+\paragraph{Where the method is effective.}
+The dynamic reduced basis replaces recomputation by work on the chains that an
+edit touches. When those chains stay small, as on refinement, carving and the
+flag complexes, the latency of an update depends little on the size of the
+complex and the gain over recomputation grows with it. When an edit creates or
+destroys a cycle that spans the complex, the work is linear in that cycle
+(\cref{prop:nonlocal}), recomputation is linear too, and only a constant factor
+remains, with a heavier tail. Our five workload families mark these two regimes
+but do not settle which properties of a workload place it in one or the other.
 
-\subsection{Limitations}\label{sec:limitations}
+\paragraph{Basis sparsity and rebuilding.}
+The cost of an update is governed by the size of the maintained basis, and on
+workloads whose edits change the topology the basis can fill in over time.
+Rebuilding resets it; a growth-triggered policy fired only where fill-in
+occurred and paid off there, whereas rebuilds on a basis that does not grow are
+pure overhead. The threshold and period are heuristics, and no setting was best
+on every workload.
 
-\paragraph{Coefficients and dimension.}
-Every result of this paper is over $\Z$. Ranks over a field do not see torsion,
-which requires the Smith normal form over the
-integers~\cite{munkres1984elements}, and Betti numbers over $\Z$ can differ from
-those over other fields: the real projective plane has Betti numbers $(1,1,1)$
-over $\Z$ and $(1,0,0)$ over the rationals~\cite{hatcher2002algebraic}. We have
-neither implemented nor tested other coefficients. The proofs of
-\cref{sec:drb,sec:morse,sec:cost-locality} hold in every dimension, but the
-engine and all experiments are restricted to dimension at most three.
+\paragraph{The role of the Morse order.}
+The order of the cells does not affect correctness (\cref{thm:exact}), and
+\cref{sec:morse} shows what the Morse order guarantees at a build: every
+gradient pair is apparent and the work concentrates in the critical columns.
+Empirically, a random order made updates much slower on surfaces and
+refinement, more than the choice between two structured orders; on cavities and
+flag complexes the two effects were of similar size. The Morse order improved on
+insertion order between rebuilds and at rebuilds where the basis grows or
+carries large cycles, and not elsewhere. We
+make no sparsity claim for the state between rebuilds, and maintaining the
+matching under edits, which would extend the guarantees of \cref{sec:morse} to
+all times, remains open.
 
-\paragraph{Worst-case cost and proxies.}
-By \cref{prop:nonlocal} the cost of an update is bounded only in
-output-sensitive terms (\cref{prop:cost}), and what we log are proxies for those
-terms: counts of additions and footprints, not the sizes of the chains involved.
-The proxies and the time can disagree (E7). Where no spanning cycle is created
-the proxies stayed small: on the W2 and W4 instances of E8 the median number of
-column additions per update was at most
-\NumEEightWFourPlaneNSixteenThousandDTwoDrbIdAddsMed. Nothing guarantees this for
-other workloads.
+\paragraph{Limitations.}
+All results are over $\Z$: ranks over a field do not see torsion, and Betti
+numbers over $\Z$ can differ from those over other fields (the real projective
+plane has $(1,1,1)$ over $\Z$ and $(1,0,0)$ over the
+rationals~\cite{hatcher2002algebraic}). The proofs hold in every dimension, but
+the engine and the experiments are restricted to dimension at most three. The
+cost of an update is bounded only in output-sensitive terms, and what we log are
+proxies for those terms. All timings come from one virtual machine, with
+single-threaded runs and one compiler setting, and memory was not measured.
+The baselines are static: we compared with recomputation and with GUDHI, but not
+with implementations of zigzag persistence or warm-started factorisations, which
+also support insertions and deletions and compute richer
+output~\cite{carlsson2009zigzag,luo2023warmstart}. Our measurements therefore
+show an advantage over recomputation, not over these dynamic algorithms.
 
-\paragraph{Rebuild policy and the Morse order.}
-The growth threshold $\alpha$ and the period $m$ are heuristics whose effect
-depends on the workload (E7), and a method that may rebuild in the Morse order
-also pays, we believe, for the index such a rebuild needs (E4). The results of
-\cref{sec:morse} locate the work of a build in the critical columns; they do not
-make it smaller than in a good insertion order, and on our workloads it was not
-(E8). Between rebuilds the Morse order is a heuristic whose measured effect
-ranges from positive to negative, and for one-shot static recomputation the
-collapse did not pay for itself (E1).
-
-\paragraph{Baselines.}
-The insertion order of \method{full-id} depends on the history of edits, and its
-cost drifts upward during the W3 and the smaller W4 runs; the canonical order of
-\method{full-sorted} removes most of this drift on W4 but not on W3. Against it
-the gains of the DRB on W3 are smaller (\method{mmhm} at $N=27$:
-\NumWThreeNTwentySevenMmhmSpeedupFullSorted{} instead of
-\NumWThreeNTwentySevenMmhmSpeedupFullId) and the methods without rebuilds lose
-on the smallest instance. \method{gudhi} runs through its Python interface and
-computes persistence pairs; its times are a reference point for a widely used
-library, not the best possible static recomputation. We did not compare against
-implementations of zigzag persistence.
-
-\paragraph{Measurements.}
-All timings come from one virtual machine, single-threaded runs and one compiler
-setting. Run-to-run variation is a few percent on most instances we repeated and
-much larger on microsecond-scale updates (\cref{sec:exp-timing}); we mark
-differences within the per-seed ranges as within noise. The counters do not
-depend on the machine. We did not measure memory; as a proxy, $\nnz(R)+\nnz(V)$
-reached at most \NumWTwoNThirtyThreeSEightMmhmNnzPerSimplex{} entries per
-simplex on the largest W2 instance, \NumWOneTorusFiveHundredDrbIdNnzPerSimplex{}
-on the largest torus (\method{drb-id}) and
-\NumWThreeNTwentySevenDrbIdNnzPerSimplex{} on the largest W3 instance
-(\method{drb-id}; \method{mmhm}: \NumWThreeNTwentySevenMmhmNnzPerSimplex). W4 is
-truncated at dimension $D$, so it measures the algebra on non-manifold
-complexes, not the topology of point clouds.
-
-\subsection{When to use what}\label{sec:when}
-
-\paragraph{Surfaces with known connectivity:} combinatorial invariants
-(\cref{rem:surfaces}). On the largest W1 sphere, \method{euler} was
-\NumWOneSphereLSevenEulerSpeedupFullId{} times faster than static recomputation
-and faster still than every DRB method.
-
-\paragraph{Barcodes:} zigzag persistence~\cite{carlsson2010zigzag}.
-$\beta_k(K_t)$ is the number of $k$-dimensional intervals of the zigzag barcode
-that contain~$t$, so zigzag
-algorithms~\cite{carlsson2009zigzag,milosavljevic2011zigzag,maria2024discrete,dey2022fast}
-answer our query as well, the incremental algorithm of Carlsson, de Silva and
-Morozov~\cite{carlsson2009zigzag} after every update.
-
-\paragraph{Connectivity only:} fully dynamic connectivity, which maintains
-$\beta_0$ (and, for graphs, $\beta_1=n_1-n_0+\beta_0$) in polylogarithmic
-amortised time per edge edit~\cite{holm2001polylog}; on W5a no method that
-stores cycle representatives can match this. For complexes in the $3$-sphere
-built by insertions only, the algorithm of Delfinado and
-Edelsbrunner~\cite{delfinado1995incremental} needs near-linear total time.
-
-\paragraph{Small complexes, or tail latency under global cycles:} static
-recomputation with clearing, not in the Morse order. It stores no basis. In the
-canonical order it was faster on average than the DRB methods without rebuilds
-on the smallest W3 instance and than \method{drb-id} on almost every W1
-instance; \method{full-id} had the lower p99 on every W1 instance and, beyond
-noise in all but one case, on every W5a instance. Within the edit sizes we
-measured ($s\le64$ on W2) it did not overtake the DRB methods on average; we did
-not test larger batches.
-
-\paragraph{Edit-local updates on large general complexes:} a dynamic reduced
-basis. On W2 every variant did equally well, so the gain there comes from the
-basis itself, not from the Morse order or rebuilds. Where the basis grows, as on
-W3, the growth-triggered rebuild in the Morse order (\method{mmhm}) was the
-fastest method at every size; on the larger W4 instances and the large W1
-surfaces the Morse order without rebuilds (\method{mmhm-norb}) was at least as
-fast; on the non-locality witnesses the insertion order was faster.
+\paragraph{Alternatives.}
+Specialised structures are preferable where their assumptions hold: fully
+dynamic connectivity for $\beta_0$, and for $\beta_1$ of
+graphs~\cite{holm2001polylog}; the incremental algorithm of Delfinado and
+Edelsbrunner for insertion-only complexes in the
+$3$-sphere~\cite{delfinado1995incremental}; combinatorial counters for
+connected surfaces of known connectivity (\cref{rem:surfaces}); and zigzag
+persistence when the barcode of the whole sequence is
+needed~\cite{carlsson2010zigzag}. For small complexes, or when the tail latency
+matters on workloads with spanning cycles, static recomputation with clearing
+remains competitive. The dynamic reduced basis is suited to edit-local updates
+of large general complexes whose Betti numbers are needed online.

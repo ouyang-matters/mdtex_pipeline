@@ -1,0 +1,47 @@
+% supplement.tex -- supplementary material of "Morse-based Modular Homology for
+% Evolving Simplicial Complexes": setup details, noise, detailed validation,
+% complete results and secondary analyses. References to the main paper go
+% through xr (prefix main-), so build the two together:  ./build.sh
+\documentclass[10pt]{article}
+\usepackage{xr-hyper}
+\input{preamble}
+\externaldocument[main-]{main}
+\renewcommand{\shorttitle}{Supplementary Material}
+\hypersetup{pdftitle={Morse-based Modular Homology for Evolving Simplicial
+  Complexes: Supplementary Material}}
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+\newcommand{\appendixtable}[3]{% #1 label, #2 caption, #3 generated file stem
+  \par\bigskip
+  \begin{minipage}{\linewidth}
+    \centering
+    \captionsetup{hypcap=false}%
+    \captionof{table}{#2}\label{#1}
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \generatedtable{#3}
+  \end{minipage}\par}
+
+
+\title{Morse-based Modular Homology for Evolving Simplicial Complexes:\\
+  Supplementary Material}
+\author{%
+  Anqiao Ouyang\\
+  Mount Boucherie Secondary School\\
+  West Kelowna, British Columbia, Canada\\[11pt]
+  Department of Aerospace Engineering\\
+  San Diego State University\\
+  San Diego, California, USA\\
+  \texttt{aouyang@sdsu.edu}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{sections/supplement_body}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

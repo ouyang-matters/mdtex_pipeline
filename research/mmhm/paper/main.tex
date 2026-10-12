@@ -8,7 +8,9 @@
 % A missing figure or table renders as a visible box. The fallbacks below
 % cover only the \Num macros used in the setup, so the text needs numbers.tex.
 \documentclass[10pt]{article}
+\usepackage{xr-hyper}
 \input{preamble}
+\externaldocument[S-]{supplement}
 
 % ---------------------------------------------------------------------------
 \title{Morse-based Modular Homology for Evolving Simplicial Complexes}
@@ -42,8 +44,5 @@
 
 \bibliographystyle{plainnat}
 \bibliography{refs}
-
-\appendix
-\input{sections/appendix}
 
 \end{document}

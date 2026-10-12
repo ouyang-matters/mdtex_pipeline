@@ -57,27 +57,19 @@ record and studies what it costs.
   $\Omega(n)$ operations (\cref{prop:nonlocal}), so no bound in terms of the size
   of an edit holds.
 \item \emph{An evaluation that identifies where the method is effective.} On
-  five workload families (punctured surfaces; refinement, coarsening and
-  cavities in a $3$-ball; flag complexes of moving points; non-locality
-  witnesses) with up to \NumSizeMax{} simplices, we compare the method with
-  static recomputation in insertion order, in a canonical order that cannot
-  drift with the history, and in GUDHI~\cite{maria2014gudhi}, and with ablations
-  of the order and of the rebuild policy (\cref{sec:experiments}). Every Betti
-  vector reported by an exact method was checked against at least one reference
-  computation, \NumCoverageExternalPct\,\% against one outside our engine; none
-  disagreed. Where edits create and destroy only small cycles, the update
-  latency hardly depends on the size of the complex: on the largest refinement
-  instance (\NumWTwoNThirtyThreeSEightSize{} simplices) every variant of the
-  dynamic reduced basis is
-  \NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
-  times faster than static recomputation, with or without the Morse order. On
-  punctured surfaces it is at most \NumWOneSphereLFiveMmhmSpeedupFullId{} times
-  faster on average, some variants are slower, every variant has a worse tail
-  latency, and combinatorial counters are far cheaper; on the non-locality
-  witnesses its cost grows linearly with the complex. At build time the Morse
-  order saves nothing against the structured insertion orders of our generators,
-  although any structured order is far better than a random one; rebuilding pays
-  off where the basis grows, as on cavities, and not everywhere.
+  five workload families with up to \NumSizeMax{} simplices we compare the
+  method with static recomputation in two orders and with
+  GUDHI~\cite{maria2014gudhi}, and separate the contributions of the basis, the
+  order and rebuilding by ablations (\cref{sec:experiments}). Every Betti vector
+  reported by an exact method was checked against a reference computation, and
+  none disagreed. Where edits create and destroy only small cycles, the latency
+  hardly depends on the size of the complex: on the largest refinement instance
+  (\NumWTwoNThirtyThreeSEightSize{} simplices) every variant is
+  \NumMainWTwoLargestSpeedupMin--\NumMainWTwoLargestSpeedupMax{} times faster
+  than the better static baseline, a gain due to the basis itself. Where edits
+  change the topology and the basis fills in, growth-triggered rebuilds and the
+  Morse order together give the fastest variant. Where edits create cycles that
+  span the complex, the cost grows linearly, as \cref{prop:nonlocal} predicts.
 \end{enumerate}
 
 \paragraph{Scope.}

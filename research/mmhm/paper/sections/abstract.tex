@@ -1,5 +1,4 @@
-% sections/abstract.tex -- abstract. Every number is a \Num macro
-% (generated/numbers.tex).
+% sections/abstract.tex -- abstract. Every number is a \Num macro.
 \begin{abstract}
 We study the maintenance of the Betti numbers over $\Z$ of a simplicial complex
 under insertions and deletions of simplices. For each dimension we maintain a
@@ -12,19 +11,16 @@ numbers are exact after every edit, for every order of the cells. In the order
 given by a collapse, every gradient pair is an apparent pair, and a build
 performs column additions only in the columns of critical cells, where they
 coincide with the reduction of the Morse complex. The cost of an edit is
-output-sensitive, and we exhibit families on which every toggle of a single
-simplex costs $\Omega(n)$, so no bound in terms of the size of an edit holds. On
-five workload families with up to \NumSizeMax{} simplices, every Betti vector
-reported by an exact method was checked against a reference computation and none
-disagreed. Where edits create and destroy only small cycles, in refined and
-carved 3-balls and in flag complexes, the latency hardly depends on the size of
-the complex: at \NumWTwoNThirtyThreeSEightSize{} simplices every variant is
-\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMin--\NumWTwoNThirtyThreeSEightDrbSpeedupFullIdMax{}
-times faster than static recomputation, with or without the Morse order. On
-punctured surfaces the method is at most \NumWOneSphereLFiveMmhmSpeedupFullId{}
-times faster on average and has the worse tail latency, and combinatorial
-counters are far cheaper; on the non-locality witnesses its cost grows linearly
-with the complex. The Morse order saves nothing at build time against
-structured insertion orders but much against a random one, and helps between
-rebuilds only on some workloads.
+output-sensitive, and on explicit families every toggle of a single simplex
+costs $\Omega(n)$, so no bound in terms of the size of an edit holds. On five
+workload families with up to \NumSizeMax{} simplices, the method reported the
+correct Betti numbers in every checked state. Where edits create and destroy
+only small cycles, its latency depends little on the size of the complex: on
+\NumWTwoNThirtyThreeSEightSize{} simplices it is
+\NumMainWTwoLargestSpeedupMin--\NumMainWTwoLargestSpeedupMax{} times faster than
+the better static recomputation, a gain due to the dynamic basis itself.
+Growth-triggered rebuilds and the Morse order add further gains where edits
+change the topology and the basis fills in. Where edits create cycles that span
+the complex, the cost grows linearly, as the lower bound predicts, and the tail
+latency can exceed that of recomputation.
 \end{abstract}

@@ -36,9 +36,10 @@ def load(exp, w, m, seed=0):
         return pd.read_csv(fh)
 
 
-def main():
-    fig, axes = plt.subplots(2, 3, figsize=(S.TEXTWIDTH, 3.9), sharex=True)
-    for j, (exp, w, title) in enumerate(COLS):
+def main(cols=COLS, name="F4_time_series", width=S.TEXTWIDTH, height=3.9):
+    fig, axes = plt.subplots(2, len(cols), figsize=(width, height), sharex=True,
+                             squeeze=False)
+    for j, (exp, w, title) in enumerate(cols):
         at, ab = axes[0, j], axes[1, j]
         ymax = 0
         for m in METHODS:
@@ -87,18 +88,19 @@ def main():
         at.set_title(title, loc="left")
         ab.set_xlabel("update $t$")
         ab.set_ylim(bottom=0)
-    axes[0, 0].set_ylabel("latency, mean of 50 updates ($\\mu$s)")
-    axes[1, 0].set_ylabel(r"$\mathrm{nnz}(R)+\mathrm{nnz}(V)$ (millions)")
+    axes[0, 0].set_ylabel("latency ($\\mu$s), 50-update mean")
+    axes[1, 0].set_ylabel(r"$\mathrm{nnz}(R)+\mathrm{nnz}(V)$ ($10^6$)")
     handles = [Line2D([], [], color=S.COLOR[m], marker=S.MARKER[m], mec="white", mew=0.5,
                       label=m) for m in METHODS]
     handles.append(Line2D([], [], ls="none", marker="|", ms=7, mew=1.2, color=S.MUTED,
                           label="rebuild (mmhm, drb-id-rb)"))
-    fig.legend(handles=handles, loc="upper center", ncol=len(handles), bbox_to_anchor=(0.5, 1.04),
+    fig.legend(handles=handles, loc="upper center", ncol=len(handles) if len(cols) > 2 else 3,
+               bbox_to_anchor=(0.5, 1.04 if len(cols) > 2 else 1.08),
                handlelength=1.6, columnspacing=1.2)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    S.missing_note(fig, [e for e, _, _ in COLS], lambda w: w in [x for _, x, _ in COLS],
+    S.missing_note(fig, [e for e, _, _ in cols], lambda w: w in [x for _, x, _ in cols],
                    METHODS + ["full-id"])
-    S.save(fig, "F4_time_series")
+    S.save(fig, name)
 
 
 if __name__ == "__main__":

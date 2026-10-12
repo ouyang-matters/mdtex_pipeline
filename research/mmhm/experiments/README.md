@@ -47,7 +47,9 @@ python3 crosscheck_samples.py          # all exact configs + Python reference on
 python3 verify.py                      # exits 3 on any mismatch, 4 if workload data
                                        # or closed-form files are missing
 python3 aggregate.py                   # -> results/summary*.csv, ../paper/generated/
+python3 main_tables.py                 # main-text tables + \NumMain macros (reads summaries)
 cd ../figures && for f in f*.py; do python3 "$f"; done
+# paper, supplement and erratum (xr between paper and supplement): ../paper/build.sh
 ```
 
 `verify.py` needs `workloads/data/` (for the closed-form `.expected.betti`

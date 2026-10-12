@@ -207,3 +207,16 @@ The macros `\NumUpdates`, `\NumPrefix`, `\NumGudhiSizeMax`, `\NumSizeMax`,
 already declares fallbacks for. Note `\NumGudhiSizeMax` is the largest |K₀|
 at which `gudhi` was timed at all (on the prefix T′); the largest with all T
 updates is `\NumGudhiFullSizeMax`.
+
+## Written by `experiments/main_tables.py`
+
+These are written from `results/summary.csv` and `results/summary_pairs.csv`. No new runs.
+
+- `tab_main_summary.tex`: one representative instance per family. It shows:
+  - the static reference, which is the faster (amortised) of `full-id` and `full-sorted`, marked i or s;
+  - the amortised latency and p99 of the static reference, of `drb-id` and of `mmhm`, in ms;
+  - the speedups over the static reference (° = within noise);
+  - p99 in bold where it is above the static reference beyond noise.
+- `tab_ablation.tex`: the amortised latency of the four DRB variants. The best variant is in bold, and ° marks a variant within noise of the best. It also gives rebuilds per run.
+- `numbers_main.tex`: `\NumMain<Family><Quantity>{Min,Max}` macros. Each gives the range, over the DRB variants and instances of a family, of the amortised speedup over the faster static reference (`...Speedup`) or of the p99 ratio to it (`...ProbNinetyNineRatio`). `WThreeMmhm...` is `mmhm` only.
+- `tab_correctness_exact.tex` (written by `aggregate.py`): the exact-method part of `tab_correctness.tex`. The full table, with the `lcr` rows, is used only by `MMHM_v1_erratum.tex`.

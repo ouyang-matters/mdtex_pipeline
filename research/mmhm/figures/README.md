@@ -34,3 +34,13 @@ F1 (method schematic) is TikZ in the paper source (`paper/figures/`), not here.
 Related tables (`paper/generated/`): `tab_e7.tex` (the E7 grid with rebuild
 counts), `tab_e8.tex` (E8 quantiles), `tab_rebuild_effect.tex` (whether a
 rebuild makes the following updates cheaper or costlier, per instance).
+
+## Main-text figures (paper revision of 2026-10-12)
+
+| file | script | data | takeaway |
+|---|---|---|---|
+| `FM1_scaling.pdf` | `fm_scaling.py` | `results/summary.csv` (E1, E2, E3, E4) | On W2, W3 and W4 the median latency of every DRB variant grows far more slowly with $|K_0|$ than static recomputation. On W2 it grows linearly with the edit size $s$, and at $s=64$ it is still below recomputation. |
+| `FM2_basis_and_rebuilds.pdf` | `fm_mechanism.py` (the first two columns of `f4_time_series.py`) | `results/E1`, `results/E3`, seed 0 | On W2, $\mathrm{nnz}(R)+\mathrm{nnz}(V)$ is flat and no rebuild fires. On W3 it grows without rebuilds, and the growth-triggered rebuilds reset it. |
+| `F6_nonlocality.pdf` | `f6_nonlocality.py` | `results/summary.csv` (E6) | unchanged (see above) |
+
+F2, F3, F4, F5 and F7 are now in the supplementary material (`paper/supplement.tex`).

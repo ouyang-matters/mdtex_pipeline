@@ -13,3 +13,4 @@ paper/*.fdb_latexmk
 paper/*.synctex.gz
 paper/main.pdf
 paper/MMHM_v1_erratum.pdf
+paper/supplement.pdf
